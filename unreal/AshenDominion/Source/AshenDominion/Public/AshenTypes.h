@@ -42,6 +42,15 @@ enum class EAshenVisibility : uint8
     Visible,
 };
 
+UENUM(BlueprintType)
+enum class EAshenAIDifficulty : uint8
+{
+    Story,
+    Standard,
+    Veteran,
+    Competitive,
+};
+
 USTRUCT(BlueprintType)
 struct FAshenVisibilityGridView
 {

@@ -122,10 +122,16 @@ void report_json_is_stable_and_invalid_options_fail_closed() {
   const auto first_json = benchmark::to_json(sample);
   const auto second_json = benchmark::to_json(sample);
   CHECK(first_json == second_json);
-  CHECK(first_json.find("\"schema_version\": 3") != std::string::npos);
+  CHECK(first_json.find("\"schema_version\": 4") != std::string::npos);
   CHECK(first_json.find("\"command_trace_hash\"") != std::string::npos);
   CHECK(first_json.find("\"ai_decision_trace_hash\"") != std::string::npos);
   CHECK(first_json.find("\"ai_decisions_by_layer\"") != std::string::npos);
+  CHECK(first_json.find("\"difficulty\": \"competitive\"") != std::string::npos);
+  CHECK(first_json.find("\"ai_candidates_evaluated\"") != std::string::npos);
+  CHECK(first_json.find("\"average_ai_quality_basis_points\"") !=
+        std::string::npos);
+  CHECK(first_json.find("\"average_knowledge_delay_ticks\"") !=
+        std::string::npos);
   CHECK(first_json.find("\"avoidable_idle_production_ticks\"") != std::string::npos);
   CHECK(first_json.find("\"fixed_scenarios\"") != std::string::npos);
   CHECK(first_json.find("\"scenario_summary\"") != std::string::npos);

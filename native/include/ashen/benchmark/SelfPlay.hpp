@@ -93,6 +93,7 @@ struct FixedScenarioReport {
 struct PlayerMatchReport {
   core::PlayerId player{core::PlayerId::One};
   core::FactionId faction{core::FactionId::Compact};
+  core::AIDifficulty difficulty{core::AIDifficulty::Competitive};
   SpawnSide spawn{SpawnSide::Left};
   std::optional<core::Tick> first_barracks_started{};
   std::optional<core::Tick> first_barracks_completed{};
@@ -113,6 +114,13 @@ struct PlayerMatchReport {
   std::uint64_t ai_decisions_accepted{};
   std::uint64_t ai_decisions_rejected{};
   std::uint64_t ai_decisions_unresolved{};
+  std::uint64_t ai_candidates_available{};
+  std::uint64_t ai_candidates_evaluated{};
+  std::uint64_t ai_mistakes{};
+  std::uint64_t ai_quality_sum_basis_points{};
+  std::uint32_t average_ai_quality_basis_points{};
+  std::uint64_t knowledge_delay_sum_ticks{};
+  std::uint32_t average_knowledge_delay_ticks{};
   std::vector<CommandErrorCount> rejection_reasons{};
   std::uint64_t commands_per_minute_milli{};
   std::uint64_t retreat_units_evaluated{};
@@ -180,7 +188,7 @@ struct SuiteOptions {
 };
 
 struct SuiteReport {
-  std::uint32_t schema_version{3};
+  std::uint32_t schema_version{4};
   SuiteOptions options{};
   std::vector<MatchReport> matches{};
   std::vector<FixedScenarioReport> fixed_scenarios{};

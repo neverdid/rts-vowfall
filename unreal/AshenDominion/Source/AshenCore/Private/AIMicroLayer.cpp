@@ -77,6 +77,7 @@ void add_critical_retreat_candidate(const PlanningContext& context,
 
   auto retreat = command_for(context.observation.player(), CommandType::Retreat);
   retreat.entities = entity_ids(critical);
+  retreat.target = context.command_building->position;
   auto candidate = CandidateBuilder{AIAction::Retreat, std::move(retreat)};
   candidate.add(AIUtilityReason::Baseline, 2'000);
   if (lowest_health <=
@@ -343,8 +344,8 @@ std::optional<AIPlannedDecision> evaluate_micro_layer(const PlanningContext& con
   add_screen_candidate(context, candidates);
   add_focus_fire_candidates(context, candidates);
   add_formation_recovery_candidate(context, candidates);
-  return select_decision(AIDecisionLayer::Micro, kMicroDecisionCadence,
-                         context.doctrine,
+  return select_decision(AIDecisionLayer::Micro,
+                         context.difficulty.micro_cadence_ticks, context,
                          std::move(candidates));
 }
 

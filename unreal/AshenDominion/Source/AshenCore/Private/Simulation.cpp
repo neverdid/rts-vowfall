@@ -157,6 +157,10 @@ void Simulation::reset(const SimulationConfig& config) {
   for (auto& memory : enemy_memory_) {
     memory.clear();
   }
+  for (const auto player_id : {PlayerId::One, PlayerId::Two}) {
+    const auto index = player_index(player_id);
+    commanders_[index].reset(config_.commander_difficulties[index]);
+  }
   entities_.clear();
   resources_.clear();
   control_points_.clear();
@@ -2010,7 +2014,7 @@ void Simulation::update_commanders() {
       const auto observation = observe(player_id);
       observation_hashes[index] = observation.hash();
       observation_ticks[index] = observation.tick();
-      plans[index] = commanders_[index].plan(observation);
+      plans[index] = commanders_[index].update(observation);
     }
   }
   for (const auto player_id : {PlayerId::One, PlayerId::Two}) {
@@ -2018,7 +2022,7 @@ void Simulation::update_commanders() {
     for (auto& decision : plans[index].decisions) {
       auto command = decision.command;
       command.player = player_id;
-      command.execute_tick = tick_;
+      command.execute_tick = tick_ + decision.command_latency_ticks;
       command.sequence = 0;
       auto recorded_command = command;
       const auto decision_id = next_ai_decision_id_++;
@@ -2033,13 +2037,22 @@ void Simulation::update_commanders() {
       record.player = player_id;
       record.layer = decision.layer;
       record.cadence_ticks = decision.cadence_ticks;
+      record.difficulty = decision.difficulty;
+      record.difficulty_hash = decision.difficulty_hash;
+      record.knowledge_tick = decision.knowledge_tick;
       record.doctrine_faction = decision.doctrine_faction;
       record.temperament = decision.temperament;
       record.doctrine_hash = decision.doctrine_hash;
       record.candidates = std::move(decision.candidates);
       record.selected_candidate = decision.selected_candidate;
+      record.evaluated_candidates = decision.evaluated_candidates;
+      record.selected_quality_basis_points =
+          decision.selected_quality_basis_points;
+      record.mistake_applied = decision.mistake_applied;
       record.selected_action = decision.selected_action;
       record.winning_reason = decision.winning_reason;
+      record.command_precision_offset = decision.command_precision_offset;
+      record.command_latency_ticks = decision.command_latency_ticks;
       record.command = std::move(recorded_command);
       record.command_sequence = sequence;
       ai_decision_trace_.push_back(std::move(record));
@@ -2160,6 +2173,9 @@ std::uint64_t Simulation::state_hash() const noexcept {
   for (const auto enabled : config_.commander_players) {
     hash_integral(hash, enabled);
   }
+  for (const auto difficulty : config_.commander_difficulties) {
+    hash_integral(hash, static_cast<std::uint8_t>(difficulty));
+  }
   for (const auto ore : config_.starting_ore) {
     hash_integral(hash, ore);
   }
@@ -2225,6 +2241,9 @@ std::uint64_t Simulation::state_hash() const noexcept {
       hash_integral(hash, memory.currently_visible);
       hash_integral(hash, memory.last_observed_tick);
     }
+  }
+  for (const auto& commander : commanders_) {
+    hash_integral(hash, commander.state_hash());
   }
 
   for (const auto& player_state : players_) {

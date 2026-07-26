@@ -20,6 +20,21 @@ namespace {
   return seed ^ (seed >> 31U);
 }
 
+[[nodiscard]] std::uint64_t decision_variant(
+    const PlanningContext& context, const AIDecisionLayer layer,
+    const std::uint64_t salt) noexcept {
+  auto value = context.strategy ^
+               (context.observation.tick() * 0x94d049bb133111ebULL) ^
+               ((static_cast<std::uint64_t>(layer) + 1U) *
+                0xbf58476d1ce4e5b9ULL) ^
+               salt;
+  value ^= value >> 30U;
+  value *= 0xbf58476d1ce4e5b9ULL;
+  value ^= value >> 27U;
+  value *= 0x94d049bb133111ebULL;
+  return value ^ (value >> 31U);
+}
+
 [[nodiscard]] auto candidate_key(const ScoredCommand& candidate) noexcept {
   const auto& score = candidate.candidate;
   return std::tuple{static_cast<std::uint8_t>(score.action), score.target_entity.value,
@@ -89,8 +104,10 @@ CandidateBuilder& CandidateBuilder::influence(const AIInfluenceMap& map,
 ScoredCommand CandidateBuilder::finish() && { return std::move(value_); }
 
 PlanningContext::PlanningContext(const PlayerObservation& observation_value,
-                                 const bool build_tactical_map)
+                                 const bool build_tactical_map,
+                                 const AIDifficultyProfile difficulty_value)
     : observation(observation_value),
+      difficulty(difficulty_value),
       doctrine(ai_doctrine_profile(observation_value.self().faction,
                                    observation_value.match_seed(),
                                    observation_value.player())),
@@ -328,7 +345,7 @@ std::optional<ResearchId> faction_doctrine(const FactionId faction) noexcept {
 
 std::optional<AIPlannedDecision> select_decision(const AIDecisionLayer layer,
                                                  const Tick cadence,
-                                                 const AIDoctrineProfile& doctrine,
+                                                 const PlanningContext& context,
                                                  std::vector<ScoredCommand> candidates) {
   if (candidates.empty()) {
     return std::nullopt;
@@ -337,23 +354,96 @@ std::optional<AIPlannedDecision> select_decision(const AIDecisionLayer layer,
     return candidate_key(left) < candidate_key(right);
   });
 
-  std::size_t selected = 0;
+  std::size_t global_best = 0;
   for (std::size_t index = 1; index < candidates.size(); ++index) {
+    if (candidates[index].candidate.total_score >
+        candidates[global_best].candidate.total_score) {
+      global_best = index;
+    }
+  }
+  if (candidates[global_best].candidate.total_score <= 0) {
+    return std::nullopt;
+  }
+
+  std::vector<std::size_t> evaluated;
+  const auto breadth = context.difficulty.utility_search_breadth;
+  if (breadth == 0 || breadth >= candidates.size()) {
+    evaluated.resize(candidates.size());
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+      evaluated[index] = index;
+    }
+  } else {
+    evaluated.reserve(breadth);
+    const auto start = static_cast<std::size_t>(
+        decision_variant(context, layer, 0x243f6a8885a308d3ULL) %
+        candidates.size());
+    for (std::size_t offset = 0; offset < breadth; ++offset) {
+      evaluated.push_back((start + offset) % candidates.size());
+    }
+  }
+
+  auto selected = evaluated.front();
+  for (const auto index : evaluated) {
     if (candidates[index].candidate.total_score > candidates[selected].candidate.total_score) {
       selected = index;
     }
   }
   if (candidates[selected].candidate.total_score <= 0) {
-    return std::nullopt;
+    selected = global_best;
+    evaluated.resize(candidates.size());
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+      evaluated[index] = index;
+    }
+  }
+
+  auto mistake_applied = false;
+  const auto mistake_roll = static_cast<std::int32_t>(
+      decision_variant(context, layer, 0x13198a2e03707344ULL) % 10'000U);
+  if (mistake_roll < context.difficulty.mistake_rate_basis_points) {
+    auto alternatives = evaluated;
+    std::ranges::sort(alternatives, [&](const std::size_t left,
+                                       const std::size_t right) {
+      const auto left_score = candidates[left].candidate.total_score;
+      const auto right_score = candidates[right].candidate.total_score;
+      return left_score != right_score ? left_score > right_score : left < right;
+    });
+    for (const auto alternative : alternatives | std::views::drop(1)) {
+      const auto alternative_score =
+          candidates[alternative].candidate.total_score;
+      if (alternative_score <= 0) {
+        continue;
+      }
+      const auto quality =
+          static_cast<std::int64_t>(alternative_score) * 10'000 /
+          candidates[global_best].candidate.total_score;
+      if (quality >=
+          context.difficulty.minimum_mistake_quality_basis_points) {
+        selected = alternative;
+        mistake_applied = true;
+        break;
+      }
+    }
   }
 
   AIPlannedDecision decision{};
   decision.layer = layer;
   decision.cadence_ticks = cadence;
-  decision.doctrine_faction = doctrine.faction;
-  decision.temperament = doctrine.temperament;
-  decision.doctrine_hash = ai_doctrine_hash(doctrine);
+  decision.difficulty = context.difficulty.difficulty;
+  decision.difficulty_hash = ai_difficulty_hash(context.difficulty);
+  decision.knowledge_tick = context.observation.knowledge_tick();
+  decision.doctrine_faction = context.doctrine.faction;
+  decision.temperament = context.doctrine.temperament;
+  decision.doctrine_hash = ai_doctrine_hash(context.doctrine);
   decision.selected_candidate = selected;
+  decision.evaluated_candidates = evaluated.size();
+  decision.selected_quality_basis_points = static_cast<std::int32_t>(
+      std::clamp<std::int64_t>(
+          static_cast<std::int64_t>(
+              candidates[selected].candidate.total_score) *
+              10'000 /
+              candidates[global_best].candidate.total_score,
+          0, 10'000));
+  decision.mistake_applied = mistake_applied;
   decision.selected_action = candidates[selected].candidate.action;
   decision.winning_reason = winning_reason(candidates[selected].candidate);
   decision.command = std::move(candidates[selected].command);

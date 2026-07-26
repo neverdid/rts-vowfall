@@ -11,6 +11,8 @@ namespace ashen::core {
 
 inline constexpr Tick kMobileObservationMemoryTicks = 2'400;
 
+class CommanderAI;
+
 struct ObservedEnemy {
   EntityId id{};
   PlayerId owner{PlayerId::One};
@@ -66,6 +68,7 @@ class ASHENCORE_API PlayerObservation final {
  public:
   [[nodiscard]] Tick tick() const noexcept { return tick_; }
   [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
+  [[nodiscard]] Tick knowledge_tick() const noexcept { return knowledge_tick_; }
   [[nodiscard]] std::uint64_t match_seed() const noexcept { return match_seed_; }
   [[nodiscard]] PlayerId player() const noexcept { return player_; }
   [[nodiscard]] FactionId opponent_faction() const noexcept { return opponent_faction_; }
@@ -93,7 +96,11 @@ class ASHENCORE_API PlayerObservation final {
   [[nodiscard]] std::uint64_t hash() const noexcept;
 
  private:
+  friend class CommanderAI;
   friend class Simulation;
+
+  [[nodiscard]] PlayerObservation with_delayed_opponent_knowledge(
+      const PlayerObservation* delayed, Tick mobile_memory_ticks) const;
 
   PlayerObservation(Tick tick, std::uint64_t match_seed, PlayerId player, FactionId opponent_faction,
                     MatchStatus status, PlayerState self, std::int32_t ruin_tide, Vec2 map_size,
@@ -107,6 +114,7 @@ class ASHENCORE_API PlayerObservation final {
 
   Tick tick_{};
   std::uint64_t revision_{};
+  Tick knowledge_tick_{};
   std::uint64_t match_seed_{1};
   PlayerId player_{PlayerId::One};
   FactionId opponent_faction_{FactionId::Compact};

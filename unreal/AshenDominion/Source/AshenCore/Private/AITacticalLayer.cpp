@@ -177,7 +177,8 @@ struct DestinationChoice {
     return {goal, goal_sample, std::numeric_limits<std::int64_t>::max()};
   }
   DestinationChoice best{};
-  constexpr std::int32_t maximum_leg = 6;
+  const auto maximum_leg =
+      std::max(1, context.difficulty.planning_horizon_cells);
   for (std::int32_t row = 0; row < map.rows(); ++row) {
     for (std::int32_t column = 0; column < map.columns(); ++column) {
       const auto position = map.cell_center(column, row);
@@ -955,8 +956,8 @@ std::optional<AIPlannedDecision> evaluate_tactical_layer(const PlanningContext& 
   add_objective_candidates(context, candidates);
   add_search_candidate(context, candidates);
   add_scout_candidate(context, candidates);
-  return select_decision(AIDecisionLayer::Tactical, kTacticalDecisionCadence,
-                         context.doctrine,
+  return select_decision(AIDecisionLayer::Tactical,
+                         context.difficulty.tactical_cadence_ticks, context,
                          std::move(candidates));
 }
 
