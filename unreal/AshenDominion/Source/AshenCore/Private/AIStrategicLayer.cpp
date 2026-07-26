@@ -84,8 +84,10 @@ namespace {
       Vec2{240 * kWorldScale, 285 * kWorldScale},
       Vec2{240 * kWorldScale, -285 * kWorldScale},
   };
-  const auto attempt = static_cast<std::size_t>(
-      context.observation.tick() / kStrategicDecisionCadence);
+  const auto cadence =
+      std::max<Tick>(1, context.difficulty.strategic_cadence_ticks);
+  const auto attempt =
+      static_cast<std::size_t>(context.observation.tick() / cadence);
   if (building == EntityType::Turret) {
     const auto offset =
         turret_offsets[(attempt + existing_count) % turret_offsets.size()];
@@ -134,8 +136,9 @@ namespace {
                                                   .economy_weight_basis_points))
                                      .position(resource->position))
                            .finish());
-  return select_decision(AIDecisionLayer::Strategic, kStrategicDecisionCadence,
-                         context.doctrine,
+  return select_decision(AIDecisionLayer::Strategic,
+                         context.difficulty.strategic_cadence_ticks,
+                         context,
                          std::move(candidates));
 }
 
@@ -408,8 +411,8 @@ std::vector<AIPlannedDecision> evaluate_strategic_layer(const PlanningContext& c
   add_research_candidates(context, candidates);
   add_production_candidates(context, candidates);
   if (const auto macro = select_decision(AIDecisionLayer::Strategic,
-                                         kStrategicDecisionCadence,
-                                         context.doctrine,
+                                         context.difficulty.strategic_cadence_ticks,
+                                         context,
                                          std::move(candidates))) {
     decisions.push_back(*macro);
   }

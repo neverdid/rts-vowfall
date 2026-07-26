@@ -93,7 +93,7 @@ Exit gate:
 
 - Passed: the same seed and build produce the same telemetry, command trace, checkpoints, outcome, and state
   hash; the default two-seed suite completes 12 full matches and 48 targeted fixtures with all 228 behavior
-  checks passing inside a bounded 16,000-tick match horizon. MSVC and GCC produce byte-identical schema-v3
+  checks passing inside a bounded 16,000-tick match horizon. MSVC and GCC produce byte-identical schema-v4
   reports.
 
 ### Step 3: Strategic, tactical, and micro layers
@@ -206,14 +206,47 @@ Exit gate:
 
 ### Step 6: Honest difficulty
 
+Status: implemented in `AshenCore`.
 - Difficulty profiles define observation delay, decision cadence, command precision, planning horizon,
   mistake rate, remembered-information decay, and utility search breadth.
-- Reaction latency is applied to newly observed facts, not to the simulation itself.
-- Competitive difficulty remains bounded by actions a skilled human could perform.
+- Story, Standard, Veteran, and Competitive are immutable, hashed profiles consumed by the shared C++
+  commander. Unreal exposes the opponent setting but owns no difficulty logic; changes apply when the next
+  match starts.
+- Reaction latency is applied only to hostile sightings and last-observed objective state. Current owned
+  units, economy, resources, explored terrain, public map geometry, and legal non-hostile capabilities remain
+  live. No profile changes ore, income, supply, unit statistics, vision, command validation, or simulation
+  speed.
+- New hostile facts enter a deterministic observation buffer only after the full profile delay. Static
+  structures remain remembered, while stale mobile contacts and observed objective state decay at the
+  profile's documented memory horizon.
+- Strategic, tactical, and micro schedules are profile-aware. Planning breadth limits the deterministic
+  candidate window, planning horizon limits each tactical advance, and bounded deterministic mistakes may
+  choose only a positive runner-up above the profile's quality floor.
+- Point orders receive a deterministic radial precision offset and extra command latency. Build placement,
+  entity-target attacks, gathering, production, research, and powers are never perturbed.
+- Competitive evaluates every utility candidate, never applies an authored mistake or precision offset, and
+  adds no command delay beyond the simulation's ordinary next-fixed-step queue. Its four-tick hostile
+  perception delay is 200 ms at the 20 Hz authoritative rate.
+
+| Profile | Hostile reaction | Strategic / tactical / micro | Extra command delay | Point precision | Horizon | Mistake rate / floor | Mobile memory | Search breadth |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Story | 1.0 s | 7.0 / 9.0 / 1.5 s | 0.20 s | 18 world units | 3 cells | 18% / 55% | 30 s | 2 |
+| Standard | 0.6 s | 5.0 / 7.5 / 1.0 s | 0.10 s | 10 world units | 4 cells | 9% / 70% | 60 s | 4 |
+| Veteran | 0.3 s | 4.0 / 6.0 / 0.7 s | 0.05 s | 4 world units | 5 cells | 3% / 85% | 90 s | 6 |
+| Competitive | 0.2 s | 4.0 / 6.0 / 0.6 s | none | exact | 6 cells | none | 120 s | all |
+
+- Every decision records the difficulty and profile hash, delayed knowledge tick, available and evaluated
+  candidates, selected quality, mistake flag, precision offset, and command latency. Self-play report schema
+  v4 aggregates quality, search breadth, mistakes, and observation delay per player.
+- Native tests compare otherwise identical Story and Competitive simulations for 240 ticks and require
+  byte-identical player observations. Dedicated fixtures verify reaction windows, attack-capability delay,
+  current own-state preservation, memory decay, radial precision, deterministic replay, and a measurable
+  128-seed decision-quality difference. Unreal repeats the contract in `Ashen.Core.HonestDifficulty`.
 
 Exit gate:
 
-- Difficulty audits prove equal resources and vision while showing measurable decision-quality differences.
+- Passed: difficulty audits prove equal resources, units, and vision while showing deterministic,
+  measurable decision-quality differences without hidden-state or economy bonuses.
 
 ### Step 7: Optional narrow ML
 
@@ -230,10 +263,14 @@ visibility, combat execution, and the deterministic simulation never depend on a
 - **Strategic fixtures:** worker saturation, supply prevention, tech timing, counter-composition, and expansion risk.
 - **Information audits:** perturbing hidden enemy state cannot change an AI decision until that state is observed.
 - **Faction fixtures:** identical observations produce intentionally different, documented faction choices.
+- **Difficulty fixtures:** identical raw simulations preserve resources and vision while delayed hostile
+  knowledge and bounded decision quality follow the selected profile.
 
 ## Debugging contract
 
-Every AI decision record must contain the simulation tick, observer player, observation hash, layer,
-candidate actions, utility components, selected action, command sequence, application status, and rejected
-command reason. Tactical candidates also retain the influence-map hash and relevant sampled cell. Shipping
-builds may discard these records, but tests and development builds must be able to reproduce them.
+Every AI decision record must contain the simulation tick, observer player, observation hash, delayed
+knowledge tick, difficulty fingerprint, layer, candidate actions, evaluated breadth, utility components,
+selected quality, mistake and precision metadata, selected action, command latency and sequence, application
+status, and rejected command reason. Tactical candidates also retain the influence-map hash and relevant
+sampled cell. Shipping builds may discard these records, but tests and development builds must be able to
+reproduce them.

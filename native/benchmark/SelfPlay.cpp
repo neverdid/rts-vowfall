@@ -535,6 +535,9 @@ void write_player_json(std::ostringstream& output, const PlayerMatchReport& play
   write_indent(output, indent + 2);
   output << "\"faction\": \"" << faction_name(player.faction) << "\",\n";
   write_indent(output, indent + 2);
+  output << "\"difficulty\": \"" << core::to_string(player.difficulty)
+         << "\",\n";
+  write_indent(output, indent + 2);
   output << "\"spawn\": \"" << spawn_name(player.spawn) << "\",\n";
   write_indent(output, indent + 2);
   output << "\"first_barracks_started_tick\": ";
@@ -593,6 +596,20 @@ void write_player_json(std::ostringstream& output, const PlayerMatchReport& play
   output << "\"ai_decisions_rejected\": " << player.ai_decisions_rejected << ",\n";
   write_indent(output, indent + 2);
   output << "\"ai_decisions_unresolved\": " << player.ai_decisions_unresolved << ",\n";
+  write_indent(output, indent + 2);
+  output << "\"ai_candidates_available\": " << player.ai_candidates_available
+         << ",\n";
+  write_indent(output, indent + 2);
+  output << "\"ai_candidates_evaluated\": " << player.ai_candidates_evaluated
+         << ",\n";
+  write_indent(output, indent + 2);
+  output << "\"ai_mistakes\": " << player.ai_mistakes << ",\n";
+  write_indent(output, indent + 2);
+  output << "\"average_ai_quality_basis_points\": "
+         << player.average_ai_quality_basis_points << ",\n";
+  write_indent(output, indent + 2);
+  output << "\"average_knowledge_delay_ticks\": "
+         << player.average_knowledge_delay_ticks << ",\n";
   write_indent(output, indent + 2);
   output << "\"rejection_reasons\": [";
   for (std::size_t index = 0; index < player.rejection_reasons.size(); ++index) {
@@ -862,6 +879,9 @@ std::uint64_t ai_decision_trace_hash(
     hash_byte(hash, static_cast<std::uint8_t>(record.player));
     hash_byte(hash, static_cast<std::uint8_t>(record.layer));
     hash_u64(hash, record.cadence_ticks);
+    hash_byte(hash, static_cast<std::uint8_t>(record.difficulty));
+    hash_u64(hash, record.difficulty_hash);
+    hash_u64(hash, record.knowledge_tick);
     hash_byte(hash, static_cast<std::uint8_t>(record.doctrine_faction));
     hash_byte(hash, static_cast<std::uint8_t>(record.temperament));
     hash_u64(hash, record.doctrine_hash);
@@ -870,8 +890,13 @@ std::uint64_t ai_decision_trace_hash(
       hash_ai_candidate(hash, candidate);
     }
     hash_u64(hash, static_cast<std::uint64_t>(record.selected_candidate));
+    hash_u64(hash, static_cast<std::uint64_t>(record.evaluated_candidates));
+    hash_i32(hash, record.selected_quality_basis_points);
+    hash_bool(hash, record.mistake_applied);
     hash_byte(hash, static_cast<std::uint8_t>(record.selected_action));
     hash_byte(hash, static_cast<std::uint8_t>(record.winning_reason));
+    hash_vec(hash, record.command_precision_offset);
+    hash_u64(hash, record.command_latency_ticks);
     hash_command(hash, record.command);
     hash_u64(hash, record.command_sequence);
     hash_u64(hash, record.applied_tick);
@@ -903,6 +928,29 @@ struct DecisionAudit {
   return reason;
 }
 
+[[nodiscard]] bool uses_point_precision(
+    const core::CommandType type) noexcept {
+  switch (type) {
+    case core::CommandType::Move:
+    case core::CommandType::AttackMove:
+    case core::CommandType::Patrol:
+    case core::CommandType::SetRallyPoint:
+    case core::CommandType::Retreat:
+      return true;
+    case core::CommandType::Attack:
+    case core::CommandType::Gather:
+    case core::CommandType::Train:
+    case core::CommandType::Stop:
+    case core::CommandType::Hold:
+    case core::CommandType::Build:
+    case core::CommandType::Research:
+    case core::CommandType::ActivatePower:
+    case core::CommandType::SetStance:
+      return false;
+  }
+  return false;
+}
+
 [[nodiscard]] DecisionAudit audit_decisions(
     const std::vector<core::AIDecisionRecord>& decisions,
     const std::vector<core::CommandTraceEntry>& commands) {
@@ -930,16 +978,35 @@ struct DecisionAudit {
 
   for (const auto& decision : decisions) {
     ids.push_back(decision.id);
+    const auto& difficulty =
+        core::ai_difficulty_profile(decision.difficulty);
     auto valid = decision.id != 0 && decision.observation_hash != 0 &&
-                 decision.cadence_ticks == core::ai_decision_cadence(decision.layer) &&
-                 core::ai_decision_due(decision.layer, decision.observation_tick) &&
+                 decision.cadence_ticks ==
+                     core::ai_decision_cadence(decision.layer, difficulty) &&
+                 core::ai_decision_due(decision.layer,
+                                       decision.observation_tick,
+                                       difficulty) &&
+                 decision.difficulty_hash ==
+                     core::ai_difficulty_hash(difficulty) &&
+                 decision.knowledge_tick <= decision.observation_tick &&
+                 (decision.knowledge_tick == 0 ||
+                  decision.observation_tick - decision.knowledge_tick >=
+                      difficulty.reaction_delay_ticks) &&
                  decision.doctrine_hash != 0 &&
                  !decision.candidates.empty() &&
                  decision.selected_candidate < decision.candidates.size() &&
+                 decision.evaluated_candidates > 0 &&
+                 decision.evaluated_candidates <= decision.candidates.size() &&
+                 decision.selected_quality_basis_points >= 0 &&
+                 decision.selected_quality_basis_points <= 10'000 &&
+                 decision.command_latency_ticks ==
+                     difficulty.command_latency_ticks &&
                  decision.command.player == decision.player &&
                  decision.command_sequence != 0 &&
                  decision.command.sequence == decision.command_sequence &&
-                 decision.command.execute_tick == decision.observation_tick;
+                 decision.command.execute_tick ==
+                     decision.observation_tick +
+                         difficulty.command_latency_ticks;
 
     for (const auto& candidate : decision.candidates) {
       std::int64_t component_total = 0;
@@ -956,10 +1023,63 @@ struct DecisionAudit {
 
     if (decision.selected_candidate < decision.candidates.size()) {
       const auto& selected = decision.candidates[decision.selected_candidate];
+      const auto precision_x =
+          static_cast<std::int64_t>(decision.command_precision_offset.x);
+      const auto precision_y =
+          static_cast<std::int64_t>(decision.command_precision_offset.y);
+      const auto precision_radius =
+          static_cast<std::int64_t>(difficulty.command_precision_radius);
       valid = valid && selected.action == decision.selected_action &&
-              expected_winning_reason(selected) == decision.winning_reason;
+              expected_winning_reason(selected) == decision.winning_reason &&
+              precision_x * precision_x + precision_y * precision_y <=
+                  precision_radius * precision_radius;
+      if (uses_point_precision(decision.command.type)) {
+        valid =
+            valid &&
+            decision.command.target.x ==
+                selected.target_position.x +
+                    decision.command_precision_offset.x &&
+            decision.command.target.y ==
+                selected.target_position.y +
+                    decision.command_precision_offset.y;
+      } else {
+        valid = valid && decision.command_precision_offset == core::Vec2{};
+      }
+      auto best_score = selected.total_score;
       for (const auto& candidate : decision.candidates) {
-        valid = valid && selected.total_score >= candidate.total_score;
+        best_score = std::max(best_score, candidate.total_score);
+      }
+      const auto expected_quality =
+          best_score <= 0
+              ? 0
+              : static_cast<std::int32_t>(
+                    std::clamp<std::int64_t>(
+                        static_cast<std::int64_t>(selected.total_score) *
+                            10'000 / best_score,
+                        0, 10'000));
+      valid = valid &&
+              expected_quality == decision.selected_quality_basis_points;
+      if (difficulty.utility_search_breadth == 0) {
+        valid =
+            valid &&
+            decision.evaluated_candidates == decision.candidates.size();
+      } else {
+        valid =
+            valid &&
+            (decision.evaluated_candidates <=
+                 difficulty.utility_search_breadth ||
+             decision.evaluated_candidates == decision.candidates.size());
+      }
+      if (decision.mistake_applied) {
+        valid =
+            valid &&
+            decision.selected_quality_basis_points >=
+                difficulty.minimum_mistake_quality_basis_points;
+      }
+      if (difficulty.utility_search_breadth == 0 &&
+          difficulty.mistake_rate_basis_points == 0) {
+        valid = valid && selected.total_score == best_score &&
+                !decision.mistake_applied;
       }
     }
 
@@ -1019,6 +1139,15 @@ void record_decision_metrics(const std::vector<core::AIDecisionRecord>& decision
   for (const auto& decision : decisions) {
     auto& report = reports[core::player_index(decision.player)];
     ++report.ai_decisions_by_layer[static_cast<std::size_t>(decision.layer)];
+    report.ai_candidates_available += decision.candidates.size();
+    report.ai_candidates_evaluated += decision.evaluated_candidates;
+    report.ai_quality_sum_basis_points += static_cast<std::uint64_t>(
+        std::max(0, decision.selected_quality_basis_points));
+    report.ai_mistakes += decision.mistake_applied ? 1U : 0U;
+    report.knowledge_delay_sum_ticks +=
+        decision.observation_tick >= decision.knowledge_tick
+            ? decision.observation_tick - decision.knowledge_tick
+            : 0;
     switch (decision.command_status) {
       case core::AICommandStatus::Queued:
         ++report.ai_decisions_unresolved;
@@ -1121,7 +1250,9 @@ void add_scenario_check(FixedScenarioReport& report, std::string id, const bool 
     static_cast<void>(simulation.spawn_entity(core::PlayerId::Two,
                                               core::EntityType::Command,
                                               core::world(1'520, 400)));
-    simulation.run(29);
+    // The hostile fixture must exist for the full Competitive reaction window
+    // before the tactical evaluation at tick 30.
+    simulation.run(25);
 
     if (scenario.id == FixedScenarioId::TacticalFlankChoice) {
       const auto first = simulation.spawn_entity(core::PlayerId::One,
@@ -1472,9 +1603,11 @@ void add_scenario_check(FixedScenarioReport& report, std::string id, const bool 
   report.players = {
       PlayerMatchReport{.player = core::PlayerId::One,
                         .faction = benchmark_case.left_faction,
+                        .difficulty = config.commander_difficulties[0],
                         .spawn = SpawnSide::Left},
       PlayerMatchReport{.player = core::PlayerId::Two,
                         .faction = benchmark_case.right_faction,
+                        .difficulty = config.commander_difficulties[1],
                         .spawn = SpawnSide::Right},
   };
 
@@ -1539,6 +1672,18 @@ void add_scenario_check(FixedScenarioReport& report, std::string id, const bool 
     const auto observation = simulation.observe(player);
     auto& player_report = report.players[index];
     player_report.final_army_value = army_value(observation);
+    const auto decision_count =
+        player_report.ai_decisions_accepted +
+        player_report.ai_decisions_rejected +
+        player_report.ai_decisions_unresolved;
+    if (decision_count != 0) {
+      player_report.average_ai_quality_basis_points =
+          static_cast<std::uint32_t>(
+              player_report.ai_quality_sum_basis_points / decision_count);
+      player_report.average_knowledge_delay_ticks =
+          static_cast<std::uint32_t>(
+              player_report.knowledge_delay_sum_ticks / decision_count);
+    }
     if (report.duration_ticks != 0) {
       player_report.commands_per_minute_milli =
           player_report.commands_issued * 60U *

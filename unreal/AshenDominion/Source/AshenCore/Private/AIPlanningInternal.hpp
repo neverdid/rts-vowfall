@@ -34,7 +34,8 @@ class CandidateBuilder final {
 
 struct PlanningContext {
   explicit PlanningContext(const PlayerObservation& observation_value,
-                           bool build_tactical_map);
+                           bool build_tactical_map,
+                           AIDifficultyProfile difficulty_value);
 
   [[nodiscard]] const Entity* owned(EntityId id) const noexcept;
   [[nodiscard]] const AIInfluenceMap& tactical_map() const noexcept {
@@ -50,6 +51,7 @@ struct PlanningContext {
   std::vector<const Entity*> vanguards{};
   std::vector<const Entity*> skirmishers{};
   std::vector<const ObservedEnemy*> visible_enemies{};
+  AIDifficultyProfile difficulty{};
   AIDoctrineProfile doctrine{};
   std::uint64_t strategy{};
   std::int32_t friendly_power{};
@@ -88,7 +90,7 @@ struct PlanningContext {
     const PlayerObservation& observation, Vec2 origin) noexcept;
 [[nodiscard]] std::optional<ResearchId> faction_doctrine(FactionId faction) noexcept;
 [[nodiscard]] std::optional<AIPlannedDecision> select_decision(
-    AIDecisionLayer layer, Tick cadence, const AIDoctrineProfile& doctrine,
+    AIDecisionLayer layer, Tick cadence, const PlanningContext& context,
     std::vector<ScoredCommand> candidates);
 
 [[nodiscard]] std::vector<AIPlannedDecision> evaluate_strategic_layer(

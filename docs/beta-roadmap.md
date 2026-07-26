@@ -89,10 +89,16 @@ Deterministic AI foundation delivered:
   acceptable losses, resolve preservation, ward use, and dread exploitation
 - Attrition recovery that preserves a one-worker economic floor, rebuilds combat before surplus labor, and
   stages understrength forces away from known fortifications
+- Four honest difficulty profiles with delayed hostile perception, profile-aware cadence, planning breadth
+  and horizon, bounded mistakes, remembered-contact decay, radial point-command precision, and command
+  latency
+- Difficulty telemetry and native/Unreal audits proving identical resources, unit state, and raw vision
+  across profiles; Competitive remains full-search and human-latency bounded without economy or vision
+  cheats
 
 - Scouting, information memory, build-order planning, expansion, harassment, retreat, focus fire, and
   terrain-aware engagements
-- Distinct personalities and difficulty levels without hidden resource cheating at standard difficulty
+- Distinct personalities and further build-order breadth without hidden resource cheating at any difficulty
 - Deterministic regression scenarios and large headless simulation batches
 
 Exit gate: AI completes legal full matches with all factions, recovers from disruption, and offers stable

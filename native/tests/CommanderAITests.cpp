@@ -71,6 +71,16 @@ void hold(Simulation& simulation, const PlayerId player,
   if (decision.candidates.empty() || decision.selected_candidate >= decision.candidates.size()) {
     return false;
   }
+  const auto& difficulty = ai_difficulty_profile(decision.difficulty);
+  if (decision.difficulty != AIDifficulty::Competitive ||
+      decision.difficulty_hash != ai_difficulty_hash(difficulty) ||
+      decision.evaluated_candidates != decision.candidates.size() ||
+      decision.selected_quality_basis_points != 10'000 ||
+      decision.mistake_applied ||
+      decision.command_precision_offset != Vec2{} ||
+      decision.command_latency_ticks != difficulty.command_latency_ticks) {
+    return false;
+  }
   for (const auto& candidate : decision.candidates) {
     std::int64_t total = 0;
     for (const auto& component : candidate.components) {

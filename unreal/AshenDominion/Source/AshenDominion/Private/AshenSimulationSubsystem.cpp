@@ -100,6 +100,23 @@ EAshenVisibility ToVisibility(const ashen::core::VisibilityState Visibility)
     return static_cast<EAshenVisibility>(Visibility);
 }
 
+ashen::core::AIDifficulty ToCoreDifficulty(const EAshenAIDifficulty Difficulty)
+{
+    using ashen::core::AIDifficulty;
+    switch (Difficulty)
+    {
+    case EAshenAIDifficulty::Story:
+        return AIDifficulty::Story;
+    case EAshenAIDifficulty::Standard:
+        return AIDifficulty::Standard;
+    case EAshenAIDifficulty::Veteran:
+        return AIDifficulty::Veteran;
+    case EAshenAIDifficulty::Competitive:
+        return AIDifficulty::Competitive;
+    }
+    return AIDifficulty::Standard;
+}
+
 FString CoreText(const std::string_view Text)
 {
     return FString(UTF8_TO_TCHAR(Text.data()));
@@ -789,6 +806,12 @@ void UAshenSimulationSubsystem::RestartMatch()
     StartMatch();
 }
 
+void UAshenSimulationSubsystem::SetOpponentDifficulty(
+    const EAshenAIDifficulty Difficulty)
+{
+    OpponentDifficulty = Difficulty;
+}
+
 bool UAshenSimulationSubsystem::IsMatchOver() const
 {
     return Runtime != nullptr && Runtime->Simulation.status() != ashen::core::MatchStatus::Playing;
@@ -811,6 +834,8 @@ void UAshenSimulationSubsystem::StartMatch()
     delete Runtime;
     ashen::core::SimulationConfig Config{};
     Config.commander_players[ashen::core::player_index(ashen::core::PlayerId::Two)] = true;
+    Config.commander_difficulties[ashen::core::player_index(
+        ashen::core::PlayerId::Two)] = ToCoreDifficulty(OpponentDifficulty);
     Runtime = new FAshenSimulationRuntime(Config);
     Accumulator = 0.0f;
     LastCommandMessage.Reset();
@@ -818,9 +843,13 @@ void UAshenSimulationSubsystem::StartMatch()
     KnownControlPointInfluence.Reset();
     bGameplayEnabled = false;
     UE_LOG(LogAshenSimulation, Display,
-           TEXT("Match started: %d entities, %d resource fields, %d fixed ticks/sec"),
+           TEXT("Match started: %d entities, %d resource fields, %d fixed ticks/sec, opponent difficulty %s"),
            static_cast<int32>(Runtime->Simulation.entities().size()),
-           static_cast<int32>(Runtime->Simulation.resources().size()), ashen::core::kTicksPerSecond);
+           static_cast<int32>(Runtime->Simulation.resources().size()),
+           ashen::core::kTicksPerSecond,
+           *CoreText(ashen::core::to_string(
+               Config.commander_difficulties[ashen::core::player_index(
+                   ashen::core::PlayerId::Two)])));
     SyncWorldActors();
 }
 

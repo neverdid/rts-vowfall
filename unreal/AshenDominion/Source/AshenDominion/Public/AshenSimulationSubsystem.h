@@ -116,6 +116,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Ashen|State")
     void RestartMatch();
 
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Match")
+    void SetOpponentDifficulty(EAshenAIDifficulty Difficulty);
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Match")
+    EAshenAIDifficulty GetOpponentDifficulty() const noexcept { return OpponentDifficulty; }
+
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     bool IsGameplayEnabled() const noexcept { return bGameplayEnabled; }
 
@@ -135,6 +141,7 @@ private:
     FAshenSimulationRuntime* Runtime = nullptr;
     float Accumulator = 0.0f;
     bool bGameplayEnabled = false;
+    EAshenAIDifficulty OpponentDifficulty = EAshenAIDifficulty::Standard;
     FString LastCommandMessage;
     TMap<uint32, TWeakObjectPtr<AAshenEntityActor>> EntityActors;
     TMap<uint32, TWeakObjectPtr<AAshenResourceActor>> ResourceActors;

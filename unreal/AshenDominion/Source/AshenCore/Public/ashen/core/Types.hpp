@@ -53,6 +53,7 @@ struct Vec2 {
 
 enum class PlayerId : std::uint8_t { One, Two };
 enum class FactionId : std::uint8_t { Compact, Ascendancy, Concord };
+enum class AIDifficulty : std::uint8_t { Story, Standard, Veteran, Competitive };
 enum class MatchMode : std::uint8_t { Story, Skirmish, PvP };
 enum class MatchStatus : std::uint8_t { Playing, Won, Lost };
 enum class CommandSource : std::uint8_t { External, CommanderAI };
@@ -271,6 +272,8 @@ struct SimulationConfig {
   FactionId player_one_faction{FactionId::Compact};
   FactionId player_two_faction{FactionId::Ascendancy};
   std::array<bool, 2> commander_players{false, false};
+  std::array<AIDifficulty, 2> commander_difficulties{
+      AIDifficulty::Competitive, AIDifficulty::Competitive};
   std::array<std::int32_t, 2> starting_ore{260, 260};
   std::uint64_t match_seed{1};
   Vec2 map_size{world(2'400, 1'400)};

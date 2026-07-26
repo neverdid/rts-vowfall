@@ -102,6 +102,7 @@ PlayerObservation::PlayerObservation(const Tick tick, const std::uint64_t match_
                                      std::vector<CommandCapability> capabilities)
     : tick_(tick),
       revision_(tick),
+      knowledge_tick_(tick),
       match_seed_(match_seed),
       player_(player),
       opponent_faction_(opponent_faction),
@@ -118,6 +119,83 @@ PlayerObservation::PlayerObservation(const Tick tick, const std::uint64_t match_
       public_objectives_(std::move(public_objectives)),
       capabilities_(std::move(capabilities)) {}
 
+PlayerObservation PlayerObservation::with_delayed_opponent_knowledge(
+    const PlayerObservation* delayed, const Tick mobile_memory_ticks) const {
+  auto result = *this;
+  const auto compatible =
+      delayed != nullptr && delayed->player_ == player_ &&
+      delayed->match_seed_ == match_seed_;
+  result.knowledge_tick_ = compatible ? delayed->tick_ : 0;
+  result.known_enemies_ =
+      compatible ? delayed->known_enemies_ : std::vector<ObservedEnemy>{};
+  std::erase_if(result.known_enemies_, [&](const ObservedEnemy& enemy) {
+    if (enemy.currently_visible || enemy.kind == EntityKind::Building) {
+      return false;
+    }
+    const auto age =
+        result.knowledge_tick_ >= enemy.last_observed_tick
+            ? result.knowledge_tick_ - enemy.last_observed_tick
+            : Tick{};
+    return age >= mobile_memory_ticks;
+  });
+
+  for (auto& objective : result.public_objectives_) {
+    if (!compatible) {
+      objective.has_observed_state = false;
+      objective.last_observed_owner.reset();
+      objective.last_observed_influence = 0;
+      objective.last_observed_tick = 0;
+      continue;
+    }
+    const auto historical =
+        std::ranges::find(delayed->public_objectives_, objective.id,
+                          &ObservedControlPoint::id);
+    if (historical == delayed->public_objectives_.end() ||
+        !historical->has_observed_state) {
+      objective.has_observed_state = false;
+      objective.last_observed_owner.reset();
+      objective.last_observed_influence = 0;
+      objective.last_observed_tick = 0;
+      continue;
+    }
+    const auto age =
+        result.knowledge_tick_ >= historical->last_observed_tick
+            ? result.knowledge_tick_ - historical->last_observed_tick
+            : Tick{};
+    objective.has_observed_state = age < mobile_memory_ticks;
+    objective.last_observed_owner =
+        objective.has_observed_state ? historical->last_observed_owner
+                                     : std::nullopt;
+    objective.last_observed_influence =
+        objective.has_observed_state ? historical->last_observed_influence : 0;
+    objective.last_observed_tick =
+        objective.has_observed_state ? historical->last_observed_tick : 0;
+  }
+
+  std::vector<EntityId> attack_actors;
+  for (const auto& capability : result.capabilities_) {
+    if (capability.type == CommandType::Move) {
+      attack_actors.push_back(capability.actor);
+    }
+  }
+  std::erase_if(result.capabilities_, [](const CommandCapability& capability) {
+    return capability.type == CommandType::Attack;
+  });
+  const auto perceived_visible_enemy =
+      std::ranges::any_of(result.known_enemies_,
+                          [](const ObservedEnemy& enemy) {
+                            return enemy.currently_visible;
+                          });
+  if (perceived_visible_enemy) {
+    for (const auto actor : attack_actors) {
+      result.capabilities_.push_back(
+          CommandCapability{CommandType::Attack, actor});
+    }
+    std::ranges::sort(result.capabilities_);
+  }
+  return result;
+}
+
 bool PlayerObservation::permits(const CommandType type, const EntityId actor,
                                 const std::optional<EntityType> entity_type,
                                 const std::optional<ResearchId> research) const noexcept {
@@ -131,6 +209,7 @@ std::uint64_t PlayerObservation::hash() const noexcept {
   auto hash = kFnvOffset;
   hash_integral(hash, tick_);
   hash_integral(hash, revision_);
+  hash_integral(hash, knowledge_tick_);
   hash_integral(hash, match_seed_);
   hash_integral(hash, static_cast<std::uint8_t>(player_));
   hash_integral(hash, static_cast<std::uint8_t>(opponent_faction_));

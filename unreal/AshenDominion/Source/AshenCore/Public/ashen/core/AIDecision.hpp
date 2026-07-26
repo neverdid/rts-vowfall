@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ashen/core/AIDifficulty.hpp"
 #include "ashen/core/AIDoctrine.hpp"
 #include "ashen/core/AIInfluenceMap.hpp"
 #include "ashen/core/Types.hpp"
@@ -105,6 +106,20 @@ inline constexpr Tick kLateSearchCommitmentTick = 7'200;
   return 1;
 }
 
+[[nodiscard]] constexpr Tick ai_decision_cadence(
+    const AIDecisionLayer layer,
+    const AIDifficultyProfile& difficulty) noexcept {
+  switch (layer) {
+    case AIDecisionLayer::Strategic:
+      return difficulty.strategic_cadence_ticks;
+    case AIDecisionLayer::Tactical:
+      return difficulty.tactical_cadence_ticks;
+    case AIDecisionLayer::Micro:
+      return difficulty.micro_cadence_ticks;
+  }
+  return 1;
+}
+
 [[nodiscard]] constexpr bool ai_decision_due(const AIDecisionLayer layer, const Tick tick) noexcept {
   switch (layer) {
     case AIDecisionLayer::Strategic:
@@ -114,6 +129,25 @@ inline constexpr Tick kLateSearchCommitmentTick = 7'200;
              (tick - kTacticalDecisionPhase) % kTacticalDecisionCadence == 0;
     case AIDecisionLayer::Micro:
       return tick >= kMicroDecisionCadence && tick % kMicroDecisionCadence == 0;
+  }
+  return false;
+}
+
+[[nodiscard]] constexpr bool ai_decision_due(
+    const AIDecisionLayer layer, const Tick tick,
+    const AIDifficultyProfile& difficulty) noexcept {
+  const auto cadence = ai_decision_cadence(layer, difficulty);
+  if (cadence == 0) {
+    return false;
+  }
+  switch (layer) {
+    case AIDecisionLayer::Strategic:
+      return tick == 1 || (tick > 0 && tick % cadence == 0);
+    case AIDecisionLayer::Tactical:
+      return tick >= difficulty.tactical_phase_ticks &&
+             (tick - difficulty.tactical_phase_ticks) % cadence == 0;
+    case AIDecisionLayer::Micro:
+      return tick >= cadence && tick % cadence == 0;
   }
   return false;
 }
@@ -143,13 +177,21 @@ struct AICandidateScore {
 struct AIPlannedDecision {
   AIDecisionLayer layer{AIDecisionLayer::Strategic};
   Tick cadence_ticks{kStrategicDecisionCadence};
+  AIDifficulty difficulty{AIDifficulty::Competitive};
+  std::uint64_t difficulty_hash{};
+  Tick knowledge_tick{};
   FactionId doctrine_faction{FactionId::Compact};
   AITemperament temperament{AITemperament::Steady};
   std::uint64_t doctrine_hash{};
   std::vector<AICandidateScore> candidates{};
   std::size_t selected_candidate{};
+  std::size_t evaluated_candidates{};
+  std::int32_t selected_quality_basis_points{10'000};
+  bool mistake_applied{};
   AIAction selected_action{AIAction::AssignGatherers};
   AIUtilityReason winning_reason{AIUtilityReason::Baseline};
+  Vec2 command_precision_offset{};
+  Tick command_latency_ticks{};
   Command command{};
 
   auto operator<=>(const AIPlannedDecision&) const = default;
@@ -168,13 +210,21 @@ struct AIDecisionRecord {
   PlayerId player{PlayerId::One};
   AIDecisionLayer layer{AIDecisionLayer::Strategic};
   Tick cadence_ticks{kStrategicDecisionCadence};
+  AIDifficulty difficulty{AIDifficulty::Competitive};
+  std::uint64_t difficulty_hash{};
+  Tick knowledge_tick{};
   FactionId doctrine_faction{FactionId::Compact};
   AITemperament temperament{AITemperament::Steady};
   std::uint64_t doctrine_hash{};
   std::vector<AICandidateScore> candidates{};
   std::size_t selected_candidate{};
+  std::size_t evaluated_candidates{};
+  std::int32_t selected_quality_basis_points{10'000};
+  bool mistake_applied{};
   AIAction selected_action{AIAction::AssignGatherers};
   AIUtilityReason winning_reason{AIUtilityReason::Baseline};
+  Vec2 command_precision_offset{};
+  Tick command_latency_ticks{};
   Command command{};
   std::uint64_t command_sequence{};
   Tick applied_tick{};

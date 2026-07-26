@@ -10,6 +10,7 @@
 #include "Misc/AutomationTest.h"
 #include "ProceduralMeshComponent.h"
 #include "UObject/UObjectGlobals.h"
+#include "ashen/core/AIDifficulty.hpp"
 #include "ashen/core/AIDoctrine.hpp"
 #include "ashen/core/AIInfluenceMap.hpp"
 #include "ashen/core/Catalog.hpp"
@@ -121,6 +122,140 @@ bool FAshenCoreAuthoritativeFogTest::RunTest(const FString &Parameters)
               Match.is_entity_visible_to(*Match.find_entity(Enemy), PlayerId::One));
     TestEqual(TEXT("Pursuit ends when contact is lost"), static_cast<uint8>(Match.find_entity(Attacker)->order.type),
               static_cast<uint8>(OrderType::Idle));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenCoreHonestDifficultyTest,
+                                 "Ashen.Core.HonestDifficulty",
+                                 EAutomationTestFlags::EditorContext |
+                                     EAutomationTestFlags::EngineFilter)
+
+bool FAshenCoreHonestDifficultyTest::RunTest(const FString &Parameters)
+{
+    static_cast<void>(Parameters);
+    using namespace ashen::core;
+
+    SimulationConfig Config{};
+    Config.seed_starting_forces = false;
+    Config.starting_ore = {1'000, 1'000};
+    Config.map_size = world(2'000, 800);
+    Config.navigation_obstacles.clear();
+    Simulation Match{Config};
+    static_cast<void>(Match.spawn_entity(PlayerId::One, EntityType::Command,
+                                         world(100, 400)));
+    static_cast<void>(Match.spawn_entity(PlayerId::Two, EntityType::Command,
+                                         world(1'900, 400)));
+    const EntityId Observer = Match.spawn_entity(
+        PlayerId::One, EntityType::Vanguard, world(800, 400));
+    const EntityId Contact = Match.spawn_entity(
+        PlayerId::Two, EntityType::Vanguard, world(980, 400));
+    static_cast<void>(Match.spawn_entity(PlayerId::One, EntityType::Worker,
+                                         world(230, 400)));
+    static_cast<void>(Match.add_resource(world(360, 400), 1'200));
+    TestTrue(TEXT("The test observer can hold position"),
+             Match.execute_now(Command{.player = PlayerId::One,
+                                       .type = CommandType::Hold,
+                                       .entities = {Observer}})
+                 .ok);
+    TestTrue(TEXT("The hostile contact can hold position"),
+             Match.execute_now(Command{.player = PlayerId::Two,
+                                       .type = CommandType::Hold,
+                                       .entities = {Contact}})
+                 .ok);
+
+    CommanderAI Story{PlayerId::One, AIDifficulty::Story};
+    CommanderAI Competitive{PlayerId::One, AIDifficulty::Competitive};
+    const AIDifficultyProfile &StoryProfile =
+        ai_difficulty_profile(AIDifficulty::Story);
+    const AIDifficultyProfile &CompetitiveProfile =
+        ai_difficulty_profile(AIDifficulty::Competitive);
+    TestTrue(TEXT("Difficulty profiles have stable distinct fingerprints"),
+             ai_difficulty_hash(StoryProfile) != 0 &&
+                 ai_difficulty_hash(CompetitiveProfile) != 0 &&
+                 ai_difficulty_hash(StoryProfile) !=
+                     ai_difficulty_hash(CompetitiveProfile));
+
+    bool bCompetitiveObservedOnSchedule = false;
+    bool bStoryObservedOnSchedule = false;
+    for (Tick TickIndex = 0; TickIndex <= StoryProfile.reaction_delay_ticks;
+         ++TickIndex)
+    {
+        const PlayerObservation Raw = Match.observe(PlayerId::One);
+        const PlayerObservation StoryView = Story.perceive(Raw);
+        const PlayerObservation CompetitiveView = Competitive.perceive(Raw);
+        const bool bStoryHasContact = std::ranges::any_of(
+            StoryView.known_enemies(),
+            [](const ObservedEnemy &Enemy) { return Enemy.currently_visible; });
+        const bool bCompetitiveHasContact = std::ranges::any_of(
+            CompetitiveView.known_enemies(),
+            [](const ObservedEnemy &Enemy) { return Enemy.currently_visible; });
+
+        TestEqual(TEXT("Difficulty does not alter current own ore"),
+                  StoryView.self().ore, Raw.self().ore);
+        TestEqual(TEXT("Difficulty does not alter current owned unit count"),
+                  static_cast<int32>(StoryView.owned_entities().size()),
+                  static_cast<int32>(Raw.owned_entities().size()));
+        TestTrue(TEXT("Difficulty does not grant extra map vision"),
+                 StoryView.explored_map().cells() ==
+                     Raw.explored_map().cells());
+        if (TickIndex < CompetitiveProfile.reaction_delay_ticks)
+        {
+            TestFalse(TEXT("Competitive still respects its reaction window"),
+                      bCompetitiveHasContact);
+        }
+        if (TickIndex < StoryProfile.reaction_delay_ticks)
+        {
+            TestFalse(TEXT("Story still respects its reaction window"),
+                      bStoryHasContact);
+        }
+        bCompetitiveObservedOnSchedule =
+            bCompetitiveObservedOnSchedule ||
+            (TickIndex == CompetitiveProfile.reaction_delay_ticks &&
+             bCompetitiveHasContact);
+        bStoryObservedOnSchedule =
+            bStoryObservedOnSchedule ||
+            (TickIndex == StoryProfile.reaction_delay_ticks &&
+             bStoryHasContact);
+
+        if (TickIndex == 1)
+        {
+            const CommanderPlan StoryPlan = Story.plan(Raw);
+            const CommanderPlan CompetitivePlan = Competitive.plan(Raw);
+            TestTrue(TEXT("Story decisions retain the selected profile"),
+                     !StoryPlan.decisions.empty() &&
+                         std::ranges::all_of(
+                             StoryPlan.decisions,
+                             [&StoryProfile](const AIPlannedDecision &Decision)
+                             {
+                                 return Decision.difficulty ==
+                                            AIDifficulty::Story &&
+                                     Decision.difficulty_hash ==
+                                         ai_difficulty_hash(StoryProfile);
+                             }));
+            TestTrue(TEXT("Competitive decisions retain the selected profile"),
+                     !CompetitivePlan.decisions.empty() &&
+                         std::ranges::all_of(
+                             CompetitivePlan.decisions,
+                             [&CompetitiveProfile](
+                                 const AIPlannedDecision &Decision)
+                             {
+                                 return Decision.difficulty ==
+                                            AIDifficulty::Competitive &&
+                                     Decision.difficulty_hash ==
+                                         ai_difficulty_hash(
+                                             CompetitiveProfile);
+                             }));
+        }
+        if (TickIndex != StoryProfile.reaction_delay_ticks)
+        {
+            Match.step();
+        }
+    }
+
+    TestTrue(TEXT("Competitive observes contact after its full delay"),
+             bCompetitiveObservedOnSchedule);
+    TestTrue(TEXT("Story observes contact after its full delay"),
+             bStoryObservedOnSchedule);
     return true;
 }
 
