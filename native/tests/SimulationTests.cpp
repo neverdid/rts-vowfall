@@ -51,6 +51,29 @@ void deterministic_fixed_step() {
   CHECK(first.state_hash() == second.state_hash());
 }
 
+void starter_resource_fields_are_mirrored_and_clear_of_landmarks() {
+  Simulation simulation{};
+  CHECK(simulation.resources().size() >= 2);
+  if (simulation.resources().size() < 2) {
+    return;
+  }
+
+  const auto map_size = simulation.config().map_size;
+  const auto middle_y = map_size.y / 2;
+  const auto left_x = world(300, 0).x;
+  const auto right_x = map_size.x - left_x;
+  const auto expected_left = Vec2{left_x + world(260, 0).x, middle_y + world(180, 0).x};
+  const auto expected_right = Vec2{right_x - world(260, 0).x, middle_y - world(180, 0).x};
+  const auto& left_field = simulation.resources()[0];
+  const auto& right_field = simulation.resources()[1];
+
+  CHECK(left_field.position == expected_left);
+  CHECK(right_field.position == expected_right);
+  CHECK(left_field.position.x + right_field.position.x == map_size.x);
+  CHECK(left_field.position.y + right_field.position.y == map_size.y);
+  CHECK(left_field.amount == right_field.amount);
+}
+
 void movement_reaches_an_exact_target() {
   auto simulation = sandbox();
   const auto worker = simulation.spawn_entity(PlayerId::One, EntityType::Worker, world(100, 100));
@@ -972,6 +995,8 @@ void core_bots_finish_a_deterministic_headless_match() {
 
 int main() {
   run_test("deterministic fixed step", deterministic_fixed_step);
+  run_test("starter resource fields are mirrored and clear of landmarks",
+           starter_resource_fields_are_mirrored_and_clear_of_landmarks);
   run_test("movement reaches an exact target", movement_reaches_an_exact_target);
   run_test("workers complete repeatable ore trips", workers_complete_repeatable_ore_trips);
   run_test("production obeys cost, supply, and build time", production_obeys_cost_supply_and_build_time);

@@ -194,8 +194,9 @@ void Simulation::reset(const SimulationConfig& config) {
                                    {base_x + direction * world(125, 0).x, middle_y + world(80, 0).x}));
   }
 
-  static_cast<void>(add_resource({left_x + world(260, 0).x, middle_y - world(180, 0).x}, 1'200));
-  static_cast<void>(add_resource({right_x - world(260, 0).x, middle_y + world(180, 0).x}, 1'200));
+  // Starter fields sit in open base-side pockets, away from Blackridge and Gravewood.
+  static_cast<void>(add_resource({left_x + world(260, 0).x, middle_y + world(180, 0).x}, 1'200));
+  static_cast<void>(add_resource({right_x - world(260, 0).x, middle_y - world(180, 0).x}, 1'200));
   static_cast<void>(add_resource({config.map_size.x / 2, middle_y}, 2'400, 32'000));
   static_cast<void>(add_resource({world(620, 0).x, world(170, 0).x}, 900));
   static_cast<void>(add_resource({world(790, 0).x, world(180, 0).x}, 900));

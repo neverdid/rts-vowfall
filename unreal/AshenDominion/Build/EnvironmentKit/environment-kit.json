@@ -11,8 +11,21 @@
     "listing_version_reviewed": "2026-06-17",
     "raw_distribution": "private-collaborators-only"
   },
+  "project_titan_intake": {
+    "source_project": "C:/UnrealProjects/ProjectTitanSource",
+    "engine_version": "5.8",
+    "selected_family": "Marshlands Mossy Rock Medium",
+    "selection_status": "locally-integrated",
+    "selection_reason": "Complete D/N/ORM triplet, subdued natural palette, no signature landmark dependency, and readable detail at the RTS camera.",
+    "source_assets": [
+      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_D",
+      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_N",
+      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_ORM"
+    ],
+    "target_prefix": "Textures/Stone/T_Foundation"
+  },
   "recommended_acquisitions": [
-    { "name": "Project Titan", "listing_id": "c05aac82-4c1a-4e42-96b3-be668dc40fca", "kind": "source_project", "quality": null },
+    { "name": "Project Titan", "listing_id": "c05aac82-4c1a-4e42-96b3-be668dc40fca", "kind": "source_project", "quality": "medium_2k", "target": "FoundationStone" },
     { "name": "Soil Mud", "listing_id": "c33cb641-e9bd-4966-adc3-c0b5a937ab12", "kind": "surface", "quality": "medium_2k", "target": "Mud" },
     { "name": "Forest Floor", "listing_id": "3463d6dc-43fb-4bb2-9d54-9590cf23257e", "kind": "surface", "quality": "medium_2k", "target": "Moor" },
     { "name": "Dirty Stone Tiles", "listing_id": null, "kind": "surface", "quality": "local_import_2k", "target": "RoadStone", "source_path": "/Game/DirtyStoneTile_material" },
@@ -41,6 +54,6 @@
     { "slot": "WetStone", "prefix": "Textures/Stone/T_WetStone", "source_asset": "fallback:RoadStone" },
     { "slot": "WeatheredWood", "prefix": "Textures/Wood/T_WeatheredWood", "source_asset": "/Game/Fab/Megascans/Surfaces/Wooden_Planks_vlzhdbwdy" },
     { "slot": "Bark", "prefix": "Textures/Wood/T_OldBark", "source_asset": null },
-    { "slot": "FoundationStone", "prefix": "Textures/Stone/T_Foundation", "source_asset": "fallback:RoadStone" }
+    { "slot": "FoundationStone", "prefix": "Textures/Stone/T_Foundation", "source_asset": "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01" }
   ]
 }

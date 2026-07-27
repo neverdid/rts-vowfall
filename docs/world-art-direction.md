@@ -34,9 +34,13 @@ landscapes are the primary visual references.
 
 - Blackridge occupies the northwest. It is a single mine-bearing ridge with a visible cliff spine, two
   concealed adits, and a rear road that supports ambushes. Loose scree supports the silhouette but never
-  substitutes for the landform.
+  substitutes for the landform. Its adits signal neutral, contestable reserves; they are not the human
+  starter field.
 - Gravewood occupies the southeast. Its dense canopy, roots, dead trees, and two spirit caches are the
   rotational gameplay counterpart to Blackridge, while its visual language remains organic rather than rocky.
+- The starter cursed-iron fields occupy open, rotationally mirrored pockets: southwest of the human gate and
+  northeast of the monster gate. Both fields keep equal base travel distance and remain clear of major
+  landmarks, flank roads, and dense sightline blockers.
 - The river enters beyond the north terrain overscan and leaves beyond the south overscan. The water mesh,
   terrain cut, bank line, and crossing centers use the same curve.
 - The north and south flank lanes cross on timber bridges. The main lane crosses on a broad old stone

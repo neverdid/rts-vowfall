@@ -80,15 +80,19 @@ lower saturation, preserve mid-value unit contrast, and keep blood-red accents s
 
 ## Intake sequence
 
-1. Add Project Titan to the artist's Fab library and create it as a separate UE 5.8 project.
+1. Add Project Titan to the artist's Fab library and create it as a separate UE 5.8 project at
+   `C:\UnrealProjects\ProjectTitanSource`.
 2. Review its assets in an overview level; do not migrate folders in bulk.
 3. Import or migrate one approved dependency-complete asset family into its raw local source folder.
-4. Run `Build/EnvironmentKit/intake_free_surfaces.py` to duplicate approved textures into the canonical
-   ignored root, cap them at 2K, and normalize sRGB and compression settings.
-5. Normalize mesh names, 100 cm envelope, pivot, material slots, LOD/Nanite, and collision.
-6. Run `Build/EnvironmentKit/audit_environment_kit.py` through `UnrealEditor-Cmd.exe`.
-7. Capture both the battle camera and whole battlefield and compare unit readability and frame cost.
-8. Record the exact source asset and transformation in `environment-kit.json` before approval.
+4. Run `Build/EnvironmentKit/intake_project_titan.py` against that source project. It duplicates only
+   the approved family under `/Game/External/VowfallEnvironmentKit`, caps it at 2K, and normalizes sRGB
+   and compression settings.
+5. Copy the resulting canonical folder into Vowfall's matching ignored `Content/External` folder.
+6. Run `Build/EnvironmentKit/intake_free_surfaces.py` inside Vowfall for the other approved free surfaces.
+7. Normalize mesh names, 100 cm envelope, pivot, material slots, LOD/Nanite, and collision.
+8. Run `Build/EnvironmentKit/audit_environment_kit.py` through `UnrealEditor-Cmd.exe`.
+9. Capture both the battle camera and whole battlefield and compare unit readability and frame cost.
+10. Record the exact source asset and transformation in `environment-kit.json` before approval.
 
 The intake script path must use forward slashes on the Unreal command line. Backslashes can turn the
 `\r` in a folder such as `rts` into a carriage return:
@@ -115,11 +119,16 @@ entitled on the project account:
 | [Soil Mud](https://www.fab.com/listings/c33cb641-e9bd-4966-adc3-c0b5a937ab12) | `T_Mud` | Continuous flank trails, main-lane shoulders, ruts, and wet shore |
 | Dirty Stone Tiles local import | `T_RoadStone` | Aged central causeway; wet and structural stone slots may fall back to it |
 | [Weathered Wooden Planks](https://www.fab.com/listings/943bdc90-e4c2-4a63-8ca0-1b9556f933dd) | `T_WeatheredWood` | Timber bridge decks and mine supports |
-| [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) | Separate source project | Candidate free mesh source; no bulk migration |
+| [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca), Marshlands Mossy Rock Medium | `T_Foundation` | Blackridge mountain rock and weathered human foundations; selected as a complete `D/N/ORM` family with no signature-biome dependency |
 
 The raw Fab folders and the normalized `/Game/External/VowfallEnvironmentKit` copies stay local and are
 ignored by Git. Public source contains only the intake script, provenance, canonical contract, material
 bindings, and deterministic fallbacks.
+
+The UE 5.8 launcher manifest observed during this pass required 65.62 GB of free installation space for
+the complete Titan sample. A workstation without that headroom must use an approved private project store
+or free sufficient space before acquiring the full source; it must not add partial or unverified binaries
+to Git. Vowfall's first intake remains deliberately limited to the three reviewed texture assets above.
 
 Do not purchase replacement packs for this pass. Future candidates are added only when they are free or
 already entitled, visually coherent with painterly realism, and useful enough to justify their shader,
