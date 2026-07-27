@@ -35,6 +35,8 @@ unreal/AshenDominion/*.sln
 
 # Licensed Fab source assets are acquired by each collaborator and stay private.
 unreal/AshenDominion/Content/External/
+unreal/AshenDominion/Content/Fab/
+unreal/AshenDominion/Content/DirtyStoneTile_material/
 
 # Editor directories and files
 .vscode/*

@@ -42,7 +42,8 @@ landscapes are the primary visual references.
 - The north and south flank lanes cross on timber bridges. The main lane crosses on a broad old stone
   causeway. Bank dressing, reeds, ruins, and shrine props maintain a clear radius around all three crossings.
 - Roads are continuous between each base gate and crossing. A visible break is allowed only when an authored
-  bridge, ford, collapse, or deliberate terrain transition explains it.
+  bridge, ford, collapse, or deliberate terrain transition explains it. Terrain-following ribbons use
+  continuous UVs, subdued width variation, and wheel wear rather than repeated rectangular road pieces.
 - The Drowned Wayshrine sits beside the central route, never inside it. Its ruins are an orientation landmark,
   not an obstacle or an ambiguous cluster of stretched props.
 
@@ -130,11 +131,17 @@ Delivered foundation:
   blend, tiling, normal-strength, and mask-strength controls
 - Project Titan selection policy, Fab license boundary, canonical naming, intake manifest, audit tool,
   and Unreal automation contract
+- Free forest-floor, soil-mud, dirty-stone, and weathered-plank families are normalized into a local 2K
+  kit with semantic fallbacks; raw licensed assets remain outside public source control
+- One continuous river surface replaces overlapping water planes, with a narrow wet shoreline, sparse
+  bank stone, and authored clearances beneath all three crossings
+- Continuous procedural road ribbons distinguish the direct aged-stone causeway from smoother dirt flank
+  routes without changing deterministic pathing or collision
 
 Remaining production pass:
 
-- Acquire Project Titan per collaborator, inspect exact source assets, and migrate only approved rock,
-  cliff, dead-forest, road, timber, debris, and generic surface families
+- Inspect the already acquired Project Titan source project and migrate only approved free rock, cliff,
+  dead-forest, debris, and generic structural mesh families
 - Normalize pivots, collision, Nanite/LOD settings, foliage rules, texture channels, and source-art records
 - Capture and profile each category replacement before accepting it over the original Vowfall mesh
 

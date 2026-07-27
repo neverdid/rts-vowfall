@@ -43,16 +43,19 @@ private:
     TObjectPtr<UProceduralMeshComponent> Terrain;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
-    TObjectPtr<UInstancedStaticMeshComponent> Roadbed;
+    TObjectPtr<UProceduralMeshComponent> RoadSurface;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
-    TObjectPtr<UInstancedStaticMeshComponent> RoadStones;
+    TObjectPtr<UProceduralMeshComponent> RoadStoneSurface;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
-    TObjectPtr<UInstancedStaticMeshComponent> RoadRuts;
+    TObjectPtr<UProceduralMeshComponent> RoadRutSurface;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
-    TArray<TObjectPtr<UStaticMeshComponent>> WaterSegments;
+    TObjectPtr<UProceduralMeshComponent> RiverSurface;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UProceduralMeshComponent> RiverShoreSurface;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
     TObjectPtr<UInstancedStaticMeshComponent> RiverBanks;

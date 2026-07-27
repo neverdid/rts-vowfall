@@ -75,6 +75,7 @@ void Ashen::Materials::ApplySurface(UPrimitiveComponent *Component, UObject *Out
     Material->SetScalarParameterValue(TEXT("Specular"), Style.Specular);
     Material->SetScalarParameterValue(TEXT("AmbientOcclusion"), Style.AmbientOcclusion);
     Material->SetScalarParameterValue(TEXT("TextureTiling"), Style.TextureTiling);
+    Material->SetVectorParameterValue(TEXT("TextureTint"), Style.TextureTint);
 
     const Ashen::EnvironmentKit::FSurfaceTextures Textures =
         Ashen::EnvironmentKit::ResolveSurfaceTextures(Surface);

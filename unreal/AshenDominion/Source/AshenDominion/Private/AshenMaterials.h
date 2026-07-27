@@ -23,6 +23,7 @@ struct FSurfaceStyle
     float TextureTiling = 1.0f;
     float NormalStrength = 0.68f;
     float PackedStrength = 0.76f;
+    FLinearColor TextureTint = FLinearColor::White;
 };
 
 void Apply(UPrimitiveComponent *Component, UObject *Outer, const FLinearColor &Color, float Roughness);

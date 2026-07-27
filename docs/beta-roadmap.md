@@ -54,10 +54,14 @@ Production-kit foundation delivered:
 - Project Titan has a license-safe curation policy, canonical intake manifest, and local audit workflow
 - Surface master supports base-color, normal, and packed AO/roughness texture sets without changing
   gameplay collision
+- Four free or entitled surface families are normalized into the ignored local 2K kit and applied to
+  terrain, roads, the causeway, bridges, mine timber, and structural stone
+- Route slabs and overlapping water planes are replaced by tested continuous procedural ribbons, with
+  distinct main/flank treatment and crossing-safe shoreline dressing
 
-Next graphics slice: acquire and curate the approved Project Titan subset, normalize the first rock,
-dead-forest, ground, road, bridge, and generic castle-material families, then compare production captures
-against the original Vowfall fallback kit.
+Next graphics slice: inspect the already acquired Project Titan source project, curate only free rock,
+cliff, dead-forest, debris, and generic structural mesh families, then compare production captures and
+frame cost against the original Vowfall fallback kit.
 
 - Replace procedural proxy terrain with an authored competitive map using landscape, roads, bridges,
   river water, forests, cliffs, castles, landmarks, and faction-readable bases

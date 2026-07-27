@@ -82,30 +82,45 @@ lower saturation, preserve mid-value unit contrast, and keep blood-red accents s
 
 1. Add Project Titan to the artist's Fab library and create it as a separate UE 5.8 project.
 2. Review its assets in an overview level; do not migrate folders in bulk.
-3. Migrate one approved dependency-complete asset family into the canonical external root.
-4. Normalize names, 100 cm envelope, pivot, material slots, texture channels, LOD/Nanite, and collision.
-5. Run `Build/EnvironmentKit/audit_environment_kit.py` through `UnrealEditor-Cmd.exe`.
-6. Capture both the battle camera and whole battlefield and compare unit readability and frame cost.
-7. Record the exact source asset and transformation in `environment-kit.json` before approval.
+3. Import or migrate one approved dependency-complete asset family into its raw local source folder.
+4. Run `Build/EnvironmentKit/intake_free_surfaces.py` to duplicate approved textures into the canonical
+   ignored root, cap them at 2K, and normalize sRGB and compression settings.
+5. Normalize mesh names, 100 cm envelope, pivot, material slots, LOD/Nanite, and collision.
+6. Run `Build/EnvironmentKit/audit_environment_kit.py` through `UnrealEditor-Cmd.exe`.
+7. Capture both the battle camera and whole battlefield and compare unit readability and frame cost.
+8. Record the exact source asset and transformation in `environment-kit.json` before approval.
+
+The intake script path must use forward slashes on the Unreal command line. Backslashes can turn the
+`\r` in a folder such as `rts` into a carriage return:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' `
+  '<repo>\unreal\AshenDominion\AshenDominion.uproject' `
+  -unattended -nop4 -nosplash -nullrhi `
+  '-ExecutePythonScript=<repo>/unreal/AshenDominion/Build/EnvironmentKit/intake_free_surfaces.py'
+```
 
 The first acceptance group is cliff/rock, dead forest, moor/mud/stone/bark/wood textures, road dressing,
 and bridge timbers. Faction castles retain Vowfall-authored silhouettes even when generic source textures
 or small modules are reused.
 
-## First acquisition shortlist
+## Current free acquisition set
 
-Use the Fab window inside Unreal Engine and choose **Medium (2K)** quality for the first material pass. Add
-only assets shown as free or already entitled on the project's Epic account; do not purchase alternatives yet.
+The first local material pass is integrated and intentionally limited to assets that were free or already
+entitled on the project account:
 
-| Priority | Fab source | Vowfall target | Use |
-| --- | --- | --- | --- |
-| 1 | [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) | Separate UE 5.8 source project | Inspect dark cliffs, dead forest, generic stone, timber, and surface candidates |
-| 2 | [Soil Mud](https://www.fab.com/listings/c33cb641-e9bd-4966-adc3-c0b5a937ab12) | `T_Mud` | Road bed and riverbank mud |
-| 3 | [Forest Floor](https://www.fab.com/listings/3463d6dc-43fb-4bb2-9d54-9590cf23257e) | `T_Moor` | Desaturated battlefield ground |
-| 4 | [Mossy Forest Floor](https://www.fab.com/listings/e75504fd-9631-4bf2-b5de-4e0b04f59cef) | `T_MoorPatch` | Gravewood floor variation |
-| 5 | [Castle Cobblestone](https://www.fab.com/listings/3d983be3-0574-4cc8-baf1-fd148820ed7d) | `T_RoadStone` | Worn causeway and road center |
-| 6 | [Weathered Wooden Planks](https://www.fab.com/listings/943bdc90-e4c2-4a63-8ca0-1b9556f933dd) | `T_WeatheredWood` | Bridge decks and mine supports |
+| Acquired source | Canonical target | Current use |
+| --- | --- | --- |
+| [Forest Floor](https://www.fab.com/listings/3463d6dc-43fb-4bb2-9d54-9590cf23257e) | `T_Moor` | Battlefield terrain; `MoorPatch` falls back to this family |
+| [Soil Mud](https://www.fab.com/listings/c33cb641-e9bd-4966-adc3-c0b5a937ab12) | `T_Mud` | Continuous flank trails, main-lane shoulders, ruts, and wet shore |
+| Dirty Stone Tiles local import | `T_RoadStone` | Aged central causeway; wet and structural stone slots may fall back to it |
+| [Weathered Wooden Planks](https://www.fab.com/listings/943bdc90-e4c2-4a63-8ca0-1b9556f933dd) | `T_WeatheredWood` | Timber bridge decks and mine supports |
+| [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) | Separate source project | Candidate free mesh source; no bulk migration |
 
-Do not download Raw quality, 8K textures, complete biome packs, foliage collections, or castle kits for this
-pass. The shortlist is enough to validate the material language before storage, shader cost, and repetition
-increase.
+The raw Fab folders and the normalized `/Game/External/VowfallEnvironmentKit` copies stay local and are
+ignored by Git. Public source contains only the intake script, provenance, canonical contract, material
+bindings, and deterministic fallbacks.
+
+Do not purchase replacement packs for this pass. Future candidates are added only when they are free or
+already entitled, visually coherent with painterly realism, and useful enough to justify their shader,
+storage, and review cost.

@@ -144,6 +144,34 @@ template <typename TObjectType> TObjectType *LoadQuietly(const FString &Path)
     return Cast<TObjectType>(StaticLoadObject(TObjectType::StaticClass(), nullptr, *Path, nullptr,
                                                LOAD_NoWarn | LOAD_Quiet));
 }
+
+const FSurfaceSpec *FindSurfaceSpec(const EAshenEnvironmentSurface Slot)
+{
+    for (const FSurfaceSpec &Spec : AllSurfaceSpecs())
+    {
+        if (Spec.Slot == Slot)
+        {
+            return &Spec;
+        }
+    }
+    return nullptr;
+}
+
+Ashen::EnvironmentKit::FSurfaceTextures LoadSurfaceTextures(const FSurfaceSpec *Spec)
+{
+    Ashen::EnvironmentKit::FSurfaceTextures Result;
+    if (Spec == nullptr)
+    {
+        return Result;
+    }
+    Result.Albedo =
+        LoadQuietly<UTexture2D>(Ashen::EnvironmentKit::TextureObjectPath(*Spec, TEXT("_BC")));
+    Result.Normal =
+        LoadQuietly<UTexture2D>(Ashen::EnvironmentKit::TextureObjectPath(*Spec, TEXT("_N")));
+    Result.Packed =
+        LoadQuietly<UTexture2D>(Ashen::EnvironmentKit::TextureObjectPath(*Spec, TEXT("_ORM")));
+    return Result;
+}
 } // namespace
 
 TConstArrayView<Ashen::EnvironmentKit::FMeshSpec> Ashen::EnvironmentKit::MeshSpecs()
@@ -214,6 +242,37 @@ UStaticMesh *Ashen::EnvironmentKit::ResolveMesh(const EAshenEnvironmentMeshSlot 
     return Fallback;
 }
 
+EAshenEnvironmentSurface Ashen::EnvironmentKit::SurfaceFallback(
+    const EAshenEnvironmentSurface Slot) noexcept
+{
+    switch (Slot)
+    {
+    case EAshenEnvironmentSurface::MoorPatch:
+        return EAshenEnvironmentSurface::Moor;
+    case EAshenEnvironmentSurface::WetStone:
+    case EAshenEnvironmentSurface::MineDark:
+    case EAshenEnvironmentSurface::HumanStone:
+    case EAshenEnvironmentSurface::FoundationStone:
+    case EAshenEnvironmentSurface::MythicStone:
+        return EAshenEnvironmentSurface::RoadStone;
+    case EAshenEnvironmentSurface::None:
+    case EAshenEnvironmentSurface::Moor:
+    case EAshenEnvironmentSurface::Mud:
+    case EAshenEnvironmentSurface::RoadStone:
+    case EAshenEnvironmentSurface::WeatheredWood:
+    case EAshenEnvironmentSurface::DarkIron:
+    case EAshenEnvironmentSurface::Bark:
+    case EAshenEnvironmentSurface::Pine:
+    case EAshenEnvironmentSurface::PineShadow:
+    case EAshenEnvironmentSurface::HumanRoof:
+    case EAshenEnvironmentSurface::Flesh:
+    case EAshenEnvironmentSurface::Bone:
+    case EAshenEnvironmentSurface::Count:
+        return EAshenEnvironmentSurface::None;
+    }
+    return EAshenEnvironmentSurface::None;
+}
+
 Ashen::EnvironmentKit::FSurfaceTextures
 Ashen::EnvironmentKit::ResolveSurfaceTextures(const EAshenEnvironmentSurface Slot)
 {
@@ -224,14 +283,22 @@ Ashen::EnvironmentKit::ResolveSurfaceTextures(const EAshenEnvironmentSurface Slo
         return Result;
     }
 
-    for (const FSurfaceSpec &Spec : AllSurfaceSpecs())
+    Result = LoadSurfaceTextures(FindSurfaceSpec(Slot));
+    const EAshenEnvironmentSurface FallbackSlot = SurfaceFallback(Slot);
+    if (FallbackSlot != EAshenEnvironmentSurface::None)
     {
-        if (Spec.Slot == Slot)
+        const FSurfaceTextures Fallback = LoadSurfaceTextures(FindSurfaceSpec(FallbackSlot));
+        if (Result.Albedo == nullptr)
         {
-            Result.Albedo = LoadQuietly<UTexture2D>(TextureObjectPath(Spec, TEXT("_BC")));
-            Result.Normal = LoadQuietly<UTexture2D>(TextureObjectPath(Spec, TEXT("_N")));
-            Result.Packed = LoadQuietly<UTexture2D>(TextureObjectPath(Spec, TEXT("_ORM")));
-            break;
+            Result.Albedo = Fallback.Albedo;
+        }
+        if (Result.Normal == nullptr)
+        {
+            Result.Normal = Fallback.Normal;
+        }
+        if (Result.Packed == nullptr)
+        {
+            Result.Packed = Fallback.Packed;
         }
     }
     return Result;
