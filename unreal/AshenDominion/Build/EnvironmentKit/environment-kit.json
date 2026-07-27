@@ -15,8 +15,7 @@
     { "name": "Project Titan", "listing_id": "c05aac82-4c1a-4e42-96b3-be668dc40fca", "kind": "source_project", "quality": null },
     { "name": "Soil Mud", "listing_id": "c33cb641-e9bd-4966-adc3-c0b5a937ab12", "kind": "surface", "quality": "medium_2k", "target": "Mud" },
     { "name": "Forest Floor", "listing_id": "3463d6dc-43fb-4bb2-9d54-9590cf23257e", "kind": "surface", "quality": "medium_2k", "target": "Moor" },
-    { "name": "Mossy Forest Floor", "listing_id": "e75504fd-9631-4bf2-b5de-4e0b04f59cef", "kind": "surface", "quality": "medium_2k", "target": "MoorPatch" },
-    { "name": "Castle Cobblestone", "listing_id": "3d983be3-0574-4cc8-baf1-fd148820ed7d", "kind": "surface", "quality": "medium_2k", "target": "RoadStone" },
+    { "name": "Dirty Stone Tiles", "listing_id": null, "kind": "surface", "quality": "local_import_2k", "target": "RoadStone", "source_path": "/Game/DirtyStoneTile_material" },
     { "name": "Weathered Wooden Planks", "listing_id": "943bdc90-e4c2-4a63-8ca0-1b9556f933dd", "kind": "surface", "quality": "medium_2k", "target": "WeatheredWood" }
   ],
   "priority_meshes": [
@@ -35,13 +34,13 @@
     { "slot": "ForestRoot", "path": "Meshes/Foliage/SM_ForestRoot_A", "source_asset": null }
   ],
   "priority_surfaces": [
-    { "slot": "Moor", "prefix": "Textures/Ground/T_Moor", "source_asset": null },
-    { "slot": "MoorPatch", "prefix": "Textures/Ground/T_MoorPatch", "source_asset": null },
-    { "slot": "Mud", "prefix": "Textures/Ground/T_Mud", "source_asset": null },
-    { "slot": "RoadStone", "prefix": "Textures/Stone/T_RoadStone", "source_asset": null },
-    { "slot": "WetStone", "prefix": "Textures/Stone/T_WetStone", "source_asset": null },
-    { "slot": "WeatheredWood", "prefix": "Textures/Wood/T_WeatheredWood", "source_asset": null },
+    { "slot": "Moor", "prefix": "Textures/Ground/T_Moor", "source_asset": "/Game/Fab/Megascans/Surfaces/Forest_Floor_sfjmafua" },
+    { "slot": "MoorPatch", "prefix": "Textures/Ground/T_MoorPatch", "source_asset": "fallback:Moor" },
+    { "slot": "Mud", "prefix": "Textures/Ground/T_Mud", "source_asset": "/Game/Fab/Megascans/Surfaces/Soil_Mud_pjuph20" },
+    { "slot": "RoadStone", "prefix": "Textures/Stone/T_RoadStone", "source_asset": "/Game/DirtyStoneTile_material" },
+    { "slot": "WetStone", "prefix": "Textures/Stone/T_WetStone", "source_asset": "fallback:RoadStone" },
+    { "slot": "WeatheredWood", "prefix": "Textures/Wood/T_WeatheredWood", "source_asset": "/Game/Fab/Megascans/Surfaces/Wooden_Planks_vlzhdbwdy" },
     { "slot": "Bark", "prefix": "Textures/Wood/T_OldBark", "source_asset": null },
-    { "slot": "FoundationStone", "prefix": "Textures/Stone/T_Foundation", "source_asset": null }
+    { "slot": "FoundationStone", "prefix": "Textures/Stone/T_Foundation", "source_asset": "fallback:RoadStone" }
   ]
 }

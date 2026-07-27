@@ -127,5 +127,6 @@ ASHENDOMINION_API FString TextureObjectPath(const FSurfaceSpec &Spec, const TCHA
 ASHENDOMINION_API UStaticMesh *FindProductionMesh(EAshenEnvironmentMeshSlot Slot);
 ASHENDOMINION_API UStaticMesh *FindSourceMesh(EAshenEnvironmentMeshSlot Slot);
 ASHENDOMINION_API UStaticMesh *ResolveMesh(EAshenEnvironmentMeshSlot Slot, UStaticMesh *Fallback);
+ASHENDOMINION_API EAshenEnvironmentSurface SurfaceFallback(EAshenEnvironmentSurface Slot) noexcept;
 ASHENDOMINION_API FSurfaceTextures ResolveSurfaceTextures(EAshenEnvironmentSurface Slot);
 } // namespace Ashen::EnvironmentKit

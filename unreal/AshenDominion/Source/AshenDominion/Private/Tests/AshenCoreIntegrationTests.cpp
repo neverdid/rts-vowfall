@@ -506,32 +506,84 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MineMouths")));
     const UInstancedStaticMeshComponent *Gravewood =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("ForestRoots")));
-    const UInstancedStaticMeshComponent *Roadbed =
-        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("Roadbed")));
+    UProceduralMeshComponent *RoadSurface =
+        Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RoadSurface")));
+    UProceduralMeshComponent *RoadStoneSurface =
+        Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RoadStoneSurface")));
+    UProceduralMeshComponent *RoadRutSurface =
+        Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RoadRutSurface")));
     const UInstancedStaticMeshComponent *BridgeTimbers =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("BridgeTimbers")));
     const UInstancedStaticMeshComponent *BridgeIron =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("BridgeIron")));
     const UInstancedStaticMeshComponent *Wayshrine =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MythicArches")));
+    UProceduralMeshComponent *RiverSurface =
+        Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RiverSurface")));
+    UProceduralMeshComponent *RiverShoreSurface =
+        Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RiverShoreSurface")));
+    const FProcMeshSection *RoadMeshSection =
+        RoadSurface != nullptr ? RoadSurface->GetProcMeshSection(0) : nullptr;
+    const FProcMeshSection *RoadStoneMeshSection =
+        RoadStoneSurface != nullptr ? RoadStoneSurface->GetProcMeshSection(0) : nullptr;
+    const FProcMeshSection *RiverShoreMeshSection =
+        RiverShoreSurface != nullptr ? RiverShoreSurface->GetProcMeshSection(0) : nullptr;
+    const auto FacesRtsCamera = [](const FProcMeshSection *Section)
+    {
+        if (Section == nullptr || Section->ProcIndexBuffer.Num() < 3)
+        {
+            return false;
+        }
+        const FVector A = Section->ProcVertexBuffer[Section->ProcIndexBuffer[0]].Position;
+        const FVector B = Section->ProcVertexBuffer[Section->ProcIndexBuffer[1]].Position;
+        const FVector C = Section->ProcVertexBuffer[Section->ProcIndexBuffer[2]].Position;
+        return FVector::CrossProduct(B - A, C - A).Z < -UE_KINDA_SMALL_NUMBER;
+    };
     TestTrue(TEXT("Northwest massif owns a substantial rock silhouette"),
              Mountain != nullptr && Mountain->GetInstanceCount() >= 24);
     TestTrue(TEXT("Production art never supplies deterministic collision"),
              Mountain != nullptr && Mountain->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
     TestEqual(TEXT("The concealed route owns two mine entrances"), Mines != nullptr ? Mines->GetInstanceCount() : 0, 2);
     TestTrue(TEXT("Gravewood owns a dedicated root layer"), Gravewood != nullptr && Gravewood->GetInstanceCount() > 0);
-    TestTrue(TEXT("Subdivided roadbeds and joint caps keep every route visually continuous"),
-             Roadbed != nullptr && Roadbed->GetInstanceCount() >= 80);
+    TestTrue(TEXT("Terrain-following road ribbons keep all three routes continuous"),
+             RoadSurface != nullptr && RoadSurface->GetNumSections() == 1 &&
+                 RoadSurface->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+    TestTrue(TEXT("Road ribbon owns renderable vertices and triangles"),
+             RoadMeshSection != nullptr && RoadMeshSection->ProcVertexBuffer.Num() > 0 &&
+                 RoadMeshSection->ProcIndexBuffer.Num() > 0);
+    TestTrue(TEXT("Road ribbon winding faces the RTS camera"), FacesRtsCamera(RoadMeshSection));
+    TestTrue(TEXT("Only the direct causeway receives a continuous stone center"),
+             RoadStoneSurface != nullptr && RoadStoneSurface->GetNumSections() == 1);
+    TestTrue(TEXT("Stone causeway owns renderable vertices and triangles"),
+             RoadStoneMeshSection != nullptr && RoadStoneMeshSection->ProcVertexBuffer.Num() > 0 &&
+                 RoadStoneMeshSection->ProcIndexBuffer.Num() > 0);
+    TestTrue(TEXT("Flank wheel ruts remain continuous and presentation-only"),
+             RoadRutSurface != nullptr && RoadRutSurface->GetNumSections() == 1 &&
+                 RoadRutSurface->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+    TestNull(TEXT("Legacy slab roadbeds stay removed"),
+             Arena->GetDefaultSubobjectByName(TEXT("Roadbed")));
     TestEqual(TEXT("Two flank bridges own complete plank, curb, and bridgehead kits"),
               BridgeTimbers != nullptr ? BridgeTimbers->GetInstanceCount() : 0, 38);
     TestEqual(TEXT("Tall bridge iron that read as deck spikes stays removed"),
               BridgeIron != nullptr ? BridgeIron->GetInstanceCount() : 0, 0);
     TestEqual(TEXT("The off-lane Drowned Wayshrine uses two upright ruin fragments"),
               Wayshrine != nullptr ? Wayshrine->GetInstanceCount() : 0, 2);
-    TestNotNull(TEXT("River enters the capture beyond the north playable boundary"),
-                Arena->GetDefaultSubobjectByName(TEXT("WaterSegment_00")));
-    TestNotNull(TEXT("River leaves the capture beyond the south playable boundary"),
-                Arena->GetDefaultSubobjectByName(TEXT("WaterSegment_31")));
+    TestNotNull(TEXT("River owns one continuous curved surface"), RiverSurface);
+    TestTrue(TEXT("River surface cannot intercept deterministic RTS input"),
+             RiverSurface != nullptr &&
+                 RiverSurface->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+    TestEqual(TEXT("River surface removes overlapping segment seams"),
+              RiverSurface != nullptr ? RiverSurface->GetNumSections() : 0, 1);
+    TestTrue(TEXT("Continuous wet shorelines stop before every crossing"),
+             RiverShoreSurface != nullptr && RiverShoreSurface->GetNumSections() == 1 &&
+                 RiverShoreSurface->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+    TestTrue(TEXT("Wet shoreline owns renderable vertices and triangles"),
+             RiverShoreMeshSection != nullptr && RiverShoreMeshSection->ProcVertexBuffer.Num() > 0 &&
+                 RiverShoreMeshSection->ProcIndexBuffer.Num() > 0);
+    TestTrue(TEXT("Wet shoreline winding faces the RTS camera"),
+             FacesRtsCamera(RiverShoreMeshSection));
+    TestNull(TEXT("Legacy overlapping water segments stay removed"),
+             Arena->GetDefaultSubobjectByName(TEXT("WaterSegment_00")));
     TestNull(TEXT("Legacy perimeter monoliths stay removed"),
              Arena->GetDefaultSubobjectByName(TEXT("BoundaryMonoliths")));
     TestEqual(TEXT("Expanded battlefield width remains authoritative"), Ashen::WorldLayout::Width, 4'800.0f);
@@ -559,6 +611,16 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
                  HasTextureParameter(TEXT("NormalTexture")));
         TestTrue(TEXT("Surface material accepts packed AO and roughness textures"),
                  HasTextureParameter(TEXT("PackedTexture")));
+
+        TArray<FMaterialParameterInfo> VectorParameters;
+        TArray<FGuid> VectorIds;
+        Surface->GetAllVectorParameterInfo(VectorParameters, VectorIds);
+        TestTrue(TEXT("Production textures retain per-surface art-direction tint"),
+                 VectorParameters.ContainsByPredicate(
+                     [](const FMaterialParameterInfo &Parameter)
+                     {
+                         return Parameter.Name == TEXT("TextureTint");
+                     }));
 
         TArray<FMaterialParameterInfo> ScalarParameters;
         TArray<FGuid> ScalarIds;
@@ -610,6 +672,18 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
                  Ashen::EnvironmentKit::TextureObjectPath(Spec, TEXT("_BC")).StartsWith(TEXT("/Game/External/")));
     }
     TestEqual(TEXT("Environment surface slots are unique"), SurfaceSlots.Num(), SurfaceSpecs.Num());
+    TestTrue(TEXT("Forest-floor variation reuses the acquired moor family"),
+             Ashen::EnvironmentKit::SurfaceFallback(EAshenEnvironmentSurface::MoorPatch) ==
+                 EAshenEnvironmentSurface::Moor);
+    TestTrue(TEXT("Wet and structural stone reuse the normalized road-stone family"),
+             Ashen::EnvironmentKit::SurfaceFallback(EAshenEnvironmentSurface::WetStone) ==
+                     EAshenEnvironmentSurface::RoadStone &&
+                 Ashen::EnvironmentKit::SurfaceFallback(EAshenEnvironmentSurface::MineDark) ==
+                     EAshenEnvironmentSurface::RoadStone &&
+                 Ashen::EnvironmentKit::SurfaceFallback(EAshenEnvironmentSurface::HumanStone) ==
+                     EAshenEnvironmentSurface::RoadStone &&
+                 Ashen::EnvironmentKit::SurfaceFallback(EAshenEnvironmentSurface::FoundationStone) ==
+                     EAshenEnvironmentSurface::RoadStone);
     return true;
 }
 

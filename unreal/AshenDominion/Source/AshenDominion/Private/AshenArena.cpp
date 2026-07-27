@@ -164,6 +164,144 @@ Ashen::Materials::FSurfaceStyle SurfaceStyle(const FLinearColor &BaseColor, cons
             DetailScale, DetailStrength, Specular,    0.92f};
 }
 
+struct FRibbonMeshData
+{
+    TArray<FVector> Vertices;
+    TArray<int32> Triangles;
+    TArray<FVector> Normals;
+    TArray<FVector2D> UVs;
+    TArray<FLinearColor> VertexColors;
+    TArray<FProcMeshTangent> Tangents;
+};
+
+TArray<FVector2D> SampleRoute(const TArray<FVector2D> &ControlPoints, const float Spacing)
+{
+    TArray<FVector2D> Samples;
+    if (ControlPoints.IsEmpty())
+    {
+        return Samples;
+    }
+
+    Samples.Add(ControlPoints[0]);
+    for (int32 Index = 1; Index < ControlPoints.Num(); ++Index)
+    {
+        const FVector2D Start = ControlPoints[Index - 1];
+        const FVector2D End = ControlPoints[Index];
+        const int32 PieceCount =
+            FMath::Max(1, FMath::CeilToInt(FVector2D::Distance(Start, End) / Spacing));
+        for (int32 Piece = 1; Piece <= PieceCount; ++Piece)
+        {
+            Samples.Add(FMath::Lerp(Start, End, static_cast<float>(Piece) / static_cast<float>(PieceCount)));
+        }
+    }
+
+    // A restrained corner pass turns route waypoints into worn bends without moving the
+    // strategically authored centerline far enough to alter pathing or bridge approaches.
+    for (int32 Pass = 0; Pass < 2; ++Pass)
+    {
+        TArray<FVector2D> Smoothed = Samples;
+        for (int32 Index = 1; Index < Samples.Num() - 1; ++Index)
+        {
+            Smoothed[Index] = (Samples[Index - 1] + Samples[Index] * 2.0f + Samples[Index + 1]) * 0.25f;
+        }
+        Samples = MoveTemp(Smoothed);
+    }
+    return Samples;
+}
+
+bool IsRiverCrossingGap(const FVector2D &Point)
+{
+    for (const float CrossingY : {Ashen::WorldLayout::NorthCrossingY, Ashen::WorldLayout::CentralCrossingY,
+                                  Ashen::WorldLayout::SouthCrossingY})
+    {
+        if (FMath::Abs(Point.Y - CrossingY) < 118.0f)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <typename FHeightAt, typename FShouldSkip>
+void AppendRibbon(FRibbonMeshData &Mesh, const TArray<FVector2D> &Centerline, const float Width,
+                  const float LateralOffset, const float TextureRepeat, FHeightAt HeightAt,
+                  FShouldSkip ShouldSkip)
+{
+    if (Centerline.Num() < 2)
+    {
+        return;
+    }
+
+    const int32 VertexBase = Mesh.Vertices.Num();
+    float AccumulatedDistance = 0.0f;
+    for (int32 Index = 0; Index < Centerline.Num(); ++Index)
+    {
+        if (Index > 0)
+        {
+            AccumulatedDistance += FVector2D::Distance(Centerline[Index - 1], Centerline[Index]);
+        }
+
+        const FVector2D BeforeDirection =
+            (Centerline[Index] - Centerline[FMath::Max(0, Index - 1)]).GetSafeNormal();
+        const FVector2D AfterDirection =
+            (Centerline[FMath::Min(Centerline.Num() - 1, Index + 1)] - Centerline[Index]).GetSafeNormal();
+        FVector2D Along = (BeforeDirection + AfterDirection).GetSafeNormal();
+        if (Along.IsNearlyZero())
+        {
+            Along = Index == 0 ? AfterDirection : BeforeDirection;
+        }
+
+        const FVector2D BeforeNormal(-BeforeDirection.Y, BeforeDirection.X);
+        const FVector2D AfterNormal(-AfterDirection.Y, AfterDirection.X);
+        FVector2D JoinNormal = (BeforeNormal + AfterNormal).GetSafeNormal();
+        if (JoinNormal.IsNearlyZero())
+        {
+            JoinNormal = FVector2D(-Along.Y, Along.X);
+        }
+
+        const float LocalWidth =
+            Width * (1.0f + FMath::Sin(static_cast<float>(Index) * 0.73f) * 0.026f +
+                     FMath::Sin(static_cast<float>(Index) * 0.21f + 1.4f) * 0.014f);
+        const float Denominator =
+            FMath::Max(FMath::Abs(FVector2D::DotProduct(JoinNormal, AfterNormal)), 0.48f);
+        FVector2D HalfWidth = JoinNormal * (LocalWidth * 0.5f / Denominator);
+        HalfWidth = HalfWidth.GetClampedToMaxSize(LocalWidth * 0.72f);
+        const FVector2D Center = Centerline[Index] + JoinNormal * LateralOffset;
+        const FVector2D Left = Center + HalfWidth;
+        const FVector2D Right = Center - HalfWidth;
+        const float V = AccumulatedDistance / TextureRepeat;
+        const FProcMeshTangent Tangent(FVector(Along.X, Along.Y, 0.0f), false);
+
+        Mesh.Vertices.Emplace(Left.X, Left.Y, HeightAt(Left));
+        Mesh.Vertices.Emplace(Right.X, Right.Y, HeightAt(Right));
+        Mesh.Normals.Append({FVector::UpVector, FVector::UpVector});
+        Mesh.UVs.Append({FVector2D(0.0f, V), FVector2D(1.0f, V)});
+        Mesh.VertexColors.Append({FLinearColor::White, FLinearColor::White});
+        Mesh.Tangents.Append({Tangent, Tangent});
+
+        if (Index < Centerline.Num() - 1)
+        {
+            const FVector2D Midpoint = (Centerline[Index] + Centerline[Index + 1]) * 0.5f;
+            if (!ShouldSkip(Midpoint))
+            {
+                const int32 LeftIndex = VertexBase + Index * 2;
+                const int32 RightIndex = LeftIndex + 1;
+                const int32 NextLeft = LeftIndex + 2;
+                const int32 NextRight = LeftIndex + 3;
+                Mesh.Triangles.Append(
+                    {LeftIndex, NextLeft, RightIndex, RightIndex, NextLeft, NextRight});
+            }
+        }
+    }
+}
+
+void CreateRibbonSection(UProceduralMeshComponent *Component, FRibbonMeshData &Mesh)
+{
+    Component->ClearAllMeshSections();
+    Component->CreateMeshSection_LinearColor(0, Mesh.Vertices, Mesh.Triangles, Mesh.Normals, Mesh.UVs,
+                                             Mesh.VertexColors, Mesh.Tangents, false, false);
+}
+
 void ConfigureInstances(UInstancedStaticMeshComponent *Component, USceneComponent *Parent,
                         const EAshenEnvironmentMeshSlot Slot, UStaticMesh *FallbackMesh,
                         const bool bCastShadow = true)
@@ -173,17 +311,6 @@ void ConfigureInstances(UInstancedStaticMeshComponent *Component, USceneComponen
     Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Component->SetCastShadow(bCastShadow);
     Component->SetStaticMesh(Ashen::EnvironmentKit::ResolveMesh(Slot, FallbackMesh));
-}
-
-void AddFlatSegment(UInstancedStaticMeshComponent *Component, const FVector2D &Start, const FVector2D &End,
-                    const float Width, const float Height, const float Z)
-{
-    const FVector2D Delta = End - Start;
-    const float Length = Delta.Size();
-    const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Delta.Y, Delta.X));
-    const FVector Position((Start.X + End.X) * 0.5f, (Start.Y + End.Y) * 0.5f, Z);
-    Component->AddInstance(
-        FTransform(FRotator(0.0f, Yaw, 0.0f), Position, FVector(Length / 100.0f, Width / 100.0f, Height / 100.0f)));
 }
 
 void AddCylinderBetween(UInstancedStaticMeshComponent *Component, const FVector &Start, const FVector &End,
@@ -246,9 +373,36 @@ AAshenArena::AAshenArena()
     Terrain->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Terrain->SetCastShadow(true);
 
-    Roadbed = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Roadbed"));
-    RoadStones = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("RoadStones"));
-    RoadRuts = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("RoadRuts"));
+    RoadSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadSurface"));
+    RoadSurface->SetupAttachment(SceneRoot);
+    RoadSurface->SetMobility(EComponentMobility::Static);
+    RoadSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RoadSurface->SetCastShadow(false);
+
+    RoadStoneSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadStoneSurface"));
+    RoadStoneSurface->SetupAttachment(SceneRoot);
+    RoadStoneSurface->SetMobility(EComponentMobility::Static);
+    RoadStoneSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RoadStoneSurface->SetCastShadow(false);
+
+    RoadRutSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadRutSurface"));
+    RoadRutSurface->SetupAttachment(SceneRoot);
+    RoadRutSurface->SetMobility(EComponentMobility::Static);
+    RoadRutSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RoadRutSurface->SetCastShadow(false);
+
+    RiverSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RiverSurface"));
+    RiverSurface->SetupAttachment(SceneRoot);
+    RiverSurface->SetMobility(EComponentMobility::Static);
+    RiverSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RiverSurface->SetCastShadow(false);
+
+    RiverShoreSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RiverShoreSurface"));
+    RiverShoreSurface->SetupAttachment(SceneRoot);
+    RiverShoreSurface->SetMobility(EComponentMobility::Static);
+    RiverShoreSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RiverShoreSurface->SetCastShadow(false);
+
     RiverBanks = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("RiverBanks"));
     Reeds = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Reeds"));
     BridgeTimbers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("BridgeTimbers"));
@@ -280,9 +434,6 @@ AAshenArena::AAshenArena()
     BrazierBowls = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("BrazierBowls"));
     EmberCores = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("EmberCores"));
 
-    ConfigureInstances(Roadbed, SceneRoot, EAshenEnvironmentMeshSlot::Roadbed, Cube, false);
-    ConfigureInstances(RoadStones, SceneRoot, EAshenEnvironmentMeshSlot::RoadStone, Cube, false);
-    ConfigureInstances(RoadRuts, SceneRoot, EAshenEnvironmentMeshSlot::RoadRut, Cube, false);
     ConfigureInstances(RiverBanks, SceneRoot, EAshenEnvironmentMeshSlot::RiverBank, Sphere);
     ConfigureInstances(Reeds, SceneRoot, EAshenEnvironmentMeshSlot::Reed, Cone, false);
     ConfigureInstances(BridgeTimbers, SceneRoot, EAshenEnvironmentMeshSlot::BridgeTimber, Cube);
@@ -469,58 +620,129 @@ void AAshenArena::BuildTerrain()
 
 void AAshenArena::BuildRiver()
 {
-    constexpr int32 SegmentCount = 32;
+    constexpr int32 SegmentCount = 64;
     constexpr float VisualMargin = 1'300.0f;
     constexpr float RiverStartY = -VisualMargin;
     constexpr float RiverEndY = MapHeight + VisualMargin;
-    constexpr float BankWidth = 54.0f;
-    UStaticMesh *Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+    constexpr float ShoreWidth = 24.0f;
     FRandomStream Random(0x71A3B4C2);
+
+    TArray<FVector> Vertices;
+    TArray<int32> Triangles;
+    TArray<FVector> Normals;
+    TArray<FVector2D> UVs;
+    TArray<FLinearColor> VertexColors;
+    TArray<FProcMeshTangent> Tangents;
+    Vertices.Reserve((SegmentCount + 1) * 2);
+    Normals.Reserve((SegmentCount + 1) * 2);
+    UVs.Reserve((SegmentCount + 1) * 2);
+    VertexColors.Reserve((SegmentCount + 1) * 2);
+    Tangents.Reserve((SegmentCount + 1) * 2);
+    Triangles.Reserve(SegmentCount * 6);
+    TArray<FVector2D> LeftShore;
+    TArray<FVector2D> RightShore;
+    LeftShore.Reserve(SegmentCount + 1);
+    RightShore.Reserve(SegmentCount + 1);
+
+    FVector2D PreviousCenter;
+    float AccumulatedDistance = 0.0f;
+    for (int32 Index = 0; Index <= SegmentCount; ++Index)
+    {
+        const float Alpha = static_cast<float>(Index) / static_cast<float>(SegmentCount);
+        const float Y = FMath::Lerp(RiverStartY, RiverEndY, Alpha);
+        const FVector2D Center(RiverXAt(Y), Y);
+        if (Index > 0)
+        {
+            AccumulatedDistance += FVector2D::Distance(PreviousCenter, Center);
+        }
+        PreviousCenter = Center;
+
+        constexpr float TangentSample = 8.0f;
+        const FVector2D Direction(RiverXAt(Y + TangentSample) - RiverXAt(Y - TangentSample),
+                                  TangentSample * 2.0f);
+        const FVector2D Along = Direction.GetSafeNormal();
+        const FVector2D Across(-Along.Y, Along.X);
+        const float Width = RiverWidth * (0.96f + FMath::Sin(Alpha * 2.0f * PI * 3.0f) * 0.045f);
+        const FVector2D Left = Center + Across * Width * 0.5f;
+        const FVector2D Right = Center - Across * Width * 0.5f;
+        LeftShore.Add(Center + Across * (Width * 0.5f + ShoreWidth * 0.5f));
+        RightShore.Add(Center - Across * (Width * 0.5f + ShoreWidth * 0.5f));
+        const float V = AccumulatedDistance / 420.0f;
+        const FProcMeshTangent Tangent(FVector(Along.X, Along.Y, 0.0f), false);
+
+        Vertices.Emplace(Left.X, Left.Y, 4.0f);
+        Vertices.Emplace(Right.X, Right.Y, 4.0f);
+        Normals.Append({FVector::UpVector, FVector::UpVector});
+        UVs.Append({FVector2D(0.0f, V), FVector2D(1.0f, V)});
+        VertexColors.Append({FLinearColor::White, FLinearColor::White});
+        Tangents.Append({Tangent, Tangent});
+
+        if (Index < SegmentCount)
+        {
+            const int32 LeftIndex = Index * 2;
+            const int32 RightIndex = LeftIndex + 1;
+            const int32 NextLeft = LeftIndex + 2;
+            const int32 NextRight = LeftIndex + 3;
+            Triangles.Append({LeftIndex, RightIndex, NextLeft, RightIndex, NextRight, NextLeft});
+        }
+    }
+    RiverSurface->ClearAllMeshSections();
+    RiverSurface->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, VertexColors, Tangents,
+                                                false, false);
+
+    FRibbonMeshData ShoreMesh;
+    const auto ShoreHeight = [](const FVector2D &Point)
+    {
+        return FMath::Max(4.35f, TerrainHeightAt(Point.X, Point.Y) + 2.8f);
+    };
+    AppendRibbon(ShoreMesh, LeftShore, ShoreWidth, 0.0f, 250.0f, ShoreHeight, IsRiverCrossingGap);
+    AppendRibbon(ShoreMesh, RightShore, ShoreWidth, 0.0f, 250.0f, ShoreHeight, IsRiverCrossingGap);
+    CreateRibbonSection(RiverShoreSurface, ShoreMesh);
 
     for (int32 Index = 0; Index < SegmentCount; ++Index)
     {
         const float Alpha0 = static_cast<float>(Index) / static_cast<float>(SegmentCount);
         const float Alpha1 = static_cast<float>(Index + 1) / static_cast<float>(SegmentCount);
-        const float Y0 = FMath::Lerp(RiverStartY, RiverEndY, Alpha0) - 8.0f;
-        const float Y1 = FMath::Lerp(RiverStartY, RiverEndY, Alpha1) + 8.0f;
+        const float Y0 = FMath::Lerp(RiverStartY, RiverEndY, Alpha0);
+        const float Y1 = FMath::Lerp(RiverStartY, RiverEndY, Alpha1);
         const float X0 = RiverXAt(Y0);
         const float X1 = RiverXAt(Y1);
-        const float SegmentWidth = RiverWidth * (0.94f + FMath::Sin(Alpha0 * 2.0f * PI * 3.0f) * 0.045f);
+        const float SegmentWidth = RiverWidth * (0.96f + FMath::Sin(Alpha0 * 2.0f * PI * 3.0f) * 0.045f);
         const FVector2D WaterDelta(X1 - X0, Y1 - Y0);
-        const float WaterLength = WaterDelta.Size();
         const float WaterYaw = FMath::RadiansToDegrees(FMath::Atan2(WaterDelta.Y, WaterDelta.X));
-        UStaticMeshComponent *WaterSegment =
-            CreateDefaultSubobject<UStaticMeshComponent>(FName(*FString::Printf(TEXT("WaterSegment_%02d"), Index)));
-        WaterSegment->SetupAttachment(SceneRoot);
-        WaterSegment->SetMobility(EComponentMobility::Static);
-        WaterSegment->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        WaterSegment->SetCastShadow(false);
-        WaterSegment->SetStaticMesh(Plane);
-        WaterSegment->SetRelativeTransform(FTransform(FRotator(0.0f, WaterYaw, 0.0f),
-                                                      FVector((X0 + X1) * 0.5f, (Y0 + Y1) * 0.5f, 4.0f),
-                                                      FVector(WaterLength / 100.0f, SegmentWidth / 100.0f, 1.0f)));
-        WaterSegments.Add(WaterSegment);
-
         const FVector2D SegmentDirection = FVector2D(X1 - X0, Y1 - Y0).GetSafeNormal();
         const FVector2D SegmentNormal(-SegmentDirection.Y, SegmentDirection.X);
-        const bool bCrossingClearance = RiverSegmentOverlapsCrossing(Y0, Y1, 175.0f);
+        const bool bCrossingClearance = RiverSegmentOverlapsCrossing(Y0, Y1, 205.0f);
         const bool bPlayableBank = Y1 >= -80.0f && Y0 <= MapHeight + 80.0f;
         for (int32 Bank = -1; Bank <= 1; Bank += 2)
         {
-            const float BankOffset = (SegmentWidth * 0.5f + BankWidth * 0.44f) * static_cast<float>(Bank);
+            const float BankOffset =
+                (SegmentWidth * 0.5f + ShoreWidth * 0.76f) * static_cast<float>(Bank);
             const FVector2D BankStart = FVector2D(X0, Y0) + SegmentNormal * BankOffset;
             const FVector2D BankEnd = FVector2D(X1, Y1) + SegmentNormal * BankOffset;
-            const FVector2D BankMidpoint = (BankStart + BankEnd) * 0.5f;
             if (bPlayableBank && !bCrossingClearance)
             {
-                AddFlatSegment(RiverBanks, BankStart, BankEnd, BankWidth, 9.0f,
-                               TerrainHeightAt(BankMidpoint.X, BankMidpoint.Y) + 4.5f);
+                if ((Index + (Bank > 0 ? 1 : 0)) % 3 == 0)
+                {
+                    const FVector2D RockPoint =
+                        FMath::Lerp(BankStart, BankEnd, Random.FRandRange(0.24f, 0.76f)) +
+                        SegmentNormal * Random.FRandRange(-18.0f, 18.0f);
+                    const float RockScale = Random.FRandRange(0.16f, 0.31f);
+                    RiverBanks->AddInstance(
+                        FTransform(FRotator(Random.FRandRange(-8.0f, 8.0f),
+                                            Random.FRandRange(-180.0f, 180.0f),
+                                            Random.FRandRange(-6.0f, 6.0f)),
+                                   FVector(RockPoint.X, RockPoint.Y,
+                                           TerrainHeightAt(RockPoint.X, RockPoint.Y) + 4.0f),
+                                   FVector(RockScale, RockScale * Random.FRandRange(0.68f, 1.16f),
+                                           RockScale * Random.FRandRange(0.45f, 0.76f))));
+                }
 
                 if ((Index + Bank + 1) % 3 == 0)
                 {
                     const float Along = Random.FRandRange(0.28f, 0.72f);
                     const FVector2D ReedPoint = FVector2D(X0, Y0) + WaterDelta * Along +
-                                                SegmentNormal * (SegmentWidth * 0.43f * static_cast<float>(Bank));
+                                                SegmentNormal * (SegmentWidth * 0.53f * static_cast<float>(Bank));
                     Reeds->AddInstance(
                         FTransform(FRotator(0.0f, WaterYaw + Random.FRandRange(-18.0f, 18.0f), 0.0f),
                                    FVector(ReedPoint.X, ReedPoint.Y,
@@ -534,58 +756,60 @@ void AAshenArena::BuildRiver()
 
 void AAshenArena::BuildRoadsAndBridges()
 {
-    auto AddRoad = [this](const TArray<FVector2D> &Points, const float Width)
+    const TArray<FVector2D> DirectSamples = SampleRoute(DirectRoute(), 58.0f);
+    const TArray<FVector2D> NorthSamples = SampleRoute(NorthRoute(), 42.0f);
+    const TArray<FVector2D> SouthSamples = SampleRoute(SouthRoute(), 42.0f);
+    const auto NeverSkip = [](const FVector2D &) { return false; };
+    const auto DirectHeight = [](const FVector2D &Point, const float GroundOffset,
+                                 const float CausewayHeight)
     {
-        for (int32 Index = 1; Index < Points.Num(); ++Index)
-        {
-            const FVector2D Direction = (Points[Index] - Points[Index - 1]).GetSafeNormal();
-            const FVector2D Normal(-Direction.Y, Direction.X);
-            const float SegmentLength = FVector2D::Distance(Points[Index - 1], Points[Index]);
-            const int32 PieceCount = FMath::Max(1, FMath::CeilToInt(SegmentLength / 190.0f));
-            for (int32 Piece = 0; Piece < PieceCount; ++Piece)
-            {
-                const FVector2D Start = FMath::Lerp(Points[Index - 1], Points[Index],
-                                                    static_cast<float>(Piece) / static_cast<float>(PieceCount));
-                const FVector2D End = FMath::Lerp(Points[Index - 1], Points[Index],
-                                                  static_cast<float>(Piece + 1) / static_cast<float>(PieceCount));
-                const FVector2D Midpoint = (Start + End) * 0.5f;
-                const float GroundHeight = TerrainHeightAt(Midpoint.X, Midpoint.Y);
-                AddFlatSegment(Roadbed, Start, End, Width, 4.0f, GroundHeight + 4.5f);
-                AddFlatSegment(RoadStones, Start, End, Width * 0.58f, 2.0f, GroundHeight + 7.0f);
-                for (const float Side : {-1.0f, 1.0f})
-                {
-                    const FVector2D Offset = Normal * Side * Width * 0.18f;
-                    AddFlatSegment(RoadRuts, Start + Offset, End + Offset, 5.0f, 1.0f,
-                                   GroundHeight + 8.4f);
-                }
-            }
-
-            if (Index < Points.Num() - 1)
-            {
-                const FVector2D Joint = Points[Index];
-                const float GroundHeight = TerrainHeightAt(Joint.X, Joint.Y);
-                Roadbed->AddInstance(FTransform(FRotator::ZeroRotator,
-                                                FVector(Joint.X, Joint.Y, GroundHeight + 4.5f),
-                                                FVector(Width / 100.0f, Width / 100.0f, 0.04f)));
-                RoadStones->AddInstance(FTransform(FRotator::ZeroRotator,
-                                                   FVector(Joint.X, Joint.Y, GroundHeight + 7.0f),
-                                                   FVector(Width * 0.58f / 100.0f, Width * 0.58f / 100.0f,
-                                                           0.02f)));
-            }
-        }
+        const float GroundHeight = TerrainHeightAt(Point.X, Point.Y) + GroundOffset;
+        const float RiverDistance =
+            FMath::Abs(Point.X - RiverXAt(Ashen::WorldLayout::CentralCrossingY));
+        const float RiverBlend =
+            1.0f - SmoothRange(RiverWidth * 0.58f, RiverWidth * 0.82f, RiverDistance);
+        const float LaneBlend =
+            1.0f - SmoothRange(82.0f, 158.0f,
+                               FMath::Abs(Point.Y - Ashen::WorldLayout::CentralCrossingY));
+        return FMath::Lerp(GroundHeight, FMath::Max(GroundHeight, CausewayHeight),
+                           RiverBlend * LaneBlend);
     };
-    AddRoad(DirectRoute(), 178.0f);
-    AddRoad(NorthRoute(), 116.0f);
-    AddRoad(SouthRoute(), 116.0f);
-    for (const FVector2D Junction : {DirectRoute()[0], DirectRoute().Last()})
+
+    FRibbonMeshData RoadMesh;
+    AppendRibbon(
+        RoadMesh, DirectSamples, 184.0f, 0.0f, 285.0f,
+        [&DirectHeight](const FVector2D &Point) { return DirectHeight(Point, 6.2f, 10.0f); },
+        NeverSkip);
+    const auto FlankRoadHeight = [](const FVector2D &Point)
     {
-        const float GroundHeight = TerrainHeightAt(Junction.X, Junction.Y);
-        Roadbed->AddInstance(FTransform(FRotator::ZeroRotator, FVector(Junction.X, Junction.Y, GroundHeight + 4.5f),
-                                        FVector(1.95f, 1.95f, 0.04f)));
-        RoadStones->AddInstance(FTransform(FRotator::ZeroRotator,
-                                           FVector(Junction.X, Junction.Y, GroundHeight + 7.0f),
-                                           FVector(1.12f, 1.12f, 0.02f)));
+        return TerrainHeightAt(Point.X, Point.Y) + 6.2f;
+    };
+    AppendRibbon(RoadMesh, NorthSamples, 124.0f, 0.0f, 255.0f, FlankRoadHeight,
+                 NeverSkip);
+    AppendRibbon(RoadMesh, SouthSamples, 124.0f, 0.0f, 255.0f, FlankRoadHeight,
+                 NeverSkip);
+    CreateRibbonSection(RoadSurface, RoadMesh);
+
+    FRibbonMeshData StoneMesh;
+    AppendRibbon(
+        StoneMesh, DirectSamples, 132.0f, 0.0f, 220.0f,
+        [&DirectHeight](const FVector2D &Point) { return DirectHeight(Point, 7.0f, 15.0f); },
+        NeverSkip);
+    CreateRibbonSection(RoadStoneSurface, StoneMesh);
+
+    FRibbonMeshData RutMesh;
+    const auto RutHeight = [](const FVector2D &Point)
+    {
+        return TerrainHeightAt(Point.X, Point.Y) + 8.0f;
+    };
+    for (const float Side : {-1.0f, 1.0f})
+    {
+        AppendRibbon(RutMesh, NorthSamples, 5.5f, Side * 27.0f, 150.0f, RutHeight,
+                     NeverSkip);
+        AppendRibbon(RutMesh, SouthSamples, 5.5f, Side * 27.0f, 150.0f, RutHeight,
+                     NeverSkip);
     }
+    CreateRibbonSection(RoadRutSurface, RutMesh);
 
     for (const float BridgeY : {Ashen::WorldLayout::NorthCrossingY, Ashen::WorldLayout::SouthCrossingY})
     {
@@ -613,10 +837,6 @@ void AAshenArena::BuildRoadsAndBridges()
 
     // The main lane crosses on an old low causeway; the flank lanes retain vulnerable timber bridges.
     const float CausewayX = RiverXAt(Ashen::WorldLayout::CentralCrossingY);
-    const FVector2D CausewayStart(CausewayX - RiverWidth * 0.66f, Ashen::WorldLayout::CentralCrossingY);
-    const FVector2D CausewayEnd(CausewayX + RiverWidth * 0.66f, Ashen::WorldLayout::CentralCrossingY);
-    AddFlatSegment(Roadbed, CausewayStart, CausewayEnd, 184.0f, 10.0f, 10.0f);
-    AddFlatSegment(RoadStones, CausewayStart, CausewayEnd, 154.0f, 8.0f, 15.0f);
     for (const float Side : {-1.0f, 1.0f})
     {
         for (const float Bank : {-1.0f, 1.0f})
@@ -988,49 +1208,86 @@ void AAshenArena::BeginPlay()
     BuildTerrain();
     SkyLight->RecaptureSky();
 
-    const auto Moor = SurfaceStyle({0.050f, 0.074f, 0.050f}, {0.105f, 0.118f, 0.078f}, {0.160f, 0.176f, 0.105f}, 0.96f,
-                                   510.0f, 88.0f, 0.14f, 0.18f);
-    const auto MoorPatch = SurfaceStyle({0.074f, 0.105f, 0.064f}, {0.13f, 0.15f, 0.085f}, {0.19f, 0.20f, 0.11f}, 0.98f,
-                                        260.0f, 54.0f, 0.17f, 0.14f);
-    const auto Mud = SurfaceStyle({0.095f, 0.066f, 0.040f}, {0.17f, 0.12f, 0.070f}, {0.25f, 0.205f, 0.135f}, 0.94f,
-                                  220.0f, 42.0f, 0.22f, 0.18f);
-    const auto RoadStone = SurfaceStyle({0.090f, 0.088f, 0.076f}, {0.155f, 0.145f, 0.118f},
-                                        {0.225f, 0.205f, 0.160f}, 0.94f, 120.0f, 30.0f, 0.20f, 0.20f);
-    const auto WetStone = SurfaceStyle({0.075f, 0.086f, 0.080f}, {0.145f, 0.15f, 0.135f}, {0.23f, 0.23f, 0.195f}, 0.80f,
-                                       135.0f, 32.0f, 0.19f, 0.34f);
-    const auto WeatheredWood = SurfaceStyle({0.090f, 0.047f, 0.024f}, {0.17f, 0.095f, 0.045f}, {0.28f, 0.18f, 0.095f},
-                                            0.86f, 90.0f, 21.0f, 0.18f, 0.22f);
+    auto Moor = SurfaceStyle({0.050f, 0.074f, 0.050f}, {0.105f, 0.118f, 0.078f}, {0.160f, 0.176f, 0.105f}, 0.96f,
+                             510.0f, 88.0f, 0.14f, 0.18f);
+    auto MoorPatch = SurfaceStyle({0.074f, 0.105f, 0.064f}, {0.13f, 0.15f, 0.085f}, {0.19f, 0.20f, 0.11f}, 0.98f,
+                                  260.0f, 54.0f, 0.17f, 0.14f);
+    auto Mud = SurfaceStyle({0.095f, 0.066f, 0.040f}, {0.17f, 0.12f, 0.070f}, {0.25f, 0.205f, 0.135f}, 0.94f,
+                            220.0f, 42.0f, 0.22f, 0.18f);
+    auto RoadStone = SurfaceStyle({0.090f, 0.088f, 0.076f}, {0.155f, 0.145f, 0.118f},
+                                  {0.225f, 0.205f, 0.160f}, 0.94f, 120.0f, 30.0f, 0.20f, 0.20f);
+    auto WetStone = SurfaceStyle({0.075f, 0.086f, 0.080f}, {0.145f, 0.15f, 0.135f}, {0.23f, 0.23f, 0.195f}, 0.80f,
+                                 135.0f, 32.0f, 0.19f, 0.34f);
+    auto WeatheredWood = SurfaceStyle({0.090f, 0.047f, 0.024f}, {0.17f, 0.095f, 0.045f},
+                                      {0.28f, 0.18f, 0.095f}, 0.86f, 90.0f, 21.0f, 0.18f, 0.22f);
     const auto DarkIron = SurfaceStyle({0.055f, 0.060f, 0.058f}, {0.14f, 0.145f, 0.135f}, {0.24f, 0.23f, 0.20f}, 0.44f,
                                        95.0f, 24.0f, 0.12f, 0.58f);
-    const auto MineDark = SurfaceStyle({0.004f, 0.005f, 0.005f}, {0.012f, 0.014f, 0.013f}, {0.025f, 0.026f, 0.023f},
-                                       0.98f, 80.0f, 19.0f, 0.08f, 0.08f);
+    auto MineDark = SurfaceStyle({0.004f, 0.005f, 0.005f}, {0.012f, 0.014f, 0.013f}, {0.025f, 0.026f, 0.023f},
+                                 0.98f, 80.0f, 19.0f, 0.08f, 0.08f);
     const auto Bark = SurfaceStyle({0.050f, 0.028f, 0.015f}, {0.105f, 0.060f, 0.030f}, {0.18f, 0.115f, 0.055f}, 0.98f,
                                    75.0f, 18.0f, 0.20f, 0.14f);
     const auto Pine = SurfaceStyle({0.020f, 0.058f, 0.030f}, {0.045f, 0.105f, 0.052f}, {0.10f, 0.16f, 0.085f}, 0.99f,
                                    105.0f, 25.0f, 0.16f, 0.12f);
     const auto PineShadow = SurfaceStyle({0.012f, 0.030f, 0.018f}, {0.025f, 0.067f, 0.034f}, {0.055f, 0.105f, 0.055f},
                                          0.99f, 115.0f, 28.0f, 0.13f, 0.10f);
-    const auto HumanStone = SurfaceStyle({0.16f, 0.17f, 0.16f}, {0.27f, 0.27f, 0.235f}, {0.38f, 0.36f, 0.29f}, 0.90f,
-                                         130.0f, 29.0f, 0.19f, 0.25f);
-    const auto FoundationStone = SurfaceStyle({0.075f, 0.078f, 0.073f}, {0.15f, 0.15f, 0.135f}, {0.23f, 0.22f, 0.18f},
-                                              0.95f, 110.0f, 27.0f, 0.22f, 0.18f);
+    auto HumanStone = SurfaceStyle({0.16f, 0.17f, 0.16f}, {0.27f, 0.27f, 0.235f}, {0.38f, 0.36f, 0.29f}, 0.90f,
+                                   130.0f, 29.0f, 0.19f, 0.25f);
+    auto FoundationStone = SurfaceStyle({0.075f, 0.078f, 0.073f}, {0.15f, 0.15f, 0.135f},
+                                        {0.23f, 0.22f, 0.18f}, 0.95f, 110.0f, 27.0f, 0.22f, 0.18f);
     const auto HumanRoof = SurfaceStyle({0.14f, 0.025f, 0.018f}, {0.26f, 0.050f, 0.025f}, {0.40f, 0.095f, 0.040f},
                                         0.76f, 95.0f, 22.0f, 0.16f, 0.30f);
     const auto Flesh = SurfaceStyle({0.09f, 0.008f, 0.014f}, {0.19f, 0.018f, 0.025f}, {0.34f, 0.035f, 0.042f}, 0.68f,
                                     115.0f, 24.0f, 0.24f, 0.30f);
     const auto Bone = SurfaceStyle({0.29f, 0.25f, 0.18f}, {0.45f, 0.39f, 0.28f}, {0.61f, 0.54f, 0.40f}, 0.88f, 100.0f,
                                    22.0f, 0.17f, 0.20f);
-    const auto MythicStone = SurfaceStyle({0.030f, 0.042f, 0.042f}, {0.075f, 0.105f, 0.095f}, {0.13f, 0.205f, 0.17f},
-                                          0.82f, 145.0f, 31.0f, 0.19f, 0.36f);
+    auto MythicStone = SurfaceStyle({0.030f, 0.042f, 0.042f}, {0.075f, 0.105f, 0.095f},
+                                    {0.13f, 0.205f, 0.17f}, 0.82f, 145.0f, 31.0f, 0.19f, 0.36f);
+
+    Moor.TextureTint = {0.58f, 0.66f, 0.53f, 1.0f};
+    Moor.TextureBlend = 0.68f;
+    Moor.TextureTiling = 0.92f;
+    Moor.NormalStrength = 0.48f;
+    MoorPatch.TextureTint = {0.48f, 0.58f, 0.42f, 1.0f};
+    MoorPatch.TextureBlend = 0.62f;
+    Mud.TextureTint = {0.47f, 0.43f, 0.36f, 1.0f};
+    Mud.TextureBlend = 0.56f;
+    Mud.TextureTiling = 0.88f;
+    Mud.NormalStrength = 0.58f;
+    RoadStone.TextureTint = {0.56f, 0.58f, 0.54f, 1.0f};
+    RoadStone.TextureBlend = 0.64f;
+    RoadStone.NormalStrength = 0.72f;
+    WetStone.TextureTint = {0.48f, 0.57f, 0.54f, 1.0f};
+    WetStone.TextureBlend = 0.72f;
+    WeatheredWood.TextureTint = {0.64f, 0.50f, 0.34f, 1.0f};
+    WeatheredWood.TextureBlend = 0.82f;
+    WeatheredWood.NormalStrength = 0.74f;
+    MineDark.TextureTint = {0.20f, 0.22f, 0.20f, 1.0f};
+    MineDark.TextureBlend = 0.46f;
+    HumanStone.TextureTint = {0.78f, 0.77f, 0.68f, 1.0f};
+    HumanStone.TextureBlend = 0.67f;
+    FoundationStone.TextureTint = {0.53f, 0.55f, 0.50f, 1.0f};
+    FoundationStone.TextureBlend = 0.72f;
+    MythicStone.TextureTint = {0.42f, 0.56f, 0.52f, 1.0f};
+    MythicStone.TextureBlend = 0.58f;
+    auto RiverMud = Mud;
+    RiverMud.Roughness = 0.88f;
+    RiverMud.TextureTint = {0.23f, 0.24f, 0.20f, 1.0f};
+    RiverMud.TextureBlend = 0.28f;
+    RiverMud.TextureTiling = 0.65f;
+    auto RutMud = Mud;
+    RutMud.TextureTint = {0.23f, 0.19f, 0.15f, 1.0f};
+    RutMud.TextureBlend = 0.58f;
+    RutMud.NormalStrength = 0.42f;
 
     Ashen::Materials::ApplySurface(Terrain, this, Moor, EAshenEnvironmentSurface::Moor);
-    Ashen::Materials::ApplySurface(Roadbed, this, Mud, EAshenEnvironmentSurface::Mud);
-    Ashen::Materials::ApplySurface(RoadStones, this, RoadStone, EAshenEnvironmentSurface::RoadStone);
-    Ashen::Materials::ApplySurface(
-        RoadRuts, this,
-        SurfaceStyle({0.035f, 0.022f, 0.016f}, {0.07f, 0.045f, 0.028f}, {0.11f, 0.075f, 0.045f}, 0.72f),
-        EAshenEnvironmentSurface::Mud);
-    Ashen::Materials::ApplySurface(RiverBanks, this, Mud, EAshenEnvironmentSurface::Mud);
+    Ashen::Materials::ApplySurface(RoadSurface, this, Mud, EAshenEnvironmentSurface::Mud);
+    Ashen::Materials::ApplySurface(RoadStoneSurface, this, RoadStone,
+                                   EAshenEnvironmentSurface::RoadStone);
+    Ashen::Materials::ApplySurface(RoadRutSurface, this, RutMud, EAshenEnvironmentSurface::Mud);
+    Ashen::Materials::ApplySurface(RiverShoreSurface, this, RiverMud,
+                                   EAshenEnvironmentSurface::Mud);
+    Ashen::Materials::ApplySurface(RiverBanks, this, WetStone,
+                                   EAshenEnvironmentSurface::WetStone);
     Ashen::Materials::ApplySurface(Reeds, this, Pine, EAshenEnvironmentSurface::Pine);
     Ashen::Materials::ApplySurface(BridgeTimbers, this, WeatheredWood,
                                    EAshenEnvironmentSurface::WeatheredWood);
@@ -1065,9 +1322,6 @@ void AAshenArena::BeginPlay()
     Ashen::Materials::ApplySurface(BrazierBowls, this, DarkIron, EAshenEnvironmentSurface::DarkIron);
     Ashen::Materials::Apply(EmberCores, this, FLinearColor(0.78f, 0.09f, 0.025f), 0.16f);
 
-    for (UStaticMeshComponent *WaterSegment : WaterSegments)
-    {
-        Ashen::Materials::ApplyWater(WaterSegment, this, FLinearColor(0.035f, 0.20f, 0.19f),
-                                     FLinearColor(0.004f, 0.036f, 0.045f), 0.80f);
-    }
+    Ashen::Materials::ApplyWater(RiverSurface, this, FLinearColor(0.045f, 0.19f, 0.16f),
+                                 FLinearColor(0.006f, 0.048f, 0.050f), 0.72f);
 }
