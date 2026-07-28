@@ -90,6 +90,18 @@ void AAshenCameraPawn::FocusOn(const FVector &WorldPosition)
     SetActorLocation(Location);
 }
 
+void AAshenCameraPawn::FrameRegion(const FVector &WorldPosition, const float CameraDistance)
+{
+    SetActorTickEnabled(false);
+    FocusOn(WorldPosition);
+    FVector Location = GetActorLocation();
+    Location.Z = WorldPosition.Z;
+    SetActorLocation(Location);
+    Camera->SetProjectionMode(ECameraProjectionMode::Perspective);
+    DesiredArmLength = FMath::Clamp(CameraDistance, 750.0f, 4'700.0f);
+    CameraArm->TargetArmLength = DesiredArmLength;
+}
+
 void AAshenCameraPawn::FrameWorld()
 {
     SetActorTickEnabled(false);

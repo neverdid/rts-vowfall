@@ -415,6 +415,10 @@ AAshenArena::AAshenArena()
     GrassTufts = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GrassTufts"));
     Rocks = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Rocks"));
     MountainRocks = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MountainRocks"));
+    MountainRocksSecondary =
+        CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MountainRocksSecondary"));
+    MountainRocksTertiary =
+        CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MountainRocksTertiary"));
     MineMouths = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MineMouths"));
     MineTimbers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MineTimbers"));
     ForestRoots = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ForestRoots"));
@@ -446,6 +450,10 @@ AAshenArena::AAshenArena()
     ConfigureInstances(GrassTufts, SceneRoot, EAshenEnvironmentMeshSlot::GrassTuft, Cone, false);
     ConfigureInstances(Rocks, SceneRoot, EAshenEnvironmentMeshSlot::FieldRock, Sphere);
     ConfigureInstances(MountainRocks, SceneRoot, EAshenEnvironmentMeshSlot::MountainRock, Sphere);
+    ConfigureInstances(MountainRocksSecondary, SceneRoot,
+                       EAshenEnvironmentMeshSlot::MountainRockSecondary, Sphere);
+    ConfigureInstances(MountainRocksTertiary, SceneRoot,
+                       EAshenEnvironmentMeshSlot::MountainRockTertiary, Sphere);
     ConfigureInstances(MineMouths, SceneRoot, EAshenEnvironmentMeshSlot::MineMouth, Cube);
     ConfigureInstances(MineTimbers, SceneRoot, EAshenEnvironmentMeshSlot::MineTimber, Cylinder);
     ConfigureInstances(ForestRoots, SceneRoot, EAshenEnvironmentMeshSlot::ForestRoot, Cylinder);
@@ -1103,6 +1111,18 @@ void AAshenArena::BuildVegetation()
 void AAshenArena::BuildLandmarks()
 {
     FRandomStream Random(0xB1AC4F0D);
+    const auto MountainVariant = [this](const int32 Index)
+    {
+        switch (Index % 3)
+        {
+        case 1:
+            return MountainRocksSecondary.Get();
+        case 2:
+            return MountainRocksTertiary.Get();
+        default:
+            return MountainRocks.Get();
+        }
+    };
     // Blackridge is one continuous landform with a readable cliff spine, not a loose boulder field.
     const TArray<FVector2D> RidgeSpine{{1'030.0f, 770.0f}, {1'150.0f, 805.0f}, {1'275.0f, 830.0f},
                                        {1'405.0f, 850.0f}, {1'535.0f, 875.0f}, {1'665.0f, 905.0f},
@@ -1110,12 +1130,25 @@ void AAshenArena::BuildLandmarks()
     for (int32 Index = 0; Index < RidgeSpine.Num(); ++Index)
     {
         const FVector2D Point = RidgeSpine[Index];
+        const int32 Variant = Index % 3;
         const float Scale = 1.42f + static_cast<float>(Index % 3) * 0.20f;
-        MountainRocks->AddInstance(
+        FVector InstanceScale(Scale * 1.55f, Scale * 0.95f, Scale * 0.62f);
+        float HeightOffset = Scale * 12.0f;
+        if (Variant == 1)
+        {
+            InstanceScale = FVector(Scale, Scale * 0.90f, Scale * 0.68f);
+            HeightOffset = Scale * 28.0f;
+        }
+        else if (Variant == 2)
+        {
+            InstanceScale = FVector(Scale * 1.15f, Scale * 0.90f, Scale * 0.58f);
+            HeightOffset = Scale * 24.0f;
+        }
+        MountainVariant(Index)->AddInstance(
             FTransform(FRotator(Random.FRandRange(-7.0f, 7.0f), 18.0f + Index * 7.0f,
                                 Random.FRandRange(-7.0f, 7.0f)),
-                       FVector(Point.X, Point.Y, TerrainHeightAt(Point.X, Point.Y) + Scale * 42.0f),
-                       FVector(Scale * 1.24f, Scale * 0.72f, Scale * Random.FRandRange(0.82f, 1.08f))));
+                       FVector(Point.X, Point.Y, TerrainHeightAt(Point.X, Point.Y) + HeightOffset),
+                       InstanceScale));
     }
 
     for (int32 Index = 0; Index < 38; ++Index)
@@ -1129,7 +1162,7 @@ void AAshenArena::BuildLandmarks()
         }
 
         const float Scale = Random.FRandRange(0.34f, 0.82f);
-        MountainRocks->AddInstance(
+        MountainVariant(Index)->AddInstance(
             FTransform(FRotator(Random.FRandRange(-15.0f, 15.0f), Random.FRandRange(0.0f, 180.0f),
                                 Random.FRandRange(-10.0f, 10.0f)),
                        FVector(Point.X, Point.Y, TerrainHeightAt(Point.X, Point.Y) + Scale * 28.0f),
@@ -1153,7 +1186,7 @@ void AAshenArena::BuildLandmarks()
         for (int32 RockIndex = 0; RockIndex < 3; ++RockIndex)
         {
             const float Side = RockIndex % 2 == 0 ? -1.0f : 1.0f;
-            MountainRocks->AddInstance(
+            MountainVariant(RockIndex)->AddInstance(
                 FTransform(FRotator(0.0f, Random.FRandRange(0.0f, 180.0f), Random.FRandRange(-18.0f, 18.0f)),
                            FVector(MineX + Side * Random.FRandRange(62.0f, 108.0f),
                                    MineY + Random.FRandRange(-15.0f, 55.0f), GroundHeight + Random.FRandRange(18.0f, 36.0f)),
@@ -1267,6 +1300,15 @@ void AAshenArena::BeginPlay()
     HumanStone.TextureBlend = 0.67f;
     FoundationStone.TextureTint = {0.53f, 0.55f, 0.50f, 1.0f};
     FoundationStone.TextureBlend = 0.72f;
+    auto BlackridgeStone = FoundationStone;
+    BlackridgeStone.BaseColor = {0.105f, 0.11f, 0.105f, 1.0f};
+    BlackridgeStone.SecondaryColor = {0.19f, 0.19f, 0.17f, 1.0f};
+    BlackridgeStone.AccentColor = {0.30f, 0.285f, 0.23f, 1.0f};
+    BlackridgeStone.Specular = 0.12f;
+    BlackridgeStone.TextureTint = {0.72f, 0.74f, 0.68f, 1.0f};
+    BlackridgeStone.TextureBlend = 0.60f;
+    BlackridgeStone.NormalStrength = 0.76f;
+    BlackridgeStone.PackedStrength = 0.62f;
     MythicStone.TextureTint = {0.42f, 0.56f, 0.52f, 1.0f};
     MythicStone.TextureBlend = 0.58f;
     auto RiverMud = Mud;
@@ -1299,7 +1341,11 @@ void AAshenArena::BeginPlay()
     Ashen::Materials::ApplySurface(DeadBranches, this, Bark, EAshenEnvironmentSurface::Bark);
     Ashen::Materials::ApplySurface(GrassTufts, this, MoorPatch, EAshenEnvironmentSurface::MoorPatch);
     Ashen::Materials::ApplySurface(Rocks, this, WetStone, EAshenEnvironmentSurface::WetStone);
-    Ashen::Materials::ApplySurface(MountainRocks, this, FoundationStone,
+    Ashen::Materials::ApplySurface(MountainRocks, this, BlackridgeStone,
+                                   EAshenEnvironmentSurface::FoundationStone);
+    Ashen::Materials::ApplySurface(MountainRocksSecondary, this, BlackridgeStone,
+                                   EAshenEnvironmentSurface::FoundationStone);
+    Ashen::Materials::ApplySurface(MountainRocksTertiary, this, BlackridgeStone,
                                    EAshenEnvironmentSurface::FoundationStone);
     Ashen::Materials::ApplySurface(MineMouths, this, MineDark, EAshenEnvironmentSurface::MineDark);
     Ashen::Materials::ApplySurface(MineTimbers, this, WeatheredWood,

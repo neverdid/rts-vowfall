@@ -235,6 +235,55 @@ def _mountain_cliff() -> unreal.DynamicMesh:
     return result
 
 
+def _mountain_cliff_secondary() -> unreal.DynamicMesh:
+    result = _mesh()
+    _rock(
+        result,
+        location=(-13.0, -5.0, -9.0),
+        rotation=(-7.0, 37.0, 11.0),
+        scale=(0.63, 0.55, 0.96),
+        steps=3,
+    )
+    _rock(
+        result,
+        location=(22.0, 11.0, -27.0),
+        rotation=(18.0, 103.0, -6.0),
+        scale=(0.58, 0.47, 0.48),
+    )
+    _rock(
+        result,
+        location=(-25.0, 16.0, 24.0),
+        rotation=(-13.0, 148.0, 8.0),
+        scale=(0.38, 0.42, 0.52),
+    )
+    return result
+
+
+def _mountain_cliff_tertiary() -> unreal.DynamicMesh:
+    result = _mesh()
+    _rock(
+        result,
+        location=(-8.0, 2.0, -18.0),
+        rotation=(8.0, 54.0, -5.0),
+        scale=(0.96, 0.62, 0.64),
+        steps=3,
+    )
+    _rock(
+        result,
+        location=(27.0, -11.0, 13.0),
+        rotation=(-16.0, 121.0, 12.0),
+        scale=(0.48, 0.58, 0.74),
+        steps=3,
+    )
+    _rock(
+        result,
+        location=(-29.0, 12.0, 21.0),
+        rotation=(11.0, 174.0, -9.0),
+        scale=(0.36, 0.43, 0.48),
+    )
+    return result
+
+
 def _mine_mouth() -> unreal.DynamicMesh:
     result = _mesh()
     _box(result, (-36.0, 0.0, -8.0), dimensions=(22.0, 72.0, 84.0), rotation=(0.0, 0.0, -4.0))
@@ -375,6 +424,8 @@ FACTORIES: dict[str, Callable[[], unreal.DynamicMesh]] = {
     "Meshes/Foliage/SM_GrassTuft_A": _grass_tuft,
     "Meshes/Rock/SM_FieldRock_A": _field_rock,
     "Meshes/Rock/SM_MountainCliff_A": _mountain_cliff,
+    "Meshes/Rock/SM_MountainCliff_B": _mountain_cliff_secondary,
+    "Meshes/Rock/SM_MountainCliff_C": _mountain_cliff_tertiary,
     "Meshes/Architecture/SM_MineMouth_A": _mine_mouth,
     "Meshes/Architecture/SM_MineTimber_A": _timber,
     "Meshes/Foliage/SM_ForestRoot_A": _forest_root,

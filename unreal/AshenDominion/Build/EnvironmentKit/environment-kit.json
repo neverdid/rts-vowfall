@@ -14,15 +14,54 @@
   "project_titan_intake": {
     "source_project": "C:/UnrealProjects/ProjectTitanSource",
     "engine_version": "5.8",
-    "selected_family": "Marshlands Mossy Rock Medium",
     "selection_status": "locally-integrated",
-    "selection_reason": "Complete D/N/ORM triplet, subdued natural palette, no signature landmark dependency, and readable detail at the RTS camera.",
-    "source_assets": [
-      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_D",
-      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_N",
-      "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_ORM"
-    ],
-    "target_prefix": "Textures/Stone/T_Foundation"
+    "surface_family": {
+      "name": "Marshlands Mossy Rock Medium",
+      "selection_reason": "Complete D/N/ORM triplet, subdued natural palette, no signature landmark dependency, and readable detail at the RTS camera.",
+      "source_assets": [
+        "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_D",
+        "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_N",
+        "/Game/Environment/Marshland/Textures/Rocks/T_Marshlands_MossyRock_Medium_01_ORM"
+      ],
+      "target_prefix": "Textures/Stone/T_Foundation"
+    },
+    "mesh_family": {
+      "name": "Marshlands Rocks 2-4",
+      "role": "Blackridge shelf, peak, and asymmetric block silhouettes",
+      "selection_reason": "Three complementary generic silhouettes, five authored LODs each, approximately 400 LOD0 vertices each, and no signature building or biome dependency.",
+      "source_assets": [
+        "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_2",
+        "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_3",
+        "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_4"
+      ],
+      "target_assets": [
+        "Meshes/Rock/SM_MountainCliff_A",
+        "Meshes/Rock/SM_MountainCliff_B",
+        "Meshes/Rock/SM_MountainCliff_C"
+      ],
+      "normalization": {
+        "method": "Geometry Scripting source-LOD bake",
+        "maximum_dimension_cm": 100.0,
+        "lod_count": 5,
+        "nanite": false,
+        "collision": "disabled",
+        "source_materials": "stripped; FoundationStone is applied at runtime"
+      },
+      "rejected_candidates": [
+        {
+          "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshland_LargeChunkyCliff",
+          "reason": "Single LOD, oversized monolithic silhouette, and less useful for modular ridge composition."
+        },
+        {
+          "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_MossyRock_Medium_01",
+          "reason": "Single LOD and a low, flat silhouette that duplicates the field-rock role."
+        },
+        {
+          "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/LargeChunkyRock",
+          "reason": "Single LOD and a higher-cost silhouette without a distinct Blackridge role."
+        }
+      ]
+    }
   },
   "recommended_acquisitions": [
     { "name": "Project Titan", "listing_id": "c05aac82-4c1a-4e42-96b3-be668dc40fca", "kind": "source_project", "quality": "medium_2k", "target": "FoundationStone" },
@@ -42,7 +81,9 @@
     { "slot": "DeadBranch", "path": "Meshes/Foliage/SM_DeadBranch_A", "source_asset": null },
     { "slot": "GrassTuft", "path": "Meshes/Foliage/SM_GrassTuft_A", "source_asset": null },
     { "slot": "FieldRock", "path": "Meshes/Rock/SM_FieldRock_A", "source_asset": null },
-    { "slot": "MountainRock", "path": "Meshes/Rock/SM_MountainCliff_A", "source_asset": null },
+    { "slot": "MountainRock", "path": "Meshes/Rock/SM_MountainCliff_A", "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_2", "minimum_lods": 5, "max_dimension_cm": 100.0, "nanite": false },
+    { "slot": "MountainRockSecondary", "path": "Meshes/Rock/SM_MountainCliff_B", "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_3", "minimum_lods": 5, "max_dimension_cm": 100.0, "nanite": false },
+    { "slot": "MountainRockTertiary", "path": "Meshes/Rock/SM_MountainCliff_C", "source_asset": "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_4", "minimum_lods": 5, "max_dimension_cm": 100.0, "nanite": false },
     { "slot": "MineTimber", "path": "Meshes/Architecture/SM_MineTimber_A", "source_asset": null },
     { "slot": "ForestRoot", "path": "Meshes/Foliage/SM_ForestRoot_A", "source_asset": null }
   ],

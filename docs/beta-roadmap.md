@@ -49,19 +49,22 @@ Visual foundation delivered:
 
 Production-kit foundation delivered:
 
-- Thirty-three reproducible original Vowfall meshes now cover every environment proxy category
+- Thirty-five reproducible original Vowfall meshes now cover every environment proxy category
 - Optional production assets and PBR textures resolve through semantic slots with deterministic fallbacks
 - Project Titan has a license-safe curation policy, canonical intake manifest, and local audit workflow
 - Surface master supports base-color, normal, and packed AO/roughness texture sets without changing
   gameplay collision
 - Four free or entitled surface families are normalized into the ignored local 2K kit and applied to
   terrain, roads, the causeway, bridges, mine timber, and structural stone
+- A curated three-mesh Project Titan cliff family now gives Blackridge distinct shelf, peak, and
+  broken-block silhouettes while keeping licensed binaries local, five authored LODs, and gameplay
+  collision independent
 - Route slabs and overlapping water planes are replaced by tested continuous procedural ribbons, with
   distinct main/flank treatment and crossing-safe shoreline dressing
 
-Next graphics slice: inspect the already acquired Project Titan source project, curate only free rock,
-cliff, dead-forest, debris, and generic structural mesh families, then compare production captures and
-frame cost against the original Vowfall fallback kit.
+Next graphics slice: curate only free Project Titan dead-forest and root meshes for Gravewood, then
+compare production captures and frame cost against the original Vowfall fallback kit before considering
+debris or generic structural modules.
 
 - Replace procedural proxy terrain with an authored competitive map using landscape, roads, bridges,
   river water, forests, cliffs, castles, landmarks, and faction-readable bases
