@@ -1,6 +1,8 @@
 #include "ashen/core/Simulation.hpp"
 
 #include "ashen/core/Catalog.hpp"
+#include "ashen/core/Content.hpp"
+#include "ashen/core/ResolveSystem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -18,8 +20,6 @@ inline constexpr Tick kHarvestTicks = 22;
 inline constexpr std::int32_t kOrePerTrip = 10;
 inline constexpr std::int32_t kAttackMoveAcquisitionRange = 220'000;
 inline constexpr std::int32_t kSeparationPadding = 2'000;
-inline constexpr std::int32_t kTerrorRange = 250'000;
-inline constexpr std::int32_t kWardRange = 230'000;
 inline constexpr Tick kRuinTidePeriodTicks = 92 * kTicksPerSecond;
 inline constexpr std::int32_t kCaptureMaximum = 10'000;
 inline constexpr std::int32_t kControlIncomeThreshold = 2'000;
@@ -27,6 +27,8 @@ inline constexpr std::int32_t kControlIncomePerTick = 155;
 inline constexpr std::int32_t kConstructionReach = 12'000;
 inline constexpr std::uint64_t kFnvOffset = 14'695'981'039'346'656'037ULL;
 inline constexpr std::uint64_t kFnvPrime = 1'099'511'628'211ULL;
+inline constexpr std::size_t kInvalidEntityIndex =
+    std::numeric_limits<std::size_t>::max();
 
 [[nodiscard]] CommandResult success() noexcept {
   return {true, CommandError::None, {}};
@@ -148,6 +150,7 @@ void Simulation::reset(const SimulationConfig& config) {
   for (auto& grid : visibility_) {
     grid.reset(config_.map_size, config_.visibility_cell_size);
   }
+  spatial_grid_.reset(config_.map_size, config_.spatial_cell_size);
   for (auto& memory : resource_memory_) {
     memory.clear();
   }
@@ -162,17 +165,22 @@ void Simulation::reset(const SimulationConfig& config) {
     commanders_[index].reset(config_.commander_difficulties[index]);
   }
   entities_.clear();
+  entity_index_by_id_.assign(1, kInvalidEntityIndex);
   resources_.clear();
   control_points_.clear();
+  vows_.clear();
   command_queue_.clear();
   command_trace_.clear();
   ai_decision_trace_.clear();
+  events_.clear();
   ruin_tide_ = 4;
   next_entity_id_ = 1;
   next_resource_id_ = 1;
   next_control_point_id_ = 1;
   next_sequence_ = 1;
   next_ai_decision_id_ = 1;
+  next_event_id_ = 1;
+  event_digest_ = kFnvOffset;
 
   if (!config.seed_starting_forces) {
     return;
@@ -288,6 +296,7 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   Entity entity{};
   entity.id = EntityId{next_entity_id_++};
   entity.owner = owner;
+  entity.faction = player(owner).faction;
   entity.type = type;
   entity.kind = definition.kind;
   entity.position = position;
@@ -306,6 +315,7 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   entity.terror = definition.terror;
   entity.ward = definition.ward;
   entity.resolve = 100;
+  entity.resolve_state = ResolveState::Steady;
   entity.supply_cost = definition.supply_cost;
   entity.supply_provided = definition.supply_provided;
   entity.guard_position = position;
@@ -329,6 +339,14 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   }
 
   entities_.push_back(std::move(entity));
+  if (entity_index_by_id_.size() <= entities_.back().id.value) {
+    entity_index_by_id_.resize(
+        static_cast<std::size_t>(entities_.back().id.value) + 1,
+        kInvalidEntityIndex);
+  }
+  entity_index_by_id_[entities_.back().id.value] = entities_.size() - 1;
+  emit_event(EntitySpawnedEvent{entities_.back().id, owner,
+                                entities_.back().faction, type});
   refresh_visibility();
   refresh_observation_memory();
   return entities_.back().id;
@@ -357,15 +375,27 @@ PlayerState& Simulation::mutable_player(const PlayerId id) noexcept {
 }
 
 const Entity* Simulation::find_entity(const EntityId id) const noexcept {
-  const auto found = std::find_if(entities_.begin(), entities_.end(),
-                                  [id](const Entity& entity) { return entity.id == id && entity.alive(); });
-  return found == entities_.end() ? nullptr : &*found;
+  if (!id || id.value >= entity_index_by_id_.size()) {
+    return nullptr;
+  }
+  const auto index = entity_index_by_id_[id.value];
+  if (index == kInvalidEntityIndex || index >= entities_.size()) {
+    return nullptr;
+  }
+  const auto& entity = entities_[index];
+  return entity.id == id && entity.alive() ? &entity : nullptr;
 }
 
 Entity* Simulation::find_entity_mutable(const EntityId id) noexcept {
-  const auto found = std::find_if(entities_.begin(), entities_.end(),
-                                  [id](const Entity& entity) { return entity.id == id && entity.alive(); });
-  return found == entities_.end() ? nullptr : &*found;
+  if (!id || id.value >= entity_index_by_id_.size()) {
+    return nullptr;
+  }
+  const auto index = entity_index_by_id_[id.value];
+  if (index == kInvalidEntityIndex || index >= entities_.size()) {
+    return nullptr;
+  }
+  auto& entity = entities_[index];
+  return entity.id == id && entity.alive() ? &entity : nullptr;
 }
 
 const ResourceNode* Simulation::find_resource(const ResourceId id) const noexcept {
@@ -390,6 +420,11 @@ ControlPoint* Simulation::find_control_point_mutable(const ControlPointId id) no
   const auto found = std::find_if(control_points_.begin(), control_points_.end(),
                                   [id](const ControlPoint& point) { return point.id == id; });
   return found == control_points_.end() ? nullptr : &*found;
+}
+
+VowState* Simulation::find_vow_mutable(const VowId id) noexcept {
+  const auto found = std::ranges::find(vows_, id, &VowState::id);
+  return found == vows_.end() ? nullptr : &*found;
 }
 
 CommandResult Simulation::apply_command(const Command& command) {
@@ -426,6 +461,14 @@ CommandResult Simulation::apply_command(const Command& command) {
       return apply_retreat(command);
     case CommandType::SetStance:
       return apply_set_stance(command);
+    case CommandType::MakeVow:
+      return apply_make_vow(command);
+    case CommandType::KeepVow:
+      return apply_keep_vow(command);
+    case CommandType::BreakVow:
+      return apply_break_vow(command);
+    case CommandType::AmendVow:
+      return apply_amend_vow(command);
   }
   return failure(CommandError::InvalidEntity, "Unsupported command.");
 }
@@ -694,6 +737,8 @@ CommandResult Simulation::apply_activate_power(const Command& command) {
   if (owner.ore < power.cost) {
     return failure(CommandError::InsufficientOre, "Not enough ore for the faction doctrine.");
   }
+  const auto* ability =
+      find_faction_power_ability(builtin_content(), owner.faction);
 
   if (owner.faction == FactionId::Ascendancy) {
     const auto* command_structure = nearest_command(command.player, config_.map_size);
@@ -703,6 +748,10 @@ CommandResult Simulation::apply_activate_power(const Command& command) {
     const auto unit = entity_definition(owner.faction, EntityType::Vanguard);
     if (owner.supply_used + queued_supply(command.player) + unit.supply_cost > owner.supply_cap) {
       return failure(CommandError::SupplyBlocked, "Army capacity reached.");
+    }
+    if (ability != nullptr) {
+      emit_event(AbilityStartedEvent{ability->metadata.stable_id,
+                                     command.player, command_structure->id});
     }
     const auto command_position = command_structure->position;
     const auto direction = command.player == PlayerId::One ? 1 : -1;
@@ -717,6 +766,10 @@ CommandResult Simulation::apply_activate_power(const Command& command) {
       set_order(*entity, std::move(order), false);
     }
   } else if (owner.faction == FactionId::Compact) {
+    if (ability != nullptr) {
+      emit_event(AbilityStartedEvent{ability->metadata.stable_id,
+                                     command.player, {}});
+    }
     for (auto& entity : entities_) {
       if (entity.owner == command.player && entity.alive() && entity.kind == EntityKind::Unit) {
         entity.resolve = 100;
@@ -725,6 +778,10 @@ CommandResult Simulation::apply_activate_power(const Command& command) {
       }
     }
   } else {
+    if (ability != nullptr) {
+      emit_event(AbilityStartedEvent{ability->metadata.stable_id,
+                                     command.player, {}});
+    }
     for (auto& entity : entities_) {
       if (entity.owner != command.player || !entity.alive()) {
         continue;
@@ -793,6 +850,89 @@ CommandResult Simulation::apply_set_stance(const Command& command) {
       }
     }
   }
+  return success();
+}
+
+CommandResult Simulation::apply_make_vow(const Command& command) {
+  if (find_vow_content(builtin_content(), command.vow) == nullptr) {
+    return failure(CommandError::InvalidVow,
+                   "The requested Vow definition does not exist.");
+  }
+  if (find_vow_mutable(command.vow) != nullptr) {
+    return failure(CommandError::VowAlreadyExists,
+                   "That Vow has already been made in this match.");
+  }
+  vows_.push_back(
+      VowState{command.vow, command.player, VowResolution::Unresolved,
+               tick_, 0, 1, std::nullopt});
+  std::ranges::sort(vows_, {}, [](const VowState& vow) {
+    return vow.id.value;
+  });
+  emit_event(VowMadeEvent{command.vow, command.player});
+  return success();
+}
+
+CommandResult Simulation::apply_keep_vow(const Command& command) {
+  auto* vow = find_vow_mutable(command.vow);
+  if (vow == nullptr) {
+    return failure(CommandError::InvalidVow, "That Vow has not been made.");
+  }
+  if (vow->resolution != VowResolution::Unresolved) {
+    return failure(CommandError::VowAlreadyResolved,
+                   "That Vow has already been resolved.");
+  }
+  if (vow->maker != command.player) {
+    return failure(CommandError::VowAuthorityRequired,
+                   "Only the Vow's maker can declare it kept.");
+  }
+  vow->resolution = VowResolution::Kept;
+  vow->resolved_tick = tick_;
+  emit_event(VowKeptEvent{vow->id, vow->maker});
+  return success();
+}
+
+CommandResult Simulation::apply_break_vow(const Command& command) {
+  auto* vow = find_vow_mutable(command.vow);
+  if (vow == nullptr) {
+    return failure(CommandError::InvalidVow, "That Vow has not been made.");
+  }
+  if (vow->resolution != VowResolution::Unresolved) {
+    return failure(CommandError::VowAlreadyResolved,
+                   "That Vow has already been resolved.");
+  }
+  if (vow->maker != command.player) {
+    return failure(CommandError::VowAuthorityRequired,
+                   "Only the Vow's maker can declare it broken.");
+  }
+  vow->resolution = VowResolution::Broken;
+  vow->resolved_tick = tick_;
+  emit_event(VowBrokenEvent{vow->id, vow->maker});
+  return success();
+}
+
+CommandResult Simulation::apply_amend_vow(const Command& command) {
+  auto* vow = find_vow_mutable(command.vow);
+  const auto* definition =
+      find_vow_content(builtin_content(), command.vow);
+  if (vow == nullptr || definition == nullptr) {
+    return failure(CommandError::InvalidVow, "That Vow has not been made.");
+  }
+  if (vow->resolution != VowResolution::Unresolved) {
+    return failure(CommandError::VowAlreadyResolved,
+                   "That Vow has already been resolved.");
+  }
+  if (definition->amendment_requires_affected_party &&
+      command.player == vow->maker) {
+    return failure(
+        CommandError::VowAuthorityRequired,
+        "An affected party must participate in amending this Vow.");
+  }
+  vow->resolution = VowResolution::Amended;
+  vow->resolved_tick = tick_;
+  ++vow->revision;
+  vow->participating_affected_player = command.player;
+  emit_event(VowAmendedEvent{vow->id, vow->maker, command.player,
+                             vow->revision});
   return success();
 }
 
@@ -900,6 +1040,8 @@ void Simulation::update_production() {
 
 void Simulation::update_control_points() {
   for (auto& point : control_points_) {
+    const auto previous_owner = point.owner;
+    const auto was_contested = point.contested;
     std::array<std::int32_t, 2> presence{};
     for (const auto& entity : entities_) {
       if (!entity.alive() || entity.kind != EntityKind::Unit ||
@@ -907,6 +1049,10 @@ void Simulation::update_control_points() {
         continue;
       }
       presence[player_index(entity.owner)] += entity.type == EntityType::Worker ? 1 : 2;
+    }
+    point.contested = presence[0] > 0 && presence[1] > 0;
+    if (point.contested && !was_contested) {
+      emit_event(ObjectiveContestedEvent{point.id});
     }
 
     if (presence[0] > 0 && presence[1] == 0) {
@@ -927,6 +1073,10 @@ void Simulation::update_control_points() {
     } else if (point.influence <= -kCaptureMaximum) {
       point.owner = PlayerId::Two;
     }
+    if (point.owner.has_value() && point.owner != previous_owner) {
+      emit_event(
+          ObjectiveCapturedEvent{point.id, previous_owner, *point.owner});
+    }
 
     if (point.owner.has_value()) {
       point.income_progress += kControlIncomePerTick;
@@ -941,55 +1091,27 @@ void Simulation::update_control_points() {
 }
 
 void Simulation::update_resolve() {
-  std::array<std::int32_t, 2> resolve_totals{};
-  std::array<std::int32_t, 2> resolve_samples{};
-
-  for (auto& entity : entities_) {
-    if (!entity.alive()) {
+  // Rebuild timing is explicit: Resolve queries the immutable positions produced by
+  // the preceding control-point phase and before this tick's movement.
+  spatial_grid_.rebuild(entities_);
+  const auto output = evaluate_resolve(ruin_tide_, players_, entities_,
+                                       control_points_, spatial_grid_);
+  for (const auto& update : output.entities) {
+    auto* entity = find_entity_mutable(update.entity);
+    if (entity == nullptr) {
       continue;
     }
-    if (entity.kind == EntityKind::Building) {
-      entity.resolve = 100;
-      continue;
+    const auto previous = entity->resolve_state;
+    entity->resolve = update.resolve;
+    entity->resolve_state = update.state;
+    if (previous != update.state) {
+      emit_event(ResolveThresholdChangedEvent{
+          entity->id, previous, update.state, update.resolve});
     }
-
-    auto enemy_terror = 0;
-    auto friendly_ward = 0;
-    for (const auto& other : entities_) {
-      if (!other.alive()) {
-        continue;
-      }
-      const auto gap = static_cast<std::int64_t>(integer_sqrt(squared_distance(entity.position, other.position)));
-      if (other.owner != entity.owner && other.terror > 0 && gap <= kTerrorRange) {
-        enemy_terror += static_cast<std::int32_t>(other.terror * (kTerrorRange - gap) / kTerrorRange);
-      }
-      if (other.owner == entity.owner && other.ward > 0 && gap <= kWardRange) {
-        friendly_ward += static_cast<std::int32_t>(other.ward * (kWardRange - gap) / kWardRange);
-      }
-    }
-
-    auto relic_ward = 0;
-    for (const auto& point : control_points_) {
-      if (point.owner == entity.owner) {
-        const auto reach = static_cast<std::int64_t>(point.radius) + 130'000;
-        if (squared_distance(entity.position, point.position) <= static_cast<std::uint64_t>(reach * reach)) {
-          relic_ward = 8;
-          break;
-        }
-      }
-    }
-
-    const auto ambient = ruin_tide_ * 18 / 100;
-    const auto race_drift = faction_definition(player(entity.owner).faction).resolve_drift;
-    const auto dread = ambient + enemy_terror - friendly_ward - relic_ward - race_drift;
-    entity.resolve = std::clamp(100 - dread, 38, 100);
-    resolve_totals[player_index(entity.owner)] += entity.resolve;
-    ++resolve_samples[player_index(entity.owner)];
   }
-
   for (const auto player_id : {PlayerId::One, PlayerId::Two}) {
-    const auto index = player_index(player_id);
-    mutable_player(player_id).resolve = resolve_samples[index] == 0 ? 100 : resolve_totals[index] / resolve_samples[index];
+    mutable_player(player_id).resolve =
+        output.player_resolve[player_index(player_id)];
   }
 }
 
@@ -1049,7 +1171,8 @@ void Simulation::update_defenses() {
         !within_reach(building, target->position, target->radius, building.attack_range)) {
       continue;
     }
-    target->hit_points -= damage_against(building, *target, 10'000);
+    apply_damage(*target, building.id,
+                 damage_against(building, *target, 10'000));
     building.cooldown_ticks = building.attack_cooldown_ticks;
   }
 }
@@ -1286,7 +1409,9 @@ bool Simulation::attack_target(Entity& entity, const bool chase) {
 
   clear_route(entity.order);
   if (entity.cooldown_ticks == 0) {
-    target->hit_points -= damage_against(entity, *target, resolve_multiplier_basis(entity));
+    apply_damage(
+        *target, entity.id,
+        damage_against(entity, *target, resolve_multiplier_basis(entity)));
     entity.cooldown_ticks = entity.attack_cooldown_ticks;
   }
   return true;
@@ -1639,11 +1764,35 @@ Vec2 Simulation::nearest_navigable(Vec2 position, const std::int32_t radius) con
   return result;
 }
 
+void Simulation::apply_damage(Entity& target, const EntityId source,
+                              const std::int32_t amount) {
+  if (!target.alive() || amount <= 0) {
+    return;
+  }
+  const auto previous_hit_points = target.hit_points;
+  target.hit_points -= amount;
+  if (target.kind != EntityKind::Unit) {
+    return;
+  }
+  emit_event(UnitDamagedEvent{source, target.id, amount,
+                              std::max(0, target.hit_points)});
+  const auto wound_threshold = std::max(1, target.max_hit_points / 2);
+  if (previous_hit_points > wound_threshold && target.hit_points > 0 &&
+      target.hit_points <= wound_threshold) {
+    emit_event(UnitWoundedEvent{target.id, source, target.hit_points});
+  }
+  if (target.hit_points <= 0) {
+    emit_event(UnitKilledEvent{target.id, source});
+  }
+}
+
 void Simulation::remove_dead_entities() {
   for (const auto& entity : entities_) {
     if (entity.alive()) {
       continue;
     }
+    emit_event(EntityDestroyedEvent{entity.id, entity.owner, entity.faction,
+                                    entity.type});
     auto& owner = mutable_player(entity.owner);
     owner.supply_used = std::max(0, owner.supply_used - entity.supply_cost);
     if (!entity.under_construction) {
@@ -1651,6 +1800,7 @@ void Simulation::remove_dead_entities() {
     }
   }
   std::erase_if(entities_, [](const Entity& entity) { return !entity.alive(); });
+  rebuild_entity_index();
 }
 
 void Simulation::update_match_status() {
@@ -1970,6 +2120,7 @@ void Simulation::refresh_observation_memory() {
       const auto found = std::ranges::find(enemy_memory_[index], entity.id, &ObservedEnemy::id);
       ObservedEnemy sighting{entity.id,
                             entity.owner,
+                            entity.faction,
                             entity.type,
                             entity.kind,
                             entity.position,
@@ -2044,6 +2195,7 @@ void Simulation::update_commanders() {
       record.doctrine_faction = decision.doctrine_faction;
       record.temperament = decision.temperament;
       record.doctrine_hash = decision.doctrine_hash;
+      record.strategy_state_hash = decision.strategy_state_hash;
       record.candidates = std::move(decision.candidates);
       record.selected_candidate = decision.selected_candidate;
       record.evaluated_candidates = decision.evaluated_candidates;
@@ -2165,6 +2317,24 @@ void Simulation::apply_research_bonuses(Entity& entity, const bool preserve_heal
   entity.ward = ward;
 }
 
+void Simulation::emit_event(SimulationEventPayload payload) {
+  SimulationEvent event{EventId{next_event_id_++}, tick_,
+                        std::move(payload)};
+  hash_integral(event_digest_, simulation_event_hash(event));
+  events_.push_back(std::move(event));
+}
+
+void Simulation::rebuild_entity_index() noexcept {
+  entity_index_by_id_.assign(static_cast<std::size_t>(next_entity_id_),
+                             kInvalidEntityIndex);
+  for (std::size_t index = 0; index < entities_.size(); ++index) {
+    const auto id = entities_[index].id;
+    if (id && id.value < entity_index_by_id_.size()) {
+      entity_index_by_id_[id.value] = index;
+    }
+  }
+}
+
 std::uint64_t Simulation::state_hash() const noexcept {
   auto hash = kFnvOffset;
   hash_integral(hash, tick_);
@@ -2186,6 +2356,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_vec(hash, config_.map_size);
   hash_integral(hash, config_.visibility_cell_size);
   hash_integral(hash, config_.navigation_cell_size);
+  hash_integral(hash, config_.spatial_cell_size);
   hash_integral(hash, config_.navigation_obstacles.size());
   for (const auto& obstacle : config_.navigation_obstacles) {
     hash_vec(hash, obstacle.minimum);
@@ -2198,6 +2369,8 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_integral(hash, next_control_point_id_);
   hash_integral(hash, next_sequence_);
   hash_integral(hash, next_ai_decision_id_);
+  hash_integral(hash, next_event_id_);
+  hash_integral(hash, event_digest_);
   hash_integral(hash, ruin_tide_);
   for (const auto seen : command_seen_) {
     hash_integral(hash, seen);
@@ -2232,6 +2405,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
     for (const auto& memory : memories) {
       hash_integral(hash, memory.id.value);
       hash_integral(hash, static_cast<std::uint8_t>(memory.owner));
+      hash_integral(hash, static_cast<std::uint8_t>(memory.faction));
       hash_integral(hash, static_cast<std::uint8_t>(memory.type));
       hash_integral(hash, static_cast<std::uint8_t>(memory.kind));
       hash_vec(hash, memory.position);
@@ -2270,6 +2444,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   for (const auto& entity : entities_) {
     hash_integral(hash, entity.id.value);
     hash_integral(hash, static_cast<std::uint8_t>(entity.owner));
+    hash_integral(hash, static_cast<std::uint8_t>(entity.faction));
     hash_integral(hash, static_cast<std::uint8_t>(entity.type));
     hash_integral(hash, static_cast<std::uint8_t>(entity.kind));
     hash_vec(hash, entity.position);
@@ -2289,6 +2464,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
     hash_integral(hash, entity.terror);
     hash_integral(hash, entity.ward);
     hash_integral(hash, entity.resolve);
+    hash_integral(hash, static_cast<std::uint8_t>(entity.resolve_state));
     hash_integral(hash, entity.supply_cost);
     hash_integral(hash, entity.supply_provided);
     hash_integral(hash, entity.carrying);
@@ -2324,6 +2500,23 @@ std::uint64_t Simulation::state_hash() const noexcept {
     hash_integral(hash, point.owner.has_value() ? static_cast<std::uint8_t>(*point.owner) + 1U : 0U);
     hash_integral(hash, point.influence);
     hash_integral(hash, point.income_progress);
+    hash_integral(hash, point.contested);
+  }
+
+  hash_integral(hash, vows_.size());
+  for (const auto& vow : vows_) {
+    hash_integral(hash, vow.id.value);
+    hash_integral(hash, static_cast<std::uint8_t>(vow.maker));
+    hash_integral(hash, static_cast<std::uint8_t>(vow.resolution));
+    hash_integral(hash, vow.made_tick);
+    hash_integral(hash, vow.resolved_tick);
+    hash_integral(hash, vow.revision);
+    hash_integral(
+        hash, vow.participating_affected_player.has_value()
+                  ? static_cast<std::uint8_t>(
+                        *vow.participating_affected_player) +
+                        1U
+                  : 0U);
   }
 
   hash_integral(hash, static_cast<std::uint64_t>(command_queue_.size()));
@@ -2349,6 +2542,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
     hash_integral(hash, static_cast<std::uint8_t>(command.building_type));
     hash_integral(hash, static_cast<std::uint8_t>(command.research));
     hash_integral(hash, static_cast<std::uint8_t>(command.stance));
+    hash_integral(hash, command.vow.value);
     hash_integral(hash, command.queue);
   }
   return hash;

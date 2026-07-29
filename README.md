@@ -199,6 +199,17 @@ Hard correctness or behavior failures return a nonzero exit code. The report inc
 diagnostic end state; balance alerts remain visible without failing the run. CI also requires the Windows and
 Linux reports to be byte-identical.
 
+Run the threshold-free simulation performance probe after building to emit repeatable CSV rows for 100, 250,
+500, and 1,000 entities:
+
+```powershell
+.\build\native\native\Debug\ashen_simulation_performance.exe
+```
+
+The probe reports simulation-step, navigation, AI, deterministic spatial-query, visibility, and state-hash
+timings plus an approximate capacity-based memory footprint. It is a developer comparison tool, not a
+machine-specific correctness test.
+
 ## Archived web prototype
 
 The `src/` and TypeScript tooling remain in source control only as a historical reference. They are no

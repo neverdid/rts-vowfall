@@ -18,7 +18,8 @@ public:
     AAshenControlPointActor();
 
     void InitializeControlPoint(int32 InControlPointId, float Radius);
-    void ApplySimulationState(const FVector& GroundPosition, int32 OwnerIndex, float Influence, int32 RuinTide);
+    void ApplySimulationState(const FVector& GroundPosition, EAshenFaction OwnerFaction,
+                              EAshenFaction PressureFaction, float Influence, int32 RuinTide);
     void SetFogState(EAshenVisibility Visibility);
 
     UFUNCTION(BlueprintPure, Category = "Ashen")
@@ -27,7 +28,7 @@ public:
 private:
     UStaticMeshComponent* CreatePart(UStaticMesh* Mesh, const FVector& Location, const FVector& Scale,
                                      const FRotator& Rotation, const FLinearColor& Color, float Roughness);
-    void RefreshCaptureMaterial(int32 OwnerIndex, float Influence);
+    void RefreshCaptureMaterial(EAshenFaction OwnerFaction, EAshenFaction PressureFaction, float Influence);
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -48,6 +49,7 @@ private:
     TArray<TObjectPtr<UStaticMeshComponent>> DetailMeshes;
 
     int32 ControlPointId = 0;
-    int32 LastOwnerIndex = -2;
+    EAshenFaction LastOwnerFaction = EAshenFaction::None;
+    EAshenFaction LastPressureFaction = EAshenFaction::None;
     int32 LastInfluenceBucket = -1;
 };

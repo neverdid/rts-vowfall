@@ -4,6 +4,15 @@
 #include "AshenTypes.generated.h"
 
 UENUM(BlueprintType)
+enum class EAshenFaction : uint8
+{
+    Compact,
+    Ascendancy,
+    Concord,
+    None,
+};
+
+UENUM(BlueprintType)
 enum class EAshenEntityArchetype : uint8
 {
     Worker,
@@ -51,6 +60,34 @@ enum class EAshenAIDifficulty : uint8
     Competitive,
 };
 
+UENUM(BlueprintType)
+enum class EAshenSimulationEventType : uint8
+{
+    EntitySpawned,
+    EntityDestroyed,
+    UnitDamaged,
+    UnitWounded,
+    UnitKilled,
+    UnitRecovered,
+    FormationCreated,
+    FormationBroken,
+    ResolveThresholdChanged,
+    SupplyConnected,
+    SupplyDisconnected,
+    VowMade,
+    VowKept,
+    VowAmended,
+    VowBroken,
+    TransformationStarted,
+    TransformationCompleted,
+    TestimonyDiscovered,
+    ObjectiveContested,
+    ObjectiveCaptured,
+    ProjectileLaunched,
+    AbilityStarted,
+    AbilityInterrupted,
+};
+
 USTRUCT(BlueprintType)
 struct FAshenVisibilityGridView
 {
@@ -73,6 +110,9 @@ USTRUCT(BlueprintType)
 struct FAshenPlayerView
 {
     GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenFaction Faction = EAshenFaction::None;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     int32 Ore = 0;
@@ -109,6 +149,9 @@ struct FAshenEntityView
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     int32 EntityId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenFaction Faction = EAshenFaction::None;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     EAshenEntityArchetype Archetype = EAshenEntityArchetype::Worker;
@@ -156,6 +199,9 @@ struct FAshenControlPointView
     int32 OwnerIndex = -1;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenFaction OwnerFaction = EAshenFaction::None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     float Influence = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
@@ -187,4 +233,37 @@ struct FAshenResearchView
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     float Progress = 0.0f;
+};
+
+USTRUCT(BlueprintType)
+struct FAshenSimulationEventView
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int64 EventId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int64 Tick = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenSimulationEventType Type = EAshenSimulationEventType::EntitySpawned;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 EntityId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 TargetEntityId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 PlayerIndex = -1;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenFaction Faction = EAshenFaction::None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 ContentId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 Amount = 0;
 };

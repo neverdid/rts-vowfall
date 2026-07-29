@@ -16,6 +16,7 @@
 #include "ashen/core/Campaign.hpp"
 #include "ashen/core/Catalog.hpp"
 #include "ashen/core/CommanderAI.hpp"
+#include "ashen/core/Content.hpp"
 #include "ashen/core/Simulation.hpp"
 
 #include <algorithm>
@@ -41,6 +42,52 @@ bool FAshenCoreBootsInUnrealTest::RunTest(const FString &Parameters)
 
     TestEqual(TEXT("Simulation advances at a deterministic tick"), static_cast<int64>(First.tick()), int64{240});
     TestTrue(TEXT("Equivalent matches produce the same state hash"), First.state_hash() == Second.state_hash());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenFactionIdentityInUnrealTest,
+                                 "Ashen.Core.FactionIdentity",
+                                 EAutomationTestFlags::EditorContext |
+                                     EAutomationTestFlags::EngineFilter)
+
+bool FAshenFactionIdentityInUnrealTest::RunTest(const FString &Parameters)
+{
+    static_cast<void>(Parameters);
+    using namespace ashen::core;
+
+    SimulationConfig Swapped{};
+    Swapped.seed_starting_forces = false;
+    Swapped.player_one_faction = FactionId::Ascendancy;
+    Swapped.player_two_faction = FactionId::Compact;
+    Swapped.commander_players = {true, false};
+    Simulation Match{Swapped};
+    const EntityId AIControlled =
+        Match.spawn_entity(PlayerId::One, EntityType::Vanguard, world(200, 200));
+    const EntityId HumanControlled =
+        Match.spawn_entity(PlayerId::Two, EntityType::Vanguard, world(1'000, 600));
+    TestTrue(TEXT("AI control does not select the entity faction"),
+             Match.find_entity(AIControlled) != nullptr &&
+                 Match.find_entity(AIControlled)->faction == FactionId::Ascendancy);
+    TestTrue(TEXT("Human control does not select the entity faction"),
+             Match.find_entity(HumanControlled) != nullptr &&
+                 Match.find_entity(HumanControlled)->faction == FactionId::Compact);
+    TestTrue(TEXT("Presentation metadata follows explicit faction identity"),
+             faction_presentation_key(Match.find_entity(AIControlled)->faction) ==
+                     "vowfall.faction.ascendancy" &&
+                 faction_presentation_key(Match.find_entity(HumanControlled)->faction) ==
+                     "vowfall.faction.compact");
+
+    SimulationConfig Mirror = Swapped;
+    Mirror.player_two_faction = FactionId::Ascendancy;
+    Mirror.commander_players = {false, true};
+    Simulation MirrorMatch{Mirror};
+    const EntityId MirrorOne =
+        MirrorMatch.spawn_entity(PlayerId::One, EntityType::Worker, world(200, 200));
+    const EntityId MirrorTwo =
+        MirrorMatch.spawn_entity(PlayerId::Two, EntityType::Worker, world(1'000, 600));
+    TestTrue(TEXT("Mirror slots resolve the same faction presentation key"),
+             faction_presentation_key(MirrorMatch.find_entity(MirrorOne)->faction) ==
+                 faction_presentation_key(MirrorMatch.find_entity(MirrorTwo)->faction));
     return true;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashen/core/AIDecision.hpp"
+#include "ashen/core/AIStrategyState.hpp"
 #include "ashen/core/PlayerObservation.hpp"
 
 #include <cstdint>
@@ -20,6 +21,9 @@ class ASHENCORE_API CommanderAI final {
   [[nodiscard]] PlayerId player() const noexcept { return player_; }
   [[nodiscard]] AIDifficulty difficulty() const noexcept { return difficulty_; }
   [[nodiscard]] const AIDifficultyProfile& difficulty_profile() const noexcept;
+  [[nodiscard]] const AIStrategyState& strategy_state() const noexcept {
+    return strategy_state_;
+  }
   void reset(AIDifficulty difficulty) noexcept;
   [[nodiscard]] PlayerObservation perceive(
       const PlayerObservation& observation);
@@ -31,6 +35,7 @@ class ASHENCORE_API CommanderAI final {
  private:
   PlayerId player_{PlayerId::One};
   AIDifficulty difficulty_{AIDifficulty::Competitive};
+  AIStrategyState strategy_state_{};
   std::deque<PlayerObservation> observation_history_{};
 };
 

@@ -5,6 +5,7 @@
 #include "AshenResourceActor.h"
 #include "ashen/core/Catalog.hpp"
 #include "ashen/core/Simulation.hpp"
+#include "ashen/core/SimulationEvent.hpp"
 
 #include "Engine/World.h"
 #include "Stats/Stats.h"
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -98,6 +100,76 @@ EAshenStance ToStance(const ashen::core::UnitStance Stance)
 EAshenVisibility ToVisibility(const ashen::core::VisibilityState Visibility)
 {
     return static_cast<EAshenVisibility>(Visibility);
+}
+
+EAshenFaction ToFaction(const ashen::core::FactionId Faction)
+{
+    using ashen::core::FactionId;
+    switch (Faction)
+    {
+    case FactionId::Compact:
+        return EAshenFaction::Compact;
+    case FactionId::Ascendancy:
+        return EAshenFaction::Ascendancy;
+    case FactionId::Concord:
+        return EAshenFaction::Concord;
+    }
+    return EAshenFaction::None;
+}
+
+EAshenSimulationEventType ToSimulationEventType(const ashen::core::SimulationEventType Type)
+{
+    using ashen::core::SimulationEventType;
+    switch (Type)
+    {
+    case SimulationEventType::EntitySpawned:
+        return EAshenSimulationEventType::EntitySpawned;
+    case SimulationEventType::EntityDestroyed:
+        return EAshenSimulationEventType::EntityDestroyed;
+    case SimulationEventType::UnitDamaged:
+        return EAshenSimulationEventType::UnitDamaged;
+    case SimulationEventType::UnitWounded:
+        return EAshenSimulationEventType::UnitWounded;
+    case SimulationEventType::UnitKilled:
+        return EAshenSimulationEventType::UnitKilled;
+    case SimulationEventType::UnitRecovered:
+        return EAshenSimulationEventType::UnitRecovered;
+    case SimulationEventType::FormationCreated:
+        return EAshenSimulationEventType::FormationCreated;
+    case SimulationEventType::FormationBroken:
+        return EAshenSimulationEventType::FormationBroken;
+    case SimulationEventType::ResolveThresholdChanged:
+        return EAshenSimulationEventType::ResolveThresholdChanged;
+    case SimulationEventType::SupplyConnected:
+        return EAshenSimulationEventType::SupplyConnected;
+    case SimulationEventType::SupplyDisconnected:
+        return EAshenSimulationEventType::SupplyDisconnected;
+    case SimulationEventType::VowMade:
+        return EAshenSimulationEventType::VowMade;
+    case SimulationEventType::VowKept:
+        return EAshenSimulationEventType::VowKept;
+    case SimulationEventType::VowAmended:
+        return EAshenSimulationEventType::VowAmended;
+    case SimulationEventType::VowBroken:
+        return EAshenSimulationEventType::VowBroken;
+    case SimulationEventType::TransformationStarted:
+        return EAshenSimulationEventType::TransformationStarted;
+    case SimulationEventType::TransformationCompleted:
+        return EAshenSimulationEventType::TransformationCompleted;
+    case SimulationEventType::TestimonyDiscovered:
+        return EAshenSimulationEventType::TestimonyDiscovered;
+    case SimulationEventType::ObjectiveContested:
+        return EAshenSimulationEventType::ObjectiveContested;
+    case SimulationEventType::ObjectiveCaptured:
+        return EAshenSimulationEventType::ObjectiveCaptured;
+    case SimulationEventType::ProjectileLaunched:
+        return EAshenSimulationEventType::ProjectileLaunched;
+    case SimulationEventType::AbilityStarted:
+        return EAshenSimulationEventType::AbilityStarted;
+    case SimulationEventType::AbilityInterrupted:
+        return EAshenSimulationEventType::AbilityInterrupted;
+    }
+    return EAshenSimulationEventType::EntitySpawned;
 }
 
 ashen::core::AIDifficulty ToCoreDifficulty(const EAshenAIDifficulty Difficulty)
@@ -486,6 +558,7 @@ FAshenPlayerView UAshenSimulationSubsystem::GetPlayerView(const int32 PlayerInde
 
     const auto Player = PlayerIndex == 1 ? ashen::core::PlayerId::Two : ashen::core::PlayerId::One;
     const auto& State = Runtime->Simulation.player(Player);
+    View.Faction = ToFaction(State.faction);
     View.Ore = State.ore;
     View.SupplyUsed = State.supply_used;
     View.SupplyCap = State.supply_cap;
@@ -525,9 +598,9 @@ FAshenEntityView UAshenSimulationSubsystem::GetEntityView(const int32 EntityId) 
         return View;
     }
     View.EntityId = EntityId;
+    View.Faction = ToFaction(Entity->faction);
     View.Archetype = ToArchetype(Entity->type);
-    View.Label = CoreText(ashen::core::entity_definition(Runtime->Simulation.player(Entity->owner).faction,
-                                                         Entity->type).label);
+    View.Label = CoreText(ashen::core::entity_definition(Entity->faction, Entity->type).label);
     View.HitPoints = Entity->hit_points;
     View.MaxHitPoints = Entity->max_hit_points;
     View.Resolve = Entity->resolve;
@@ -565,6 +638,11 @@ TArray<FAshenControlPointView> UAshenSimulationSubsystem::GetControlPointViews()
         const int32* KnownOwner = KnownControlPointOwners.Find(Point.id.value);
         const float* KnownInfluence = KnownControlPointInfluence.Find(Point.id.value);
         View.OwnerIndex = KnownOwner != nullptr ? *KnownOwner : -1;
+        if (View.OwnerIndex == 0 || View.OwnerIndex == 1)
+        {
+            const auto Owner = View.OwnerIndex == 1 ? ashen::core::PlayerId::Two : ashen::core::PlayerId::One;
+            View.OwnerFaction = ToFaction(Runtime->Simulation.player(Owner).faction);
+        }
         View.Influence = KnownInfluence != nullptr ? *KnownInfluence : 0.0f;
     }
     return Views;
@@ -598,6 +676,140 @@ FAshenVisibilityGridView UAshenSimulationSubsystem::GetLocalVisibilityGrid() con
         View.Cells.Add(ToVisibility(State));
     }
     return View;
+}
+
+TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEventsSince(
+    const int64 LastEventId) const
+{
+    TArray<FAshenSimulationEventView> Views;
+    if (Runtime == nullptr)
+    {
+        return Views;
+    }
+
+    for (const ashen::core::SimulationEvent& Event : Runtime->Simulation.events())
+    {
+        if (static_cast<int64>(Event.id.value) <= LastEventId)
+        {
+            continue;
+        }
+
+        FAshenSimulationEventView& View = Views.AddDefaulted_GetRef();
+        View.EventId = static_cast<int64>(Event.id.value);
+        View.Tick = static_cast<int64>(Event.tick);
+        View.Type = ToSimulationEventType(ashen::core::event_type(Event));
+        std::visit([&View](const auto& Payload)
+        {
+            using PayloadType = std::decay_t<decltype(Payload)>;
+            using namespace ashen::core;
+            if constexpr (std::is_same_v<PayloadType, EntitySpawnedEvent> ||
+                          std::is_same_v<PayloadType, EntityDestroyedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.PlayerIndex = static_cast<int32>(Payload.owner);
+                View.Faction = ToFaction(Payload.faction);
+                View.ContentId = static_cast<int32>(Payload.archetype);
+            }
+            else if constexpr (std::is_same_v<PayloadType, UnitDamagedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.source.value);
+                View.TargetEntityId = static_cast<int32>(Payload.target.value);
+                View.Amount = Payload.amount;
+            }
+            else if constexpr (std::is_same_v<PayloadType, UnitWoundedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.TargetEntityId = static_cast<int32>(Payload.source.value);
+                View.Amount = Payload.remaining_hit_points;
+            }
+            else if constexpr (std::is_same_v<PayloadType, UnitKilledEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.killer.value);
+                View.TargetEntityId = static_cast<int32>(Payload.entity.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, UnitRecoveredEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.TargetEntityId = static_cast<int32>(Payload.recovery_source.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, FormationCreatedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.formation.value);
+                View.PlayerIndex = static_cast<int32>(Payload.owner);
+            }
+            else if constexpr (std::is_same_v<PayloadType, FormationBrokenEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.formation.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, ResolveThresholdChangedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.Amount = Payload.resolve;
+            }
+            else if constexpr (std::is_same_v<PayloadType, SupplyConnectedEvent> ||
+                               std::is_same_v<PayloadType, SupplyDisconnectedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, VowMadeEvent> ||
+                               std::is_same_v<PayloadType, VowKeptEvent> ||
+                               std::is_same_v<PayloadType, VowBrokenEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.vow.value);
+                View.PlayerIndex = static_cast<int32>(Payload.maker);
+            }
+            else if constexpr (std::is_same_v<PayloadType, VowAmendedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.vow.value);
+                View.PlayerIndex = static_cast<int32>(Payload.maker);
+                View.TargetEntityId = static_cast<int32>(Payload.participating_affected_player);
+                View.Amount = static_cast<int32>(Payload.revision);
+            }
+            else if constexpr (std::is_same_v<PayloadType, TransformationStartedEvent> ||
+                               std::is_same_v<PayloadType, TransformationCompletedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.definition);
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.Amount = static_cast<int32>(Payload.transformation.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, TestimonyDiscoveredEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.testimony);
+                View.PlayerIndex = static_cast<int32>(Payload.discoverer);
+            }
+            else if constexpr (std::is_same_v<PayloadType, ObjectiveContestedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.objective.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, ObjectiveCapturedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.objective.value);
+                View.PlayerIndex = static_cast<int32>(Payload.owner);
+                View.Amount = Payload.previous_owner.has_value()
+                                  ? static_cast<int32>(*Payload.previous_owner)
+                                  : -1;
+            }
+            else if constexpr (std::is_same_v<PayloadType, ProjectileLaunchedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.projectile);
+                View.EntityId = static_cast<int32>(Payload.source.value);
+                View.TargetEntityId = static_cast<int32>(Payload.target.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, AbilityStartedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.ability);
+                View.PlayerIndex = static_cast<int32>(Payload.owner);
+                View.EntityId = static_cast<int32>(Payload.source.value);
+            }
+            else if constexpr (std::is_same_v<PayloadType, AbilityInterruptedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.ability);
+                View.EntityId = static_cast<int32>(Payload.source.value);
+                View.TargetEntityId = static_cast<int32>(Payload.interrupter.value);
+            }
+        }, Event.payload);
+    }
+    return Views;
 }
 
 TArray<FAshenResearchView> UAshenSimulationSubsystem::GetResearchViews(const int32 ProducerId) const
@@ -1002,7 +1214,7 @@ void UAshenSimulationSubsystem::SyncWorldActors()
             }
             EntityActors.Add(Entity.id.value, Actor);
             Actor->InitializeEntity(static_cast<int32>(Entity.id.value), static_cast<uint8>(Entity.owner),
-                                    ToArchetype(Entity.type),
+                                    ToFaction(Entity.faction), ToArchetype(Entity.type),
                                     static_cast<float>(Entity.radius) / ashen::core::kWorldScale * RenderScale);
         }
 
@@ -1080,8 +1292,22 @@ void UAshenSimulationSubsystem::SyncWorldActors()
         }
         const int32* KnownOwner = KnownControlPointOwners.Find(Point.id.value);
         const float* KnownInfluence = KnownControlPointInfluence.Find(Point.id.value);
+        EAshenFaction OwnerFaction = EAshenFaction::None;
+        if (KnownOwner != nullptr && (*KnownOwner == 0 || *KnownOwner == 1))
+        {
+            const auto Owner = *KnownOwner == 1 ? ashen::core::PlayerId::Two : ashen::core::PlayerId::One;
+            OwnerFaction = ToFaction(Runtime->Simulation.player(Owner).faction);
+        }
+        EAshenFaction PressureFaction = EAshenFaction::None;
+        if (KnownInfluence != nullptr && !FMath::IsNearlyZero(*KnownInfluence))
+        {
+            const auto PressuringPlayer = *KnownInfluence > 0.0f
+                                              ? ashen::core::PlayerId::One
+                                              : ashen::core::PlayerId::Two;
+            PressureFaction = ToFaction(Runtime->Simulation.player(PressuringPlayer).faction);
+        }
         Actor->ApplySimulationState(ToWorldPosition(Point.position.x, Point.position.y),
-                                    KnownOwner != nullptr ? *KnownOwner : -1,
+                                    OwnerFaction, PressureFaction,
                                     KnownInfluence != nullptr ? *KnownInfluence : 0.0f,
                                     Runtime->Simulation.ruin_tide());
         Actor->SetFogState(ToVisibility(Visibility));

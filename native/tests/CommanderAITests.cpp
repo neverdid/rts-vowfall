@@ -74,6 +74,7 @@ void hold(Simulation& simulation, const PlayerId player,
   const auto& difficulty = ai_difficulty_profile(decision.difficulty);
   if (decision.difficulty != AIDifficulty::Competitive ||
       decision.difficulty_hash != ai_difficulty_hash(difficulty) ||
+      decision.strategy_state_hash == 0 ||
       decision.evaluated_candidates != decision.candidates.size() ||
       decision.selected_quality_basis_points != 10'000 ||
       decision.mistake_applied ||

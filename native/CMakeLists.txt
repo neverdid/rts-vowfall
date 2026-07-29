@@ -7,15 +7,20 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/AIDifficulty.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIDoctrine.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIInfluenceMap.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/AIStrategyState.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIMicroLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIPlanning.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIStrategicLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AITacticalLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Campaign.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Catalog.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/Content.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/CommanderAI.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/PlayerObservation.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/ResolveSystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Simulation.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/SimulationEvent.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/SpatialGrid.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/VisibilityGrid.cpp
 )
 
@@ -49,6 +54,10 @@ endif()
 add_executable(ashen_self_play tools/self_play_main.cpp)
 target_link_libraries(ashen_self_play PRIVATE ashen_benchmarks)
 
+add_executable(ashen_simulation_performance benchmark/SimulationPerformance.cpp)
+target_link_libraries(ashen_simulation_performance PRIVATE ashen_core)
+target_compile_features(ashen_simulation_performance PRIVATE cxx_std_20)
+
 if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   add_executable(ashen_core_tests tests/SimulationTests.cpp)
   target_link_libraries(ashen_core_tests PRIVATE ashen_core)
@@ -78,6 +87,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_self_play_tests PRIVATE ashen_benchmarks)
   add_test(NAME ashen_self_play_tests COMMAND ashen_self_play_tests)
 
+  add_executable(ashen_foundation_tests tests/FoundationTests.cpp)
+  target_link_libraries(ashen_foundation_tests PRIVATE ashen_core)
+  add_test(NAME ashen_foundation_tests COMMAND ashen_foundation_tests)
+
   add_executable(ashen_parity_runner tools/parity_runner.cpp)
   target_link_libraries(ashen_parity_runner PRIVATE ashen_core)
   add_test(NAME ashen_parity_catalog COMMAND ashen_parity_runner --catalog)
@@ -99,6 +112,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
       ashen_influence_map_tests
       ashen_difficulty_ai_tests
       ashen_self_play_tests
+      ashen_foundation_tests
       ashen_parity_catalog
       ashen_self_play_fixed_suite
       PROPERTIES

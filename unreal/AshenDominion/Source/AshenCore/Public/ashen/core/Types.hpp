@@ -40,6 +40,34 @@ struct ControlPointId {
   auto operator<=>(const ControlPointId&) const = default;
 };
 
+struct EventId {
+  std::uint64_t value{};
+
+  [[nodiscard]] constexpr explicit operator bool() const noexcept { return value != 0; }
+  auto operator<=>(const EventId&) const = default;
+};
+
+struct FormationId {
+  std::uint32_t value{};
+
+  [[nodiscard]] constexpr explicit operator bool() const noexcept { return value != 0; }
+  auto operator<=>(const FormationId&) const = default;
+};
+
+struct VowId {
+  std::uint32_t value{};
+
+  [[nodiscard]] constexpr explicit operator bool() const noexcept { return value != 0; }
+  auto operator<=>(const VowId&) const = default;
+};
+
+struct TransformationId {
+  std::uint32_t value{};
+
+  [[nodiscard]] constexpr explicit operator bool() const noexcept { return value != 0; }
+  auto operator<=>(const TransformationId&) const = default;
+};
+
 struct Vec2 {
   std::int32_t x{};
   std::int32_t y{};
@@ -87,6 +115,8 @@ enum class ResearchId : std::uint8_t {
   SiegeLiturgy,
 };
 enum class UnitStance : std::uint8_t { Aggressive, Defensive, Hold };
+enum class ResolveState : std::uint8_t { Steady, Strained, Wavering, Broken, Rallied };
+enum class VowResolution : std::uint8_t { Unresolved, Kept, Broken, Amended };
 enum class OrderType : std::uint8_t { Idle, Move, Attack, AttackMove, Gather, Build, Patrol, Hold };
 enum class GatherPhase : std::uint8_t { ToResource, Harvest, Return };
 enum class CommandType : std::uint8_t {
@@ -104,6 +134,10 @@ enum class CommandType : std::uint8_t {
   ActivatePower,
   Retreat,
   SetStance,
+  MakeVow,
+  KeepVow,
+  BreakVow,
+  AmendVow,
 };
 enum class CommandError : std::uint8_t {
   None,
@@ -121,6 +155,10 @@ enum class CommandError : std::uint8_t {
   AlreadyResearched,
   ResearchBusy,
   PowerCooldown,
+  InvalidVow,
+  VowAlreadyExists,
+  VowAlreadyResolved,
+  VowAuthorityRequired,
 };
 
 inline constexpr std::size_t kResearchCount = 7;
@@ -212,6 +250,7 @@ struct ResearchTask {
 struct Entity {
   EntityId id{};
   PlayerId owner{PlayerId::One};
+  FactionId faction{FactionId::Compact};
   EntityType type{EntityType::Worker};
   EntityKind kind{EntityKind::Unit};
   Vec2 position{};
@@ -231,6 +270,7 @@ struct Entity {
   std::int32_t terror{};
   std::int32_t ward{};
   std::int32_t resolve{100};
+  ResolveState resolve_state{ResolveState::Steady};
   std::int32_t supply_cost{};
   std::int32_t supply_provided{};
   std::int32_t carrying{};
@@ -274,6 +314,7 @@ struct ControlPoint {
   std::optional<PlayerId> owner{};
   std::int32_t influence{};
   std::int32_t income_progress{};
+  bool contested{};
 };
 
 struct NavigationObstacle {
@@ -296,6 +337,7 @@ struct SimulationConfig {
   Vec2 map_size{world(2'400, 1'400)};
   std::int32_t visibility_cell_size{world(24, 0).x};
   std::int32_t navigation_cell_size{world(36, 0).x};
+  std::int32_t spatial_cell_size{world(160, 0).x};
   std::vector<NavigationObstacle> navigation_obstacles{
       // River banks leave three broad, readable crossings.
       {world(1'115, 0), world(1'285, 315)},
@@ -325,6 +367,7 @@ struct Command {
   EntityType building_type{EntityType::Barracks};
   ResearchId research{ResearchId::TierTwo};
   UnitStance stance{UnitStance::Aggressive};
+  VowId vow{};
   bool queue{};
 
   auto operator<=>(const Command&) const = default;
@@ -349,6 +392,18 @@ struct CommandTraceEntry {
   CommandError error{CommandError::None};
 
   auto operator<=>(const CommandTraceEntry&) const = default;
+};
+
+struct VowState {
+  VowId id{};
+  PlayerId maker{PlayerId::One};
+  VowResolution resolution{VowResolution::Unresolved};
+  Tick made_tick{};
+  Tick resolved_tick{};
+  std::uint32_t revision{1};
+  std::optional<PlayerId> participating_affected_player{};
+
+  auto operator<=>(const VowState&) const = default;
 };
 
 }  // namespace ashen::core

@@ -82,6 +82,7 @@ void hash_command(std::uint64_t& hash, const core::Command& command) noexcept {
   hash_byte(hash, static_cast<std::uint8_t>(command.building_type));
   hash_byte(hash, static_cast<std::uint8_t>(command.research));
   hash_byte(hash, static_cast<std::uint8_t>(command.stance));
+  hash_u32(hash, command.vow.value);
   hash_bool(hash, command.queue);
 }
 
@@ -885,6 +886,7 @@ std::uint64_t ai_decision_trace_hash(
     hash_byte(hash, static_cast<std::uint8_t>(record.doctrine_faction));
     hash_byte(hash, static_cast<std::uint8_t>(record.temperament));
     hash_u64(hash, record.doctrine_hash);
+    hash_u64(hash, record.strategy_state_hash);
     hash_u64(hash, static_cast<std::uint64_t>(record.candidates.size()));
     for (const auto& candidate : record.candidates) {
       hash_ai_candidate(hash, candidate);
@@ -993,6 +995,7 @@ struct DecisionAudit {
                   decision.observation_tick - decision.knowledge_tick >=
                       difficulty.reaction_delay_ticks) &&
                  decision.doctrine_hash != 0 &&
+                 decision.strategy_state_hash != 0 &&
                  !decision.candidates.empty() &&
                  decision.selected_candidate < decision.candidates.size() &&
                  decision.evaluated_candidates > 0 &&
