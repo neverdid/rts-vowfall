@@ -2,6 +2,7 @@
 
 #include "AshenTypes.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "ashen/core/Campaign.hpp"
 #include "AshenSimulationSubsystem.generated.h"
 
 class AAshenEntityActor;
@@ -95,6 +96,21 @@ public:
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     FString GetObjectiveText() const;
 
+    UFUNCTION(BlueprintPure, Category = "Ashen|Story")
+    bool IsStoryMatch() const noexcept { return bStoryMode; }
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Story")
+    FString GetStoryChapterText() const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Story")
+    FString GetStoryMissionTitle() const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Story")
+    FString GetStoryProtagonist() const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Story")
+    FString GetStoryVowText() const;
+
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     FString GetLastCommandMessage() const { return LastCommandMessage; }
 
@@ -115,6 +131,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Ashen|State")
     void RestartMatch();
+
+    void ConfigureSkirmish();
+    void ConfigureStoryMission(ashen::core::StoryMissionId Mission);
 
     UFUNCTION(BlueprintCallable, Category = "Ashen|Match")
     void SetOpponentDifficulty(EAshenAIDifficulty Difficulty);
@@ -141,6 +160,8 @@ private:
     FAshenSimulationRuntime* Runtime = nullptr;
     float Accumulator = 0.0f;
     bool bGameplayEnabled = false;
+    bool bStoryMode = false;
+    ashen::core::StoryMissionId ActiveStoryMission = ashen::core::StoryMissionId::BridgeOfNames;
     EAshenAIDifficulty OpponentDifficulty = EAshenAIDifficulty::Standard;
     FString LastCommandMessage;
     TMap<uint32, TWeakObjectPtr<AAshenEntityActor>> EntityActors;

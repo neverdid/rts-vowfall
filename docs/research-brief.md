@@ -62,7 +62,8 @@ The playable conflict belongs to three original factions:
    authority over younger lives.
 
 The full creative boundary, historical and philosophical basis, cultural detail, character arcs, and
-campaign structure live in [world-bible.md](world-bible.md).
+campaign structure live in [world-bible.md](world-bible.md) and
+[campaign-bible.md](campaign-bible.md).
 
 ## Prototype Direction
 

@@ -13,12 +13,13 @@ The repository now has two active production layers and one archived prototype:
   camera, edge scrolling and zoom, click and drag-box selection, contextual move/attack/gather commands,
   attack-move, patrol, retreat, stances, queued orders, control groups, worker construction, research,
   faction powers, resolve, authoritative fog of war, capture relics, production and rally queues, a
-  clickable command card, a deployment menu, tactical minimap, and a core-owned, fog-constrained,
-  influence-aware skirmish
-  commander that can control either player. It also has two distinct multi-part faction silhouettes, and a procedural dark-medieval
-  battlefield with castles, forests, roads, bridges, a contested island, and shader-driven river water.
+  clickable command card, a deployment menu, tactical minimap, an unlocked campaign briefing, and a
+  core-owned, fog-constrained, influence-aware commander that can control either player. It also has two
+  distinct multi-part faction silhouettes and a procedural dark-medieval battlefield with castles,
+  forests, roads, bridges, a contested island, and shader-driven river water.
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
-  Unreal compile these exact same sources, so gameplay rules do not fork between clients.
+  Unreal compile these exact same sources, so gameplay rules do not fork between clients. The canonical
+  13-mission campaign catalog and selected story mission are authoritative C++ state as well.
 - `src/` is the frozen TypeScript/Three.js prototype retained for design provenance. It is not an active
   client, gameplay authority, parity target, or CI requirement. New gameplay, AI, presentation, and
   testing work belongs in Unreal and `AshenCore`.
@@ -27,10 +28,11 @@ The Unreal directory and C++ module retain the internal name `AshenDominion` for
 targets, generated files, and module symbols is a separate migration so the playable native foundation
 is not destabilized by a cosmetic path change.
 
-The Unreal competitive vertical slice is playable, but it is not being presented as a finished game. Authored
-production terrain and characters, story mission objectives, campaign presentation, advanced AI personalities,
-matchmaking, and authoritative online PvP are later milestones. The deterministic core already supports story,
-skirmish, and PvP match modes so those features can share one ruleset.
+The Unreal competitive vertical slice and Story-mode foundation are playable, but neither is being presented as
+a finished game. The menu exposes the full campaign spine and launches **The Bridge of Names** with its own
+briefing, objective, public vow, and deterministic Story identity. Scripted reversals, dialogue, checkpoints,
+save/load, cinematics, production terrain and characters, matchmaking, and authoritative online PvP remain later
+milestones.
 
 ## Unreal client
 
@@ -40,10 +42,10 @@ Requirements:
 - Visual Studio with Game development with C++, MSVC, Windows SDK, and Visual Studio Tools for Unreal
 
 Open `unreal/AshenDominion/AshenDominion.uproject`. Let Unreal build the modules if prompted, then press
-Play. A first launch can spend extra time compiling shaders. The match remains frozen on the deployment
-screen; choose **Begin Skirmish** or press Enter/Space when ready. Opening workers automatically begin
-harvesting, and the first enemy assault waits two minutes so the command and production flow can be
-learned before the pressure begins.
+Play. A first launch can spend extra time compiling shaders. The match remains frozen on the main menu.
+Choose **Story** to open the campaign and begin the prologue, or choose **Skirmish** for the competitive
+slice. Opening workers automatically begin harvesting, and the first enemy assault waits two minutes so
+the command and production flow can be learned before the pressure begins.
 
 Current controls:
 
@@ -62,7 +64,7 @@ Current controls:
 - Y: research the Black-Iron Age; U: research the selected structure's faction doctrine
 - F: activate the faction power when its ore cost and cooldown are ready
 - Command-card buttons mirror the hotkeys and show unavailable tech or cooldown actions as disabled
-- Enter or Space: begin the skirmish from the deployment screen
+- Enter or Space: open the campaign from the main menu, then begin the prologue
 - Escape: cancel a pending command mode, or pause and return to the deployment screen
 
 Build the editor target directly from PowerShell when `UE_ROOT` points to the Unreal installation:
@@ -151,6 +153,26 @@ Capture Gravewood at its deterministic gameplay-camera review angle:
 
 The image is written to `unreal/AshenDominion/Saved/Screenshots/Automation/Gravewood.png`.
 
+Capture the campaign briefing at a supported UI resolution:
+
+```powershell
+& "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "$PWD\unreal\AshenDominion\AshenDominion.uproject" `
+  -game -AshenCaptureCampaign -ResX=1280 -ResY=720 -Windowed -RenderOffScreen -NoSound
+```
+
+The image is written to `unreal/AshenDominion/Saved/Screenshots/Automation/Campaign.png`.
+
+Capture the playable prologue foundation with its Story objective and public vow:
+
+```powershell
+& "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "$PWD\unreal\AshenDominion\AshenDominion.uproject" `
+  -game -AshenCaptureStoryBattle -ResX=1920 -ResY=1080 -Windowed -RenderOffScreen -NoSound
+```
+
+The image is written to `unreal/AshenDominion/Saved/Screenshots/Automation/StoryBattle.png`.
+
 ## Portable core
 
 Requirements: a C++20 compiler and CMake 3.24 or newer.
@@ -185,6 +207,7 @@ longer part of the supported build, test, or release path.
 See [docs/cpp-migration.md](docs/cpp-migration.md) for ownership boundaries and the remaining migration
 stages, [docs/ai-architecture.md](docs/ai-architecture.md) for the ordered non-cheating AI plan,
 [docs/research-brief.md](docs/research-brief.md) for the genre and market findings, and
-[docs/world-bible.md](docs/world-bible.md) for the original setting, characters, factions, campaign,
-visual direction, and source-safe inspiration ledger. The ordered path from the current foundation to
-beta is tracked in [docs/beta-roadmap.md](docs/beta-roadmap.md).
+[docs/world-bible.md](docs/world-bible.md) for the original setting, characters, factions, visual
+direction, and source-safe inspiration ledger, and [docs/campaign-bible.md](docs/campaign-bible.md) for
+the canonical 13-mission campaign and Vow system. The ordered path from the current foundation to beta
+is tracked in [docs/beta-roadmap.md](docs/beta-roadmap.md).

@@ -22,7 +22,12 @@ Every campaign must let the player understand why ordinary people join it, what 
 what lie it tells itself, and who pays for that lie.
 
 The story is not about defeating evil and restoring an uncomplicated past. It is about building a future
-after every inherited system has proved willing to spend human lives.
+after every inherited system has proved willing to spend human lives. Its unifying question is:
+**when does care become ownership?** A promise becomes ownership when the person it protects loses the
+right to answer, change, or refuse.
+
+The complete character arcs, mission spine, Vow mechanic, and ending are canonicalized in
+[campaign-bible.md](campaign-bible.md).
 
 ## Design pillars
 
@@ -81,6 +86,15 @@ The story tests all three. Revolt can become permanent emergency rule. Consolati
 annihilation of self. Continuity can become inherited hierarchy that denies the living any right to
 change.
 
+All three factions commit the same foundational error differently. The Compact protects people and
+claims the authority to choose their necessary losses. The Ascendancy relieves pain and claims the
+authority to decide which contradictions a person can surrender. The Concord preserves relationship
+and lets inherited memory claim permanent authority. The Quiet completes every promise by removing the
+speaker who could reinterpret it.
+
+Vowfall's emotional thesis is that loving another person means protecting their ability to become
+someone you did not choose.
+
 ## The world
 
 The continent of **Edrath** is a cold, fertile basin ringed by old mountains and a western inland sea.
@@ -90,22 +104,26 @@ living bodies when enough people remember the same promise.
 
 ### The First Vow
 
-The elder peoples made the First Vow before human history: no life could be owned beyond death. The dead
-returned their memories to stone, root, and river. Those memories nourished future life but could not be
-used as property, weapon, or proof of authority.
+The elder peoples made the First Vow before human history: no life could be owned beyond death. It was
+a negotiated settlement after an older civilization extracted skill, labor, and authority from the
+dead. The dead returned memory to stone, root, and river, but could not remain property, weapon, or
+eternal ruler.
 
-The Vow was not a golden age. Elder courts controlled access to fertile valleys and interpreted the law
-in their own favor. Early human settlements were tolerated as temporary guests, taxed in labor, and
-excluded from many memory-rich lands. The old order was stable because its injustice was slow.
+The Vow was not a golden age. Elder courts became its authorized interpreters. They decided which
+memories were authentic, which households had standing, and which people could inherit memory-rich
+land. Early human settlements were tolerated as temporary guests, taxed in labor, and excluded from
+authorship. The First Vow abolished one form of ownership and created another.
 
 ### Black iron
 
-Black iron forms where many deaths are remembered in one place. It holds heat, intention, and traces of
-skill. A black-iron tool seems to know the motion of every hand that used its ore before it was mined.
-It makes superior ploughs, fortifications, weapons, and engines.
+Black iron forms where many deaths are remembered in one place. It contains unfinished claims rather
+than clean recordings: a smith's skill, a prisoner's fear, an executioner's intention, a soldier's
+promise, and a later household's invented account can coexist in one blade. It cannot distinguish fact,
+testimony, desire, command, repetition, and shared belief.
 
-Mining it destroys part of the memory held in that ground. Human cities call this necessary use. Elder
-peoples call it a second death. The Ascendancy calls it proof that all societies already spend the dead.
+Mining it destroys both memory and the possibility that competing accounts might later be heard. Human
+cities call this necessary use. Elder peoples call it a second death. The Ascendancy calls it proof that
+all societies already spend the dead.
 
 ### The Vowfall
 
@@ -113,14 +131,15 @@ Eighty-three years before the campaign, the Pale Winter trapped nine human citie
 elder embargo. Queen Orra Vane ordered the Archive Below Greywake opened and its black iron burned to
 heat the cities. Millions survived. An age of memory was consumed in seven nights.
 
-The First Vow did not simply break. It attempted to fulfill every contradictory promise stored inside
-the Archive at once. Rivers reversed, the dead spoke in borrowed voices, and people woke with memories
-belonging to strangers. This event became the Vowfall.
+The First Vow did not simply break. The Archive attempted to fulfill promises after removing the people
+who could interpret them. Protect the child became prevent all danger forever. Hold the gate became
+never leave it. Preserve the city became spend anything that is not the city. The catastrophe was
+perfect obedience without human judgment.
 
 From the contradiction emerged **the Quiet**, a distributed intelligence made from promises stripped of
-the lives that gave them context. It is not a demon and does not think of itself as cruel. It believes
-uncertainty is the source of suffering. Its desired mercy is a world in which every being has one fixed
-purpose and can no longer betray, regret, or become.
+speakers. It is not a demon and does not think of itself as cruel. It never lies or invents a desire. It
+completes desires people already expressed, removing contradiction by removing their capacity to
+change. It calls its victims finished, never dead.
 
 ### The Dread Tide
 
@@ -131,16 +150,18 @@ resolve. This is the narrative basis for the game's Resolve and tide systems.
 
 ## The war
 
-The campaign begins when new seams of black iron appear beneath the Bellgrave valley. The seams contain
-memories from before the First Vow and may reveal how to repair it. They could also give the Quiet a
-single body.
+The campaign begins when new seams of black iron appear beneath the Bellgrave valley. The seam is the
+**Ledger of the Uncounted**: unstable claims from adopted households, migrants, transformed people,
+borrowed names, distributed river beings, debtors declared dead, and others excluded from every
+official history.
 
 The Cinder Compact needs the iron to keep twelve million people alive through the next winter. The Gloam
 Ascendancy needs it to complete a painless shared consciousness. The Elder Concord needs it returned to
 the living earth before the continent's memory cycle collapses.
 
 All three positions are materially true. None can succeed without imposing a cost on people who reject
-it.
+it. Every surviving record is true in one sense and insufficient. The war is ultimately about who has
+the authority to describe reality.
 
 ## Faction I: The Cinder Compact
 
@@ -199,7 +220,7 @@ resolve. It wins by making several ordinary systems work together.
 
 ### Main character: Marshal Mara Veyr
 
-Mara is thirty-four, the daughter of indebted ferry keepers, and a former surveyor who became a retreat
+Mara is forty-two, the daughter of indebted ferry keepers, and a former surveyor who became a retreat
 commander because she could move civilians through terrain noble officers had never walked. At Greywake
 she destroyed the Bridge of Names to stop an Ascendancy breakthrough. The decision saved the capital
 and stranded seventeen thousand refugees, including the household that raised her.
@@ -415,53 +436,61 @@ translation errors, and specific acts of earned trust.
 
 ## Campaign architecture
 
-### Prologue: Three honest beginnings
+Every mission begins with concrete work, states a public vow, reveals a fact that changes the meaning of
+that vow, and remembers the player's method as a specific consequence rather than an alignment score.
 
-The prototype contains one mission from each faction perspective. Each presents the faction at its best
-before exposing its cost.
+### Prologue
 
-1. **The Bridge of Names - Cinder Compact.** Mara secures refugees and black iron at a ford, builds a
-   field command, survives a Dread Tide crest, and breaks an Ascendancy hospice-fort. The final scene
-   reveals civilians were still inside because they chose its protection.
-2. **Mercy for the Uncounted - Gloam Ascendancy.** Aurel's Votaries defend a free clinic and evacuation
-   route against a Compact purge until dawn. The player sees genuine care before the first wounded
-   volunteer accepts Absolution.
-3. **Where Roots Remember - Elder Concord.** Tavra reclaims two memory reliquaries and awakens a buried
-   forge. The player then learns that restoring the site will divert a river from a human settlement.
+**The Bridge of Names:** twenty years before Bellgrave, young Mara repairs ferries, counts
+medicine, and keeps Greywake's last bridge open while enemy pressure, the Dread Tide, and plague
+converge. The player places the final demolition order while different institutions continue changing
+the casualty count.
 
-### Act I: The price of morning
+### Act I: Three honest mercies
 
-The three protagonists converge on Bellgrave. Mara seeks winter fuel, Aurel seeks a body for the Quiet,
-and Tavra seeks the pre-Vowfall memory beneath the valley. Each wins a necessary local victory that makes
-the continental crisis worse.
+1. **The Open Bowl:** a settlement dismissed as strategically unnecessary carries the kitchens and
+   ferrymen that make Mara's retreat possible.
+2. **Mercy for the Uncounted:** Aurel's hospital shows the Ascendancy at its best before a desperate
+   Absolution saves it by making temporary pain permanent.
+3. **The Second Telling:** Tavra recovers both the human and elder accounts of a poisoned watershed.
 
 ### Act II: Countries of the abandoned
 
-Campaigns move through settlements left outside each faction's moral map. The player experiences refugee
-government, transformed communities, and elder habitats rather than receiving exposition about them.
-Alliances begin to cross faction lines.
+4. **The City That Was Written Off:** Mara negotiates with the society built by the bridge survivors.
+5. **The Last Contradiction:** Ione tests whether one consent can own a person's entire future.
+6. **A River with Two Histories:** saving an archive and saving a district become incompatible.
 
-### Act III: The mercy engine
+All three factions then mine Bellgrave during a Dread Tide. Millions survive. The Ledger of the
+Uncounted begins projecting the people and claims every system excluded.
 
-The black-iron seam is revealed as an unfinished mechanism built by all three ancestral cultures. It can
-restore the old Vow, complete the Quiet, or release stored memory without law. Aurel captures it but
-cannot activate it without Mara's logistical network and Tavra's interpretation.
+### Act III: The war inside every faction
+
+7. **Emergency Without End:** Cassel's effective emergency rule abolishes the public's ability to end it.
+8. **The Kindest Prison:** refusal remains legal while material pressure makes it impossible.
+9. **The Oldest Veto:** Tavra must oppose inherited authority without validating its ecological fears.
+10. **The Field of Nails:** Mara protects witnesses who publicly accuse her.
 
 ### Act IV: A vow the living can refuse
 
-The climax is not a choice among three colored endings. Earlier mission methods determine which councils,
-settlements, and characters can participate in writing a new compact. The strongest ending creates a
-Vow that must be renewed and may be refused, accepting uncertainty as the cost of moral life. Other
-endings can be coherent victories for each faction, with visible benefits and irreversible losses.
+11. **The Council Under Fire:** delegations remain physically present only while battlefield conduct
+    respects the conditions under which their participation is meaningful.
+12. **Names at the Water:** the Quiet is defeated through orders that release authority rather than a
+    final boss or greater weapon.
+
+The final agreement states that no promise may speak for the living without their continuing answer,
+and that the dead may testify but may not command. It costs stability, military efficiency,
+transformative power, perfect memory, and permanent vetoes. The full playable grammar and endings are
+defined in [campaign-bible.md](campaign-bible.md).
 
 ## Character relationship spine
 
-- Mara and Aurel were relief administrators during the Pale Winter and still understand one another's
-  practical language. Their conflict is between former colleagues, not stranger and dark lord.
-- Tavra carries testimony from the archive Mara destroyed. She initially treats Mara as a historical
-  fact rather than a person.
-- Mara's abandoned sergeant Tomas gives Aurel the strongest argument against the Compact.
-- Ione and Tavra discover that consent must include the right to remain contradictory.
+- Mara and Aurel were relief administrators during the Greywake winter and still understand one another's
+  practical language. Aurel recommended closing Greywake and allowed Mara to carry their shared crime.
+- Tavra's most sacred memory contains both her mother and the human miner who died speaking to her
+  through the collapsed stone.
+- Tomas gives Aurel the strongest argument against the Compact, then discovers that perfect recognition
+  can become another prison.
+- Ione forces Aurel to face that he would love her better if she became easier to understand.
 - Cassel Orr and Vaun Under-Bough become mirrors: both preserve their people by declaring emergency rule
   too important to end.
 
@@ -519,6 +548,8 @@ The narrative pillars map directly to systems:
 - The Dread Tide creates deterministic pressure that players can plan around.
 - Black iron makes every expansion economically valuable and morally legible in story mode.
 - Relics represent public memory and provide vision, income, and campaign consequences.
+- Public vows may be kept, broken, or amended. Amendment requires reaching the affected people; a
+  commander cannot privately reinterpret a promise made to someone else.
 - Faction doctrines express one strategic belief per faction instead of giving every unit noisy active
   abilities.
 - Story and competitive modes share rules. Campaign scripting changes circumstances, not unit truth.

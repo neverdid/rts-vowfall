@@ -16,6 +16,7 @@ public:
 
 private:
     void DrawFrontEnd(const AAshenPlayerController& Controller);
+    void DrawCampaign(const AAshenPlayerController& Controller);
     void DrawBattleHud(const AAshenPlayerController& Controller, const UAshenSimulationSubsystem& Simulation);
     void DrawTacticalMap(const UAshenSimulationSubsystem& Simulation);
     void DrawPlacementPreview(const AAshenPlayerController& Controller);

@@ -2169,6 +2169,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   auto hash = kFnvOffset;
   hash_integral(hash, tick_);
   hash_integral(hash, static_cast<std::uint8_t>(config_.mode));
+  hash_integral(hash, static_cast<std::uint8_t>(config_.story_mission));
   hash_integral(hash, static_cast<std::uint8_t>(config_.player_one_faction));
   hash_integral(hash, static_cast<std::uint8_t>(config_.player_two_faction));
   for (const auto enabled : config_.commander_players) {

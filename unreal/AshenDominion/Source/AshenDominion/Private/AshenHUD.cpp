@@ -75,6 +75,12 @@ void AAshenHUD::DrawHUD()
 
 void AAshenHUD::DrawFrontEnd(const AAshenPlayerController& Controller)
 {
+    if (Controller.IsCampaignFrontEndVisible())
+    {
+        DrawCampaign(Controller);
+        return;
+    }
+
     const float Width = Canvas->SizeX;
     const float Height = Canvas->SizeY;
     const bool bCompact = Height < 650.0f;
@@ -88,57 +94,63 @@ void AAshenHUD::DrawFrontEnd(const AAshenPlayerController& Controller)
     const float TitleY = bCompact ? 34.0f : 62.0f;
     const float RuleY = bCompact ? 88.0f : 132.0f;
     const float ChapterY = bCompact ? 103.0f : 150.0f;
-    const float StoryOneY = bCompact ? 141.0f : 190.0f;
-    const float StoryTwoY = bCompact ? 163.0f : 213.0f;
+    const float StoryOneY = bCompact ? 139.0f : 190.0f;
+    const float StoryTwoY = bCompact ? 161.0f : 213.0f;
     DrawText(TEXT("VOWFALL"), Bone, Margin, TitleY, GEngine->GetLargeFont(), TitleScale, false);
     DrawRect(Bronze, Margin, RuleY, 122.0f, 3.0f);
-    DrawText(TEXT("THE BRIDGE OF NAMES"), Bronze, Margin, ChapterY,
+    DrawText(TEXT("NO PROMISE MAY OWN THE LIVING"), Bronze, Margin, ChapterY,
              GEngine->GetMediumFont(), 0.95f, false);
 
-    DrawText(TEXT("New iron remembers a name older than law."), DimBone, Margin, StoryOneY,
+    DrawText(TEXT("Three honest mercies become one war."), DimBone, Margin, StoryOneY,
              GEngine->GetSmallFont(), 1.0f, false);
-    DrawText(TEXT("At the ford, three mercies become a war."), DimBone, Margin, StoryTwoY,
+    DrawText(TEXT("Every victory must remain answerable."), DimBone, Margin, StoryTwoY,
              GEngine->GetSmallFont(), 1.0f, false);
 
-    FVector2D ButtonMin;
-    FVector2D ButtonMax;
-    if (Controller.GetFrontEndPrimaryButton(ButtonMin, ButtonMax))
+    float MouseX = -1.0f;
+    float MouseY = -1.0f;
+    Controller.GetMousePosition(MouseX, MouseY);
+    const TCHAR* Labels[] = {
+        TEXT("STORY  //  THE BRIDGE OF NAMES"),
+        TEXT("SKIRMISH  //  DROWNED CAUSEWAY"),
+        TEXT("WARHOST  //  PVP"),
+    };
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
-        float MouseX = -1.0f;
-        float MouseY = -1.0f;
-        Controller.GetMousePosition(MouseX, MouseY);
-        const bool bHovered = ContainsPoint(ButtonMin, ButtonMax, FVector2D(MouseX, MouseY));
+        FVector2D ButtonMin;
+        FVector2D ButtonMax;
+        if (!Controller.GetFrontEndButtonRect(Slot, ButtonMin, ButtonMax))
+        {
+            continue;
+        }
+        const bool bEnabled = Slot < 2;
+        const bool bHovered = bEnabled && ContainsPoint(ButtonMin, ButtonMax, FVector2D(MouseX, MouseY));
         const float ButtonWidth = ButtonMax.X - ButtonMin.X;
         const float ButtonHeight = ButtonMax.Y - ButtonMin.Y;
-        DrawRect(bHovered ? FLinearColor(0.18f, 0.095f, 0.035f, 0.98f) : Iron,
+        DrawRect(bHovered ? FLinearColor(0.18f, 0.095f, 0.035f, 0.98f)
+                          : bEnabled ? Iron : FLinearColor(0.025f, 0.029f, 0.029f, 0.86f),
                  ButtonMin.X, ButtonMin.Y, ButtonWidth, ButtonHeight);
-        for (int32 Stripe = 0; Stripe < 5; ++Stripe)
+        if (Slot == 0)
         {
-            DrawRect(FLinearColor(0.23f, 0.18f, 0.11f, bHovered ? 0.22f : 0.12f),
-                     ButtonMin.X + 4.0f, ButtonMin.Y + 8.0f + static_cast<float>(Stripe) * 10.0f,
-                     ButtonWidth - 8.0f, 2.0f);
+            for (int32 Stripe = 0; Stripe < 5; ++Stripe)
+            {
+                DrawRect(FLinearColor(0.23f, 0.18f, 0.11f, bHovered ? 0.22f : 0.12f),
+                         ButtonMin.X + 4.0f, ButtonMin.Y + 7.0f + static_cast<float>(Stripe) * 9.0f,
+                         ButtonWidth - 8.0f, 2.0f);
+            }
         }
-        DrawRect(bHovered ? Bronze : FLinearColor(0.36f, 0.28f, 0.16f, 1.0f),
+        DrawRect(bHovered ? Bronze : bEnabled ? FLinearColor(0.36f, 0.28f, 0.16f, 1.0f)
+                                              : FLinearColor(0.16f, 0.16f, 0.15f, 1.0f),
                  ButtonMin.X, ButtonMin.Y + ButtonHeight - 3.0f, ButtonWidth, 3.0f);
-        DrawText(TEXT("BEGIN SKIRMISH"), bHovered ? Bone : FLinearColor(0.72f, 0.70f, 0.64f),
-                 ButtonMin.X + 22.0f, ButtonMin.Y + 18.0f, GEngine->GetMediumFont(), 1.0f, false);
-
-        const float LockedY = ButtonMax.Y + (bCompact ? 9.0f : 14.0f);
-        const float LockedHeight = bCompact ? 39.0f : 46.0f;
-        const float LockedGap = bCompact ? 46.0f : 54.0f;
-        DrawRect(FLinearColor(0.025f, 0.029f, 0.029f, 0.86f), ButtonMin.X, LockedY, ButtonWidth, LockedHeight);
-        DrawText(TEXT("STORY  //  THREE BEGINNINGS"), DimBone, ButtonMin.X + 18.0f, LockedY + 10.0f,
-                 GEngine->GetSmallFont(), 0.95f, false);
-        DrawText(TEXT("LOCKED"), FLinearColor(0.34f, 0.31f, 0.26f), ButtonMax.X - 70.0f, LockedY + 10.0f,
-                 GEngine->GetSmallFont(), 0.85f, false);
-
-        DrawRect(FLinearColor(0.025f, 0.029f, 0.029f, 0.86f), ButtonMin.X, LockedY + LockedGap,
-                 ButtonWidth, LockedHeight);
-        DrawText(TEXT("WARHOST  //  PVP"), DimBone, ButtonMin.X + 18.0f, LockedY + LockedGap + 10.0f,
-                 GEngine->GetSmallFont(), 0.95f, false);
-        DrawText(TEXT("LOCKED"), FLinearColor(0.34f, 0.31f, 0.26f), ButtonMax.X - 70.0f,
-                 LockedY + LockedGap + 10.0f,
-                 GEngine->GetSmallFont(), 0.85f, false);
+        DrawText(Labels[Slot], bHovered ? Bone : bEnabled ? FLinearColor(0.72f, 0.70f, 0.64f) : DimBone,
+                 ButtonMin.X + 18.0f, ButtonMin.Y + (Slot == 0 ? 16.0f : 11.0f),
+                 Slot == 0 ? GEngine->GetMediumFont() : GEngine->GetSmallFont(),
+                 Slot == 0 ? 0.92f : 0.94f, false);
+        if (!bEnabled)
+        {
+            DrawText(TEXT("LOCKED"), FLinearColor(0.34f, 0.31f, 0.26f),
+                     ButtonMax.X - 68.0f, ButtonMin.Y + 11.0f,
+                     GEngine->GetSmallFont(), 0.82f, false);
+        }
     }
 
     if (Width >= 980.0f)
@@ -148,17 +160,127 @@ void AAshenHUD::DrawFrontEnd(const AAshenPlayerController& Controller)
         DrawRect(Blood, StoryX, StoryY, 3.0f, 104.0f);
         DrawText(TEXT("THE BRIDGE OF NAMES"), Bone, StoryX + 18.0f, StoryY,
                  GEngine->GetMediumFont(), 1.0f, false);
-        DrawText(TEXT("Cinder Compact"), Bronze, StoryX + 18.0f, StoryY + 34.0f,
+        DrawText(TEXT("Prologue  //  Young Mara Veyr"), Bronze, StoryX + 18.0f, StoryY + 34.0f,
                  GEngine->GetSmallFont(), 0.95f, false);
-        DrawText(TEXT("versus the Gloam Ascendancy"), DimBone, StoryX + 18.0f, StoryY + 58.0f,
+        DrawText(TEXT("Greywake, twenty years earlier"), DimBone, StoryX + 18.0f, StoryY + 58.0f,
                  GEngine->GetSmallFont(), 0.95f, false);
-        DrawText(TEXT("Black-Iron Ford. One memory beneath it."), DimBone, StoryX + 18.0f, StoryY + 82.0f,
+        DrawText(TEXT("The casualty count will not stay still."), DimBone, StoryX + 18.0f, StoryY + 82.0f,
                  GEngine->GetSmallFont(), 0.95f, false);
     }
 
     const float FooterY = bCompact ? FMath::Min(442.0f, Height - 28.0f) : Height - 34.0f;
     DrawText(TEXT("VOWFALL  //  UNREAL DEVELOPMENT BUILD"), FLinearColor(0.29f, 0.30f, 0.29f),
              Margin, FooterY, GEngine->GetSmallFont(), 0.82f, false);
+}
+
+void AAshenHUD::DrawCampaign(const AAshenPlayerController& Controller)
+{
+    const float Width = Canvas->SizeX;
+    const float Height = Canvas->SizeY;
+    const bool bWide = Width >= 980.0f;
+    const bool bCompact = Height < 650.0f;
+    const float Margin = Width < 760.0f ? 28.0f : 64.0f;
+
+    DrawRect(FLinearColor(0.003f, 0.005f, 0.006f, 0.80f), 0.0f, 0.0f, Width, Height);
+    DrawRect(FLinearColor(0.012f, 0.016f, 0.017f, 0.88f), 0.0f, 0.0f,
+             bWide ? Width * 0.48f : Width, Height);
+    DrawRect(Blood, 0.0f, 0.0f, 5.0f, Height);
+
+    FVector2D BackMin;
+    FVector2D BackMax;
+    if (Controller.GetFrontEndButtonRect(1, BackMin, BackMax))
+    {
+        float MouseX = -1.0f;
+        float MouseY = -1.0f;
+        Controller.GetMousePosition(MouseX, MouseY);
+        const bool bHovered = ContainsPoint(BackMin, BackMax, FVector2D(MouseX, MouseY));
+        DrawRect(bHovered ? Iron : FLinearColor(0.018f, 0.022f, 0.023f, 0.88f),
+                 BackMin.X, BackMin.Y, BackMax.X - BackMin.X, BackMax.Y - BackMin.Y);
+        const FColor ArrowColor = (bHovered ? Bone : DimBone).ToFColor(true);
+        const float CenterX = (BackMin.X + BackMax.X) * 0.5f;
+        const float CenterY = (BackMin.Y + BackMax.Y) * 0.5f;
+        Draw2DLine(CenterX + 6.0f, CenterY - 9.0f, CenterX - 4.0f, CenterY, ArrowColor);
+        Draw2DLine(CenterX - 4.0f, CenterY, CenterX + 6.0f, CenterY + 9.0f, ArrowColor);
+    }
+
+    const float HeaderX = Margin + 62.0f;
+    DrawText(TEXT("VOWFALL"), Bone, HeaderX, bCompact ? 24.0f : 34.0f,
+             GEngine->GetMediumFont(), 1.0f, false);
+    DrawText(TEXT("CAMPAIGN  //  13 MISSIONS"), Bronze, HeaderX, bCompact ? 52.0f : 66.0f,
+             GEngine->GetSmallFont(), 0.78f, false);
+
+    if (bWide)
+    {
+        const TCHAR* ActLabels[] = {
+            TEXT("PROLOGUE"),
+            TEXT("ACT I  //  THREE HONEST MERCIES"),
+            TEXT("ACT II  //  COUNTRIES OF THE ABANDONED"),
+            TEXT("ACT III  //  THE WAR WITHIN"),
+            TEXT("ACT IV  //  THE LIVING MAY REFUSE"),
+        };
+        const TCHAR* MissionLabels[] = {
+            TEXT("The Bridge of Names"),
+            TEXT("Open Bowl  /  Mercy  /  Second Telling"),
+            TEXT("Written Off  /  Contradiction  /  Two Histories"),
+            TEXT("Emergency  /  Prison  /  Veto  /  Field of Nails"),
+            TEXT("Council Under Fire  /  Names at the Water"),
+        };
+        const float TimelineY = bCompact ? 94.0f : 118.0f;
+        const float EntryHeight = bCompact ? 58.0f : 68.0f;
+        const float EntryGap = bCompact ? 6.0f : 8.0f;
+        const float EntryWidth = FMath::Min(440.0f, Width * 0.38f);
+        for (int32 Index = 0; Index < 5; ++Index)
+        {
+            const float Y = TimelineY + static_cast<float>(Index) * (EntryHeight + EntryGap);
+            DrawRect(Index == 0 ? FLinearColor(0.085f, 0.065f, 0.040f, 0.94f)
+                                : FLinearColor(0.025f, 0.030f, 0.030f, 0.86f),
+                     Margin, Y, EntryWidth, EntryHeight);
+            DrawRect(Index == 0 ? Bronze : FLinearColor(0.16f, 0.17f, 0.16f),
+                     Margin, Y, 3.0f, EntryHeight);
+            DrawText(ActLabels[Index], Index == 0 ? Bronze : DimBone, Margin + 16.0f, Y + 9.0f,
+                     GEngine->GetSmallFont(), 0.70f, false);
+            DrawText(MissionLabels[Index], Index == 0 ? Bone : FLinearColor(0.42f, 0.41f, 0.38f),
+                     Margin + 16.0f, Y + (bCompact ? 30.0f : 35.0f),
+                     GEngine->GetSmallFont(), Index == 0 ? 0.90f : 0.72f, false);
+        }
+    }
+
+    const float DetailX = bWide ? FMath::Max(Width * 0.56f, 590.0f) : Margin;
+    const float DetailY = bWide ? (bCompact ? 98.0f : 126.0f) : (bCompact ? 92.0f : 116.0f);
+    DrawText(TEXT("PROLOGUE"), Bronze, DetailX, DetailY, GEngine->GetSmallFont(), 0.78f, false);
+    DrawText(TEXT("THE BRIDGE OF NAMES"), Bone, DetailX, DetailY + 28.0f,
+             GEngine->GetLargeFont(), bCompact ? 0.92f : 1.08f, false);
+    DrawRect(Blood, DetailX, DetailY + 76.0f, 112.0f, 3.0f);
+    DrawText(TEXT("TWENTY YEARS BEFORE BELLGRAVE"), DimBone, DetailX, DetailY + 96.0f,
+             GEngine->GetSmallFont(), 0.80f, false);
+    DrawText(TEXT("Young Mara Veyr keeps Greywake's last crossing open"), Bone,
+             DetailX, DetailY + 126.0f, GEngine->GetSmallFont(), 0.90f, false);
+    DrawText(TEXT("as enemy pressure, the Dread Tide, and plague converge."), DimBone,
+             DetailX, DetailY + 150.0f, GEngine->GetSmallFont(), 0.86f, false);
+
+    const float VowY = DetailY + (bCompact ? 190.0f : 210.0f);
+    DrawText(TEXT("PUBLIC VOW"), Bronze, DetailX, VowY, GEngine->GetSmallFont(), 0.74f, false);
+    DrawText(TEXT("THE BRIDGE WILL REMAIN OPEN."), Bone, DetailX, VowY + 26.0f,
+             GEngine->GetMediumFont(), 0.92f, false);
+    DrawText(TEXT("The casualty count changes. The order does not."), DimBone,
+             DetailX, VowY + 59.0f, GEngine->GetSmallFont(), 0.82f, false);
+
+    FVector2D ButtonMin;
+    FVector2D ButtonMax;
+    if (Controller.GetFrontEndButtonRect(0, ButtonMin, ButtonMax))
+    {
+        float MouseX = -1.0f;
+        float MouseY = -1.0f;
+        Controller.GetMousePosition(MouseX, MouseY);
+        const bool bHovered = ContainsPoint(ButtonMin, ButtonMax, FVector2D(MouseX, MouseY));
+        DrawRect(bHovered ? FLinearColor(0.18f, 0.095f, 0.035f, 0.98f) : Iron,
+                 ButtonMin.X, ButtonMin.Y, ButtonMax.X - ButtonMin.X, ButtonMax.Y - ButtonMin.Y);
+        DrawRect(bHovered ? Bronze : FLinearColor(0.36f, 0.28f, 0.16f),
+                 ButtonMin.X, ButtonMax.Y - 3.0f, ButtonMax.X - ButtonMin.X, 3.0f);
+        DrawText(TEXT("BEGIN PROLOGUE"), bHovered ? Bone : FLinearColor(0.72f, 0.70f, 0.64f),
+                 ButtonMin.X + 20.0f, ButtonMin.Y + 16.0f,
+                 GEngine->GetMediumFont(), 0.95f, false);
+    }
 }
 
 void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
@@ -178,7 +300,13 @@ void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
     DrawRect(Ink, TopX, TopY, TopWidth, 72.0f);
     DrawRect(Bronze, TopX, TopY, 4.0f, 72.0f);
     DrawText(TEXT("VOWFALL"), Bone, 30.0f, 25.0f, GEngine->GetMediumFont(), 1.0f, false);
-    DrawText(bCompact ? TEXT("CINDER COMPACT") : TEXT("CINDER COMPACT  //  DROWNED CAUSEWAY"),
+    const FString Theater = Simulation.IsStoryMatch()
+                                ? FString::Printf(TEXT("%s  //  %s"),
+                                                  *Simulation.GetStoryChapterText().ToUpper(),
+                                                  *Simulation.GetStoryMissionTitle().ToUpper())
+                                : bCompact ? TEXT("CINDER COMPACT")
+                                           : TEXT("CINDER COMPACT  //  DROWNED CAUSEWAY");
+    DrawText(Theater,
              DimBone, 30.0f, 54.0f, GEngine->GetSmallFont(), 0.76f, false);
 
     const float MetricsX = FMath::Max(bCompact ? 242.0f : 360.0f, Width - (bCompact ? 410.0f : 520.0f));
@@ -204,6 +332,16 @@ void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
     DrawRect(FLinearColor(0.008f, 0.011f, 0.012f, 0.88f), ObjectiveX, 94.0f, ObjectiveWidth, 28.0f);
     DrawText(Simulation.GetObjectiveText(), DimBone, ObjectiveX + 14.0f, 101.0f,
              GEngine->GetSmallFont(), 0.72f, false);
+
+    if (Simulation.IsStoryMatch())
+    {
+        const float VowWidth = FMath::Min(580.0f, Width - 40.0f);
+        const float VowX = (Width - VowWidth) * 0.5f;
+        DrawRect(FLinearColor(0.036f, 0.022f, 0.014f, 0.92f), VowX, 126.0f, VowWidth, 28.0f);
+        DrawRect(Bronze, VowX, 126.0f, 3.0f, 28.0f);
+        DrawText(FString::Printf(TEXT("PUBLIC VOW  //  %s"), *Simulation.GetStoryVowText().ToUpper()),
+                 Bone, VowX + 14.0f, 133.0f, GEngine->GetSmallFont(), 0.69f, false);
+    }
 
     DrawTacticalMap(Simulation);
 
@@ -318,9 +456,11 @@ void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
     {
         const float ModeWidth = FMath::Min(520.0f, Width - 40.0f);
         const float ModeX = (Width - ModeWidth) * 0.5f;
-        DrawRect(FLinearColor(0.025f, 0.018f, 0.014f, 0.96f), ModeX, 102.0f, ModeWidth, 38.0f);
-        DrawRect(Blood, ModeX, 102.0f, 4.0f, 38.0f);
-        DrawText(CommandMode, Bone, ModeX + 18.0f, 113.0f, GEngine->GetSmallFont(), 0.88f, false);
+        const float ModeY = Simulation.IsStoryMatch() ? 160.0f : 102.0f;
+        DrawRect(FLinearColor(0.025f, 0.018f, 0.014f, 0.96f), ModeX, ModeY, ModeWidth, 38.0f);
+        DrawRect(Blood, ModeX, ModeY, 4.0f, 38.0f);
+        DrawText(CommandMode, Bone, ModeX + 18.0f, ModeY + 11.0f,
+                 GEngine->GetSmallFont(), 0.88f, false);
     }
 }
 
@@ -554,12 +694,20 @@ void AAshenHUD::DrawMatchResult(const UAshenSimulationSubsystem& Simulation)
     const float X = (Width - PanelWidth) * 0.5f;
     const float Y = (Height - PanelHeight) * 0.5f;
     const bool bWon = Simulation.DidLocalPlayerWin();
+    const bool bStory = Simulation.IsStoryMatch();
 
     DrawRect(FLinearColor(0.005f, 0.007f, 0.008f, 0.94f), X, Y, PanelWidth, PanelHeight);
     DrawRect(bWon ? Bronze : Blood, X, Y, 5.0f, PanelHeight);
-    DrawText(bWon ? TEXT("THE BRIDGE HOLDS") : TEXT("THE COMPACT LINE BREAKS"), Bone,
+    const FString ResultTitle = bStory
+                                    ? bWon ? TEXT("THE CROSSING ENDURES") : TEXT("THE LAST ROAD CLOSES")
+                                    : bWon ? TEXT("THE BRIDGE HOLDS") : TEXT("THE COMPACT LINE BREAKS");
+    const FString ResultDetail = bStory
+                                     ? bWon ? TEXT("The order remains. The count is still changing.")
+                                            : TEXT("Greywake has lost its final answerable road.")
+                                     : bWon ? TEXT("The Gloam Ascendancy has been broken.")
+                                            : TEXT("The Gloam Ascendancy claims another night.");
+    DrawText(ResultTitle, Bone,
              X + 34.0f, Y + 32.0f, GEngine->GetLargeFont(), 1.05f, false);
-    DrawText(bWon ? TEXT("The Gloam Ascendancy has been broken.")
-                  : TEXT("The Gloam Ascendancy claims another night."),
-             DimBone, X + 36.0f, Y + 91.0f, GEngine->GetSmallFont(), 1.0f, false);
+    DrawText(ResultDetail, DimBone, X + 36.0f, Y + 91.0f,
+             GEngine->GetSmallFont(), 1.0f, false);
 }
