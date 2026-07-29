@@ -109,6 +109,21 @@ private:
     TObjectPtr<UInstancedStaticMeshComponent> ForestRoots;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> GravewoodTreesA;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> GravewoodTreesB;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> GravewoodStumps;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> GravewoodRootsA;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> GravewoodRootsB;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
     TObjectPtr<UInstancedStaticMeshComponent> HumanWalls;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")

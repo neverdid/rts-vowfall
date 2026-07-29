@@ -510,6 +510,16 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MineMouths")));
     const UInstancedStaticMeshComponent *Gravewood =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("ForestRoots")));
+    const UInstancedStaticMeshComponent *GravewoodTreesA =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("GravewoodTreesA")));
+    const UInstancedStaticMeshComponent *GravewoodTreesB =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("GravewoodTreesB")));
+    const UInstancedStaticMeshComponent *GravewoodStumps =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("GravewoodStumps")));
+    const UInstancedStaticMeshComponent *GravewoodRootsA =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("GravewoodRootsA")));
+    const UInstancedStaticMeshComponent *GravewoodRootsB =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("GravewoodRootsB")));
     UProceduralMeshComponent *RoadSurface =
         Cast<UProceduralMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("RoadSurface")));
     UProceduralMeshComponent *RoadStoneSurface =
@@ -559,6 +569,27 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
                  MountainTertiary->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
     TestEqual(TEXT("The concealed route owns two mine entrances"), Mines != nullptr ? Mines->GetInstanceCount() : 0, 2);
     TestTrue(TEXT("Gravewood owns a dedicated root layer"), Gravewood != nullptr && Gravewood->GetInstanceCount() > 0);
+    const int32 GravewoodTreeCount =
+        (GravewoodTreesA != nullptr ? GravewoodTreesA->GetInstanceCount() : 0) +
+        (GravewoodTreesB != nullptr ? GravewoodTreesB->GetInstanceCount() : 0);
+    const int32 GravewoodRootCount =
+        (GravewoodRootsA != nullptr ? GravewoodRootsA->GetInstanceCount() : 0) +
+        (GravewoodRootsB != nullptr ? GravewoodRootsB->GetInstanceCount() : 0);
+    TestEqual(TEXT("Gravewood limits expensive dead-tree silhouettes to five anchors"), GravewoodTreeCount, 5);
+    TestEqual(TEXT("Gravewood owns six authored stump landmarks"),
+              GravewoodStumps != nullptr ? GravewoodStumps->GetInstanceCount() : 0, 6);
+    TestEqual(TEXT("Gravewood root detail stays inside the profiled instance budget"), GravewoodRootCount, 42);
+    TestTrue(TEXT("Gravewood production art remains presentation-only"),
+             GravewoodTreesA != nullptr &&
+                 GravewoodTreesA->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 GravewoodTreesB != nullptr &&
+                 GravewoodTreesB->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 GravewoodStumps != nullptr &&
+                 GravewoodStumps->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 GravewoodRootsA != nullptr &&
+                 GravewoodRootsA->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 GravewoodRootsB != nullptr &&
+                 GravewoodRootsB->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
     TestTrue(TEXT("Terrain-following road ribbons keep all three routes continuous"),
              RoadSurface != nullptr && RoadSurface->GetNumSections() == 1 &&
                  RoadSurface->GetCollisionEnabled() == ECollisionEnabled::NoCollision);

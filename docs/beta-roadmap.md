@@ -49,7 +49,7 @@ Visual foundation delivered:
 
 Production-kit foundation delivered:
 
-- Thirty-five reproducible original Vowfall meshes now cover every environment proxy category
+- Forty reproducible original Vowfall meshes now cover every environment proxy category
 - Optional production assets and PBR textures resolve through semantic slots with deterministic fallbacks
 - Project Titan has a license-safe curation policy, canonical intake manifest, and local audit workflow
 - Surface master supports base-color, normal, and packed AO/roughness texture sets without changing
@@ -59,12 +59,15 @@ Production-kit foundation delivered:
 - A curated three-mesh Project Titan cliff family now gives Blackridge distinct shelf, peak, and
   broken-block silhouettes while keeping licensed binaries local, five authored LODs, and gameplay
   collision independent
+- Gravewood now uses a curated deadwood family with two leaf-stripped four-LOD tree silhouettes, a
+  four-LOD hero stump, and two sub-500-triangle root shapes. Five tree anchors, six stumps, and forty-two
+  root instances establish asymmetry without hiding the south route or changing deterministic collision
 - Route slabs and overlapping water planes are replaced by tested continuous procedural ribbons, with
   distinct main/flank treatment and crossing-safe shoreline dressing
 
-Next graphics slice: curate only free Project Titan dead-forest and root meshes for Gravewood, then
-compare production captures and frame cost against the original Vowfall fallback kit before considering
-debris or generic structural modules.
+Next graphics slice: profile the integrated Blackridge and Gravewood families on the target hardware,
+then consider a restrained bark surface and low-cost debris pass. Generic structural modules remain
+deferred until the landscape silhouettes, route readability, and frame budget are approved together.
 
 - Replace procedural proxy terrain with an authored competitive map using landscape, roads, bridges,
   river water, forests, cliffs, castles, landmarks, and faction-readable bases
