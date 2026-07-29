@@ -1,10 +1,11 @@
-"""Normalizes the approved Project Titan rock assets in their source project.
+"""Normalizes the approved Project Titan environment assets in their source project.
 
 Run this script against the separate ProjectTitanSource project. It duplicates
-only the reviewed texture triplet and three cliff silhouettes, applies
-Vowfall's canonical naming and settings, and never migrates Titan maps, code,
-plugins, or biomes. The resulting Content/External/VowfallEnvironmentKit
-folder can then be copied to the same ignored folder inside Vowfall.
+only the reviewed texture triplet, cliff silhouettes, and Gravewood dead-tree
+family. It applies Vowfall's canonical naming and settings and never migrates
+Titan maps, code, plugins, materials, or biomes. The resulting
+Content/External/VowfallEnvironmentKit folder can then be copied to the same
+ignored folder inside Vowfall.
 """
 
 from __future__ import annotations
@@ -33,6 +34,9 @@ class MeshSelection:
     source_path: str
     target_size_cm: float = 100.0
     minimum_lod_count: int = 5
+    removed_material_ids: tuple[int, ...] = ()
+    rotation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    grounded_pivot: bool = False
 
 
 FOUNDATION_STONE = TextureTriplet(
@@ -63,6 +67,50 @@ MOUNTAIN_CLIFFS = (
         "/Game/Environment/Marshland/Meshes/Rocks/SM_Marshlands_Rock_4",
     ),
 )
+
+GRAVEWOOD_MESHES = (
+    MeshSelection(
+        "Project Titan Marshlands Tree 2 deadwood",
+        "Meshes/Foliage/SM_GravewoodTree_A",
+        "/Game/Environment/Grassland/Meshes/ShoreLake/Foliage_PCG/"
+        "SM_Marshlands_Tree2_LP",
+        minimum_lod_count=4,
+        removed_material_ids=(1,),
+        grounded_pivot=True,
+    ),
+    MeshSelection(
+        "Project Titan Marshlands Tree 4 deadwood",
+        "Meshes/Foliage/SM_GravewoodTree_B",
+        "/Game/Environment/Grassland/Meshes/ShoreLake/Foliage_PCG/"
+        "SM_Marshlands_Tree4_LP",
+        minimum_lod_count=4,
+        removed_material_ids=(1,),
+        grounded_pivot=True,
+    ),
+    MeshSelection(
+        "Project Titan Marshlands dead stump",
+        "Meshes/Foliage/SM_GravewoodStump_A",
+        "/Game/Environment/Marshland/Meshes/SM_Marshlands_DeadStump1_LP",
+        minimum_lod_count=4,
+        grounded_pivot=True,
+    ),
+    MeshSelection(
+        "Project Titan curved root chunk",
+        "Meshes/Foliage/SM_GravewoodRoot_A",
+        "/Game/Environment/Foliage/SM_RootChunk_Curved",
+        minimum_lod_count=1,
+        grounded_pivot=True,
+    ),
+    MeshSelection(
+        "Project Titan split root chunk",
+        "Meshes/Foliage/SM_GravewoodRoot_B",
+        "/Game/Environment/Foliage/SM_RootChunk_Split",
+        minimum_lod_count=1,
+        grounded_pivot=True,
+    ),
+)
+
+APPROVED_MESHES = MOUNTAIN_CLIFFS + GRAVEWOOD_MESHES
 
 
 def _destination(prefix: str, suffix: str) -> str:
@@ -109,7 +157,6 @@ def _normalize_mesh(selection: MeshSelection) -> unreal.StaticMesh:
             f"Project Titan mesh has invalid bounds: {selection.source_path}"
         )
 
-    geometry_scale = selection.target_size_cm / largest_dimension
     subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     lod_count = subsystem.get_lod_count(source_mesh)
     if lod_count < selection.minimum_lod_count:
@@ -123,6 +170,7 @@ def _normalize_mesh(selection: MeshSelection) -> unreal.StaticMesh:
     copy_options.set_editor_property("request_tangents", True)
     copy_options.set_editor_property("use_build_scale", True)
     dynamic_lods = []
+    removed_triangles = 0
     for lod_index in range(lod_count):
         dynamic_mesh = unreal.DynamicMesh()
         requested_lod = unreal.GeometryScriptMeshReadLOD(
@@ -136,15 +184,55 @@ def _normalize_mesh(selection: MeshSelection) -> unreal.StaticMesh:
             requested_lod,
             use_section_materials=True,
         )
+        for material_id in selection.removed_material_ids:
+            deletion = (
+                unreal.GeometryScript_Materials
+                .delete_triangles_by_material_id(dynamic_mesh, material_id)
+            )
+            if isinstance(deletion, tuple):
+                removed_triangles += deletion[1]
+        pitch, yaw, roll = selection.rotation
+        if pitch != 0.0 or yaw != 0.0 or roll != 0.0:
+            unreal.GeometryScript_MeshTransforms.rotate_mesh(
+                dynamic_mesh,
+                unreal.Rotator(pitch=pitch, yaw=yaw, roll=roll),
+                unreal.Vector(0.0, 0.0, 0.0),
+            )
+        dynamic_lods.append(dynamic_mesh)
+
+    cleaned_bounds = unreal.GeometryScript_MeshQueries.get_mesh_bounding_box(
+        dynamic_lods[0]
+    )
+    cleaned_size = cleaned_bounds.max - cleaned_bounds.min
+    cleaned_largest_dimension = max(
+        cleaned_size.x, cleaned_size.y, cleaned_size.z
+    )
+    if cleaned_largest_dimension <= 0.0:
+        raise RuntimeError(
+            f"Project Titan mesh became empty during cleanup: {selection.source_path}"
+        )
+    geometry_scale = selection.target_size_cm / cleaned_largest_dimension
+    for dynamic_mesh in dynamic_lods:
         unreal.GeometryScript_MeshTransforms.scale_mesh(
             dynamic_mesh,
             unreal.Vector(geometry_scale, geometry_scale, geometry_scale),
             unreal.Vector(0.0, 0.0, 0.0),
         )
-        dynamic_lods.append(dynamic_mesh)
 
-    # These small source meshes already have five authored LODs, so Nanite would
-    # add overhead without improving the normal RTS-camera silhouette.
+    if selection.grounded_pivot:
+        canonical_bounds = unreal.GeometryScript_MeshQueries.get_mesh_bounding_box(
+            dynamic_lods[0]
+        )
+        center = (canonical_bounds.min + canonical_bounds.max) * 0.5
+        translation = unreal.Vector(-center.x, -center.y, -canonical_bounds.min.z)
+        for dynamic_mesh in dynamic_lods:
+            unreal.GeometryScript_MeshTransforms.translate_mesh(
+                dynamic_mesh, translation
+            )
+
+    # Authored LODs cover the detailed trees and stump. The root chunks are
+    # already below 500 source triangles, so Nanite would add overhead without
+    # improving their normal RTS-camera silhouette.
     create_options = unreal.GeometryScriptCreateNewStaticMeshAssetOptions()
     create_options.set_editor_property("enable_recompute_normals", True)
     create_options.set_editor_property("enable_recompute_tangents", True)
@@ -172,6 +260,11 @@ def _normalize_mesh(selection: MeshSelection) -> unreal.StaticMesh:
 
     mesh.modify()
     unreal.EditorAssetLibrary.save_loaded_asset(mesh, only_if_is_dirty=False)
+    if removed_triangles > 0:
+        unreal.log(
+            "Vowfall Project Titan mesh cleanup: "
+            f"{selection.name} removed {removed_triangles} non-deadwood triangles"
+        )
     return mesh
 
 
@@ -202,7 +295,7 @@ def main() -> None:
         FOUNDATION_STONE.packed,
     ):
         _load_texture(source)
-    for selection in MOUNTAIN_CLIFFS:
+    for selection in APPROVED_MESHES:
         _load_mesh(selection.source_path)
 
     unreal.EditorAssetLibrary.make_directory(TARGET_ROOT)
@@ -234,7 +327,7 @@ def main() -> None:
         srgb=False,
         compression=unreal.TextureCompressionSettings.TC_MASKS,
     )
-    for selection in MOUNTAIN_CLIFFS:
+    for selection in APPROVED_MESHES:
         mesh = _normalize_mesh(selection)
         size = mesh.get_bounding_box().max - mesh.get_bounding_box().min
         unreal.log(
@@ -245,7 +338,7 @@ def main() -> None:
     unreal.EditorAssetLibrary.save_directory(TARGET_ROOT, only_if_is_dirty=False)
     unreal.log(
         "Vowfall Project Titan intake complete: "
-        f"{FOUNDATION_STONE.name} and {len(MOUNTAIN_CLIFFS)} cliff meshes"
+        f"{FOUNDATION_STONE.name} and {len(APPROVED_MESHES)} environment meshes"
     )
 
 

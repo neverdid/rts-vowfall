@@ -39,6 +39,9 @@ landscapes are the primary visual references.
   they are not the human starter field.
 - Gravewood occupies the southeast. Its dense canopy, roots, dead trees, and two spirit caches are the
   rotational gameplay counterpart to Blackridge, while its visual language remains organic rather than rocky.
+  Five sparse gnarled-tree anchors and six hero stumps break the conifer mass; low root shapes stitch those
+  anchors into the ground without becoming path obstacles. Leaf cards are removed from the deadwood family
+  so its silhouette stays skeletal and units remain readable against the canopy.
 - The starter cursed-iron fields occupy open, rotationally mirrored pockets: southwest of the human gate and
   northeast of the monster gate. Both fields keep equal base travel distance and remain clear of major
   landmarks, flank roads, and dense sightline blockers.
@@ -128,7 +131,7 @@ including simulation and UI. Environment work should preserve headroom for late-
 
 Delivered foundation:
 
-- Thirty-five original, reproducible Vowfall meshes replace every Engine basic-shape category while
+- Forty original, reproducible Vowfall meshes replace every Engine basic-shape category while
   retaining a final Engine fallback
 - Semantic mesh and surface slots prefer a curated local production kit without coupling licensed art
   to the public repository or deterministic collision

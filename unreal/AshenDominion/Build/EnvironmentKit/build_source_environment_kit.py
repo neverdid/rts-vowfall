@@ -301,6 +301,53 @@ def _forest_root() -> unreal.DynamicMesh:
     return result
 
 
+def _gravewood_tree_a() -> unreal.DynamicMesh:
+    result = _mesh()
+    _cone(result, 16.0, 8.0, 100.0, location=(0.0, 0.0, 50.0), rotation=(1.0, 3.0, -2.0), radial_steps=8)
+    _cone(result, 9.0, 1.5, 61.0, location=(18.0, 0.0, 73.0), rotation=(0.0, 38.0, 3.0), radial_steps=7)
+    _cone(result, 8.0, 1.5, 53.0, location=(-18.0, 3.0, 66.0), rotation=(0.0, -47.0, -7.0), radial_steps=7)
+    _cone(result, 6.0, 1.0, 42.0, location=(3.0, -16.0, 86.0), rotation=(31.0, 6.0, 0.0), radial_steps=6)
+    _rock(result, location=(-11.0, 8.0, 35.0), rotation=(7.0, 41.0, -4.0), scale=(0.18, 0.13, 0.12))
+    return result
+
+
+def _gravewood_tree_b() -> unreal.DynamicMesh:
+    result = _mesh()
+    _cone(result, 18.0, 9.0, 76.0, location=(0.0, 0.0, 38.0), rotation=(-2.0, -4.0, 3.0), radial_steps=9)
+    _cone(result, 10.0, 2.0, 72.0, location=(17.0, 0.0, 70.0), rotation=(0.0, 28.0, 6.0), radial_steps=7)
+    _cone(result, 11.0, 2.0, 68.0, location=(-16.0, 3.0, 69.0), rotation=(0.0, -34.0, -5.0), radial_steps=7)
+    _cone(result, 5.0, 1.0, 39.0, location=(30.0, -8.0, 87.0), rotation=(18.0, 57.0, 0.0), radial_steps=6)
+    _cone(result, 5.0, 1.0, 36.0, location=(-28.0, 9.0, 84.0), rotation=(-21.0, -62.0, 0.0), radial_steps=6)
+    return result
+
+
+def _gravewood_stump() -> unreal.DynamicMesh:
+    result = _mesh()
+    _cone(result, 35.0, 25.0, 63.0, location=(0.0, 0.0, 31.5), rotation=(2.0, 5.0, -3.0), radial_steps=9)
+    for location, yaw, scale in (
+        ((34.0, 1.0, 7.0), 11.0, (0.48, 0.16, 0.11)),
+        ((-30.0, -8.0, 6.0), 171.0, (0.42, 0.15, 0.10)),
+        ((5.0, 31.0, 5.0), 88.0, (0.37, 0.14, 0.09)),
+    ):
+        _rock(result, location=location, rotation=(4.0, yaw, -3.0), scale=scale)
+    return result
+
+
+def _gravewood_root_a() -> unreal.DynamicMesh:
+    result = _mesh()
+    _rock(result, location=(-8.0, 0.0, 7.0), rotation=(4.0, 17.0, -5.0), scale=(0.94, 0.17, 0.12), steps=3)
+    _rock(result, location=(27.0, 18.0, 6.0), rotation=(-3.0, 52.0, 4.0), scale=(0.46, 0.13, 0.10))
+    return result
+
+
+def _gravewood_root_b() -> unreal.DynamicMesh:
+    result = _mesh()
+    _rock(result, location=(-7.0, 0.0, 8.0), rotation=(3.0, -13.0, -4.0), scale=(0.88, 0.18, 0.13), steps=3)
+    _rock(result, location=(23.0, 19.0, 6.0), rotation=(-4.0, 49.0, 3.0), scale=(0.51, 0.14, 0.10))
+    _rock(result, location=(20.0, -19.0, 5.0), rotation=(5.0, -54.0, -2.0), scale=(0.42, 0.13, 0.09))
+    return result
+
+
 def _human_wall() -> unreal.DynamicMesh:
     result = _mesh()
     _box(result, location=(0.0, 0.0, -10.0), dimensions=(100.0, 88.0, 62.0))
@@ -429,6 +476,11 @@ FACTORIES: dict[str, Callable[[], unreal.DynamicMesh]] = {
     "Meshes/Architecture/SM_MineMouth_A": _mine_mouth,
     "Meshes/Architecture/SM_MineTimber_A": _timber,
     "Meshes/Foliage/SM_ForestRoot_A": _forest_root,
+    "Meshes/Foliage/SM_GravewoodTree_A": _gravewood_tree_a,
+    "Meshes/Foliage/SM_GravewoodTree_B": _gravewood_tree_b,
+    "Meshes/Foliage/SM_GravewoodStump_A": _gravewood_stump,
+    "Meshes/Foliage/SM_GravewoodRoot_A": _gravewood_root_a,
+    "Meshes/Foliage/SM_GravewoodRoot_B": _gravewood_root_b,
     "Meshes/Factions/Human/SM_HumanWall_A": _human_wall,
     "Meshes/Factions/Human/SM_HumanTower_A": _human_tower,
     "Meshes/Factions/Human/SM_HumanRoof_A": _human_roof,

@@ -85,9 +85,10 @@ lower saturation, preserve mid-value unit contrast, and keep blood-red accents s
 2. Review its assets in an overview level; do not migrate folders in bulk.
 3. Import or migrate one approved dependency-complete asset family into its raw local source folder.
 4. Enable the built-in Geometry Scripting plugin in the source project, then run
-   `Build/EnvironmentKit/intake_project_titan.py` against it. The script duplicates only the approved
-   surface triplet, caps it at 2K, and bakes all five LODs of the three approved cliff meshes into a
-   100 cm canonical envelope under `/Game/External/VowfallEnvironmentKit`.
+   `Build/EnvironmentKit/intake_project_titan.py` against it. The script duplicates only approved
+   surfaces and bakes reviewed mesh families into a 100 cm canonical envelope under
+   `/Game/External/VowfallEnvironmentKit`. Family-specific cleanup, LOD, pivot, material, Nanite, and
+   collision rules are encoded in the script rather than applied by hand.
 5. Copy the resulting canonical folder into Vowfall's matching ignored `Content/External` folder.
 6. Run `Build/EnvironmentKit/intake_free_surfaces.py` inside Vowfall for the other approved free surfaces.
 7. Normalize mesh names, 100 cm envelope, pivot, material slots, LOD/Nanite, and collision.
@@ -122,6 +123,7 @@ entitled on the project account:
 | [Weathered Wooden Planks](https://www.fab.com/listings/943bdc90-e4c2-4a63-8ca0-1b9556f933dd) | `T_WeatheredWood` | Timber bridge decks and mine supports |
 | [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca), Marshlands Mossy Rock Medium | `T_Foundation` | Blackridge mountain rock and weathered human foundations; selected as a complete `D/N/ORM` family with no signature-biome dependency |
 | Project Titan, Marshlands Rocks 2-4 | `SM_MountainCliff_A/B/C` | Three complementary Blackridge shelf, peak, and broken-block silhouettes; all retain five source LODs while collision and source materials are removed |
+| Project Titan, Marshlands deadwood and generic roots | `SM_GravewoodTree_A/B`, `SM_GravewoodStump_A`, `SM_GravewoodRoot_A/B` | Sparse Gravewood silhouette anchors; tree leaf sections and all source materials/collision are removed |
 
 The raw Fab folders and the normalized `/Game/External/VowfallEnvironmentKit` copies stay local and are
 ignored by Git. Public source contains only the intake script, provenance, canonical contract, material
@@ -130,7 +132,7 @@ bindings, and deterministic fallbacks.
 The UE 5.8 launcher manifest observed during this pass required 65.62 GB of free installation space for
 the complete Titan sample. A workstation without that headroom must use an approved private project store
 or selectively retrieve only verified entitled packages; it must not add raw or unverified binaries to
-Git. Vowfall's first intake remains deliberately limited to one texture triplet and three reviewed meshes.
+Git. Vowfall's current intake remains deliberately limited to one texture triplet and eight reviewed meshes.
 
 ## Blackridge cliff selection
 
@@ -147,6 +149,24 @@ to a 100 cm maximum dimension, stripped of source material dependencies, and ass
 `FoundationStone` texture family through a lifted, low-specular Blackridge style at runtime. Human
 foundations retain their own darker style. Nanite remains disabled: five LODs on roughly 400 source
 vertices are cheaper and easier to profile at the RTS camera.
+
+## Gravewood deadwood selection
+
+Gravewood uses `SM_Marshlands_Tree2_LP`, `SM_Marshlands_Tree4_LP`, and
+`SM_Marshlands_DeadStump1_LP` as source silhouettes. Geometry Scripting removes material section 1 from
+both trees across every source LOD, deleting their leaf cards and leaving only gnarled wood. The two trees
+and stump retain four authored LODs, are centered horizontally, grounded, scaled into a 100 cm envelope,
+and receive Vowfall's subdued bark material at runtime.
+
+`SM_RootChunk_Curved` and `SM_RootChunk_Split` provide ground detail. They have one source LOD but only
+260 and 438 LOD0 triangles, respectively, and stay limited to forty-two instanced placements. The runtime
+adds only five detailed tree anchors and six stumps; the source-safe procedural forest remains the broad
+canopy and keeps the route readable when licensed content is unavailable.
+
+The tropical root-bridge mesh was rejected at nearly 10,000 triangles with one LOD and a bridge-specific
+silhouette. The 44 MB log tunnel and 29 MB moss stump were also rejected as signature hero pieces with no
+proportional RTS-camera benefit. All selected meshes remain visual-only; the deterministic interaction
+plane and route definitions continue to own gameplay collision.
 
 Do not purchase replacement packs for this pass. Future candidates are added only when they are free or
 already entitled, visually coherent with painterly realism, and useful enough to justify their shader,

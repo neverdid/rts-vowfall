@@ -422,6 +422,11 @@ AAshenArena::AAshenArena()
     MineMouths = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MineMouths"));
     MineTimbers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("MineTimbers"));
     ForestRoots = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ForestRoots"));
+    GravewoodTreesA = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GravewoodTreesA"));
+    GravewoodTreesB = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GravewoodTreesB"));
+    GravewoodStumps = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GravewoodStumps"));
+    GravewoodRootsA = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GravewoodRootsA"));
+    GravewoodRootsB = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GravewoodRootsB"));
     HumanWalls = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("HumanWalls"));
     HumanTowers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("HumanTowers"));
     HumanRoofs = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("HumanRoofs"));
@@ -457,6 +462,11 @@ AAshenArena::AAshenArena()
     ConfigureInstances(MineMouths, SceneRoot, EAshenEnvironmentMeshSlot::MineMouth, Cube);
     ConfigureInstances(MineTimbers, SceneRoot, EAshenEnvironmentMeshSlot::MineTimber, Cylinder);
     ConfigureInstances(ForestRoots, SceneRoot, EAshenEnvironmentMeshSlot::ForestRoot, Cylinder);
+    ConfigureInstances(GravewoodTreesA, SceneRoot, EAshenEnvironmentMeshSlot::GravewoodTreeA, Cylinder);
+    ConfigureInstances(GravewoodTreesB, SceneRoot, EAshenEnvironmentMeshSlot::GravewoodTreeB, Cylinder);
+    ConfigureInstances(GravewoodStumps, SceneRoot, EAshenEnvironmentMeshSlot::GravewoodStump, Cylinder);
+    ConfigureInstances(GravewoodRootsA, SceneRoot, EAshenEnvironmentMeshSlot::GravewoodRootA, Cylinder);
+    ConfigureInstances(GravewoodRootsB, SceneRoot, EAshenEnvironmentMeshSlot::GravewoodRootB, Cylinder);
     ConfigureInstances(HumanWalls, SceneRoot, EAshenEnvironmentMeshSlot::HumanWall, Cube);
     ConfigureInstances(HumanTowers, SceneRoot, EAshenEnvironmentMeshSlot::HumanTower, Cylinder);
     ConfigureInstances(HumanRoofs, SceneRoot, EAshenEnvironmentMeshSlot::HumanRoof, Cone);
@@ -1028,7 +1038,23 @@ void AAshenArena::BuildVegetation()
         }
     }
 
+    const auto AddGravewoodRootCluster =
+        [&Random, this](const FVector2D &Point, const float GroundHeight, const float Scale)
+    {
+        const float Yaw = Random.FRandRange(0.0f, 180.0f);
+        GravewoodRootsA->AddInstance(
+            FTransform(FRotator(Random.FRandRange(-4.0f, 4.0f), Yaw, Random.FRandRange(-5.0f, 5.0f)),
+                       FVector(Point.X, Point.Y, GroundHeight + 2.0f), FVector(Scale)));
+        GravewoodRootsB->AddInstance(
+            FTransform(FRotator(Random.FRandRange(-5.0f, 5.0f), Yaw + Random.FRandRange(62.0f, 112.0f),
+                                Random.FRandRange(-5.0f, 5.0f)),
+                       FVector(Point.X + Random.FRandRange(-21.0f, 21.0f),
+                               Point.Y + Random.FRandRange(-21.0f, 21.0f), GroundHeight + 1.5f),
+                       FVector(Scale * Random.FRandRange(0.76f, 0.96f))));
+    };
+
     // Gravewood is a dense sightline landmark, while the authored route remains clear enough for unit reading.
+    int32 GravewoodTreeIndex = 0;
     for (int32 Index = 0; Index < 165; ++Index)
     {
         const FVector2D Point(Random.FRandRange(2'820.0f, 4'120.0f), Random.FRandRange(1'560.0f, 2'660.0f));
@@ -1039,15 +1065,39 @@ void AAshenArena::BuildVegetation()
             continue;
         }
 
+        const int32 CompositionIndex = GravewoodTreeIndex++;
         const float GroundHeight = TerrainHeightAt(Point.X, Point.Y);
         const float Height = Random.FRandRange(165.0f, 285.0f);
         const float TrunkRadius = Random.FRandRange(11.0f, 19.0f);
+        if (CompositionIndex % 17 == 0)
+        {
+            UInstancedStaticMeshComponent *AnchorTrees =
+                CompositionIndex % 34 == 0 ? GravewoodTreesA : GravewoodTreesB;
+            const float TreeScale = Random.FRandRange(2.65f, 3.35f);
+            AnchorTrees->AddInstance(
+                FTransform(FRotator(Random.FRandRange(-3.0f, 3.0f), Random.FRandRange(0.0f, 180.0f),
+                                    Random.FRandRange(-4.0f, 4.0f)),
+                           FVector(Point.X, Point.Y, GroundHeight), FVector(TreeScale)));
+            AddGravewoodRootCluster(Point, GroundHeight, Random.FRandRange(0.78f, 1.18f));
+            continue;
+        }
+        if (CompositionIndex % 13 == 6)
+        {
+            const float StumpScale = Random.FRandRange(0.92f, 1.34f);
+            GravewoodStumps->AddInstance(
+                FTransform(FRotator(Random.FRandRange(-3.0f, 3.0f), Random.FRandRange(0.0f, 180.0f),
+                                    Random.FRandRange(-4.0f, 4.0f)),
+                           FVector(Point.X, Point.Y, GroundHeight), FVector(StumpScale)));
+            AddGravewoodRootCluster(Point, GroundHeight, Random.FRandRange(0.62f, 0.92f));
+            continue;
+        }
+
         TreeTrunks->AddInstance(
             FTransform(FRotator(0.0f, Random.FRandRange(0.0f, 180.0f), Random.FRandRange(-7.0f, 7.0f)),
                        FVector(Point.X, Point.Y, GroundHeight + Height * 0.5f),
                        FVector(TrunkRadius / 50.0f, TrunkRadius / 50.0f, Height / 100.0f)));
 
-        if (Index % 4 == 0)
+        if (CompositionIndex % 4 == 0)
         {
             const FVector Crown(Point.X, Point.Y, GroundHeight + Height * 0.72f);
             AddCylinderBetween(DeadBranches, Crown, Crown + FVector(62.0f, 28.0f, 66.0f), TrunkRadius * 0.42f);
@@ -1066,7 +1116,7 @@ void AAshenArena::BuildVegetation()
                            FVector(CrownWidth, CrownWidth * 0.92f, Random.FRandRange(1.42f, 1.92f))));
         }
 
-        if (Index % 3 == 0)
+        if (CompositionIndex % 3 == 0)
         {
             const FVector Root(Point.X, Point.Y, GroundHeight + 8.0f);
             for (int32 RootIndex = 0; RootIndex < 3; ++RootIndex)
@@ -1076,6 +1126,10 @@ void AAshenArena::BuildVegetation()
                                                    FMath::Sin(Angle) * Random.FRandRange(48.0f, 82.0f), -3.0f);
                 AddCylinderBetween(ForestRoots, Root, End, Random.FRandRange(4.0f, 7.0f));
             }
+        }
+        if (CompositionIndex % 7 == 3)
+        {
+            AddGravewoodRootCluster(Point, GroundHeight, Random.FRandRange(0.48f, 0.74f));
         }
     }
 
@@ -1351,6 +1405,11 @@ void AAshenArena::BeginPlay()
     Ashen::Materials::ApplySurface(MineTimbers, this, WeatheredWood,
                                    EAshenEnvironmentSurface::WeatheredWood);
     Ashen::Materials::ApplySurface(ForestRoots, this, Bark, EAshenEnvironmentSurface::Bark);
+    Ashen::Materials::ApplySurface(GravewoodTreesA, this, Bark, EAshenEnvironmentSurface::Bark);
+    Ashen::Materials::ApplySurface(GravewoodTreesB, this, Bark, EAshenEnvironmentSurface::Bark);
+    Ashen::Materials::ApplySurface(GravewoodStumps, this, Bark, EAshenEnvironmentSurface::Bark);
+    Ashen::Materials::ApplySurface(GravewoodRootsA, this, Bark, EAshenEnvironmentSurface::Bark);
+    Ashen::Materials::ApplySurface(GravewoodRootsB, this, Bark, EAshenEnvironmentSurface::Bark);
     Ashen::Materials::ApplySurface(HumanWalls, this, HumanStone, EAshenEnvironmentSurface::HumanStone);
     Ashen::Materials::ApplySurface(HumanTowers, this, HumanStone, EAshenEnvironmentSurface::HumanStone);
     Ashen::Materials::ApplySurface(HumanRoofs, this, HumanRoof, EAshenEnvironmentSurface::HumanRoof);
