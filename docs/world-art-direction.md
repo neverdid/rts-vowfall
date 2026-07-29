@@ -34,8 +34,9 @@ landscapes are the primary visual references.
 
 - Blackridge occupies the northwest. It is a single mine-bearing ridge with a visible cliff spine, two
   concealed adits, and a rear road that supports ambushes. Loose scree supports the silhouette but never
-  substitutes for the landform. Its adits signal neutral, contestable reserves; they are not the human
-  starter field.
+  substitutes for the landform. Broad shelf, tall peak, and broken-block meshes alternate deterministically
+  so the massif reads as geology rather than a repeated prop. Its adits signal neutral, contestable reserves;
+  they are not the human starter field.
 - Gravewood occupies the southeast. Its dense canopy, roots, dead trees, and two spirit caches are the
   rotational gameplay counterpart to Blackridge, while its visual language remains organic rather than rocky.
 - The starter cursed-iron fields occupy open, rotationally mirrored pockets: southwest of the human gate and
@@ -120,14 +121,14 @@ including simulation and UI. Environment work should preserve headroom for late-
 - Reproducible surface and water master materials
 - Layered forest silhouettes, riverbanks, reeds, roads, ruts, bridges, faction fortifications, ritual
   landmarks, local accent lighting, fog, and post-processing
-- Battle and whole-world render capture harnesses
+- Battle, whole-world, and height-aware Blackridge render capture harnesses
 - Unreal automation contract for terrain collision and required material assets
 
 ### 3B. Production environment kit - in progress
 
 Delivered foundation:
 
-- Thirty-three original, reproducible Vowfall meshes replace every Engine basic-shape category while
+- Thirty-five original, reproducible Vowfall meshes replace every Engine basic-shape category while
   retaining a final Engine fallback
 - Semantic mesh and surface slots prefer a curated local production kit without coupling licensed art
   to the public repository or deterministic collision
@@ -137,6 +138,8 @@ Delivered foundation:
   and Unreal automation contract
 - Free forest-floor, soil-mud, dirty-stone, and weathered-plank families are normalized into a local 2K
   kit with semantic fallbacks; raw licensed assets remain outside public source control
+- Three normalized Project Titan cliff silhouettes replace the Blackridge production slot locally while
+  retaining five authored LODs, Vowfall material response, and collision-free deterministic separation
 - One continuous river surface replaces overlapping water planes, with a narrow wet shoreline, sparse
   bank stone, and authored clearances beneath all three crossings
 - Continuous procedural road ribbons distinguish the direct aged-stone causeway from smoother dirt flank
@@ -144,8 +147,8 @@ Delivered foundation:
 
 Remaining production pass:
 
-- Inspect the already acquired Project Titan source project and migrate only approved free rock, cliff,
-  dead-forest, debris, and generic structural mesh families
+- Inspect the already acquired Project Titan source project and migrate only approved free dead-forest,
+  debris, and generic structural mesh families
 - Normalize pivots, collision, Nanite/LOD settings, foliage rules, texture channels, and source-art records
 - Capture and profile each category replacement before accepting it over the original Vowfall mesh
 

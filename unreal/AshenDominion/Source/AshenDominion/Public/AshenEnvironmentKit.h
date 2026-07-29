@@ -24,6 +24,8 @@ enum class EAshenEnvironmentMeshSlot : uint8
     GrassTuft,
     FieldRock,
     MountainRock,
+    MountainRockSecondary,
+    MountainRockTertiary,
     MineMouth,
     MineTimber,
     ForestRoot,

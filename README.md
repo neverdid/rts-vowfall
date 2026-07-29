@@ -119,7 +119,7 @@ $script = (Resolve-Path `
 ```
 
 Set `VOWFALL_ENVIRONMENT_ASSETS` to a semicolon-separated list of manifest-relative mesh paths before
-running the command to rebuild only selected assets. Leave it unset to reproduce all 33 meshes.
+running the command to rebuild only selected assets. Leave it unset to reproduce all 35 meshes.
 
 Capture the whole battlefield for visual regression review:
 
@@ -130,6 +130,16 @@ Capture the whole battlefield for visual regression review:
 ```
 
 The image is written to `unreal/AshenDominion/Saved/Screenshots/Automation/World.png`.
+
+Capture Blackridge at the deterministic gameplay-camera review angle:
+
+```powershell
+& "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "$PWD\unreal\AshenDominion\AshenDominion.uproject" `
+  -game -AshenCaptureBlackridge -ResX=1920 -ResY=1080 -Windowed -RenderOffScreen -NoSound
+```
+
+The image is written to `unreal/AshenDominion/Saved/Screenshots/Automation/Blackridge.png`.
 
 ## Portable core
 

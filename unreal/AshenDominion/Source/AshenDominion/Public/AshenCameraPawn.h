@@ -17,6 +17,7 @@ public:
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent *PlayerInputComponent) override;
     void FocusOn(const FVector &WorldPosition);
+    void FrameRegion(const FVector &WorldPosition, float CameraDistance);
     void FrameWorld();
 
 private:

@@ -94,6 +94,12 @@ private:
     TObjectPtr<UInstancedStaticMeshComponent> MountainRocks;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> MountainRocksSecondary;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
+    TObjectPtr<UInstancedStaticMeshComponent> MountainRocksTertiary;
+
+    UPROPERTY(VisibleAnywhere, Category = "Ashen|World")
     TObjectPtr<UInstancedStaticMeshComponent> MineMouths;
 
     UPROPERTY(VisibleAnywhere, Category = "Ashen|World")

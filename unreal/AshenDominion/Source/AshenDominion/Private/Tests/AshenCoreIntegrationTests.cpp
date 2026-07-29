@@ -502,6 +502,10 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
 
     const UInstancedStaticMeshComponent *Mountain =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MountainRocks")));
+    const UInstancedStaticMeshComponent *MountainSecondary =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MountainRocksSecondary")));
+    const UInstancedStaticMeshComponent *MountainTertiary =
+        Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MountainRocksTertiary")));
     const UInstancedStaticMeshComponent *Mines =
         Cast<UInstancedStaticMeshComponent>(Arena->GetDefaultSubobjectByName(TEXT("MineMouths")));
     const UInstancedStaticMeshComponent *Gravewood =
@@ -539,10 +543,20 @@ bool FAshenWorldVisualFoundationTest::RunTest(const FString &Parameters)
         const FVector C = Section->ProcVertexBuffer[Section->ProcIndexBuffer[2]].Position;
         return FVector::CrossProduct(B - A, C - A).Z < -UE_KINDA_SMALL_NUMBER;
     };
-    TestTrue(TEXT("Northwest massif owns a substantial rock silhouette"),
-             Mountain != nullptr && Mountain->GetInstanceCount() >= 24);
+    const int32 MountainInstanceCount =
+        (Mountain != nullptr ? Mountain->GetInstanceCount() : 0) +
+        (MountainSecondary != nullptr ? MountainSecondary->GetInstanceCount() : 0) +
+        (MountainTertiary != nullptr ? MountainTertiary->GetInstanceCount() : 0);
+    TestTrue(TEXT("Northwest massif owns a substantial three-mesh rock silhouette"),
+             MountainInstanceCount >= 24 && Mountain != nullptr && Mountain->GetInstanceCount() > 0 &&
+                 MountainSecondary != nullptr && MountainSecondary->GetInstanceCount() > 0 &&
+                 MountainTertiary != nullptr && MountainTertiary->GetInstanceCount() > 0);
     TestTrue(TEXT("Production art never supplies deterministic collision"),
-             Mountain != nullptr && Mountain->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+             Mountain != nullptr && Mountain->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 MountainSecondary != nullptr &&
+                 MountainSecondary->GetCollisionEnabled() == ECollisionEnabled::NoCollision &&
+                 MountainTertiary != nullptr &&
+                 MountainTertiary->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
     TestEqual(TEXT("The concealed route owns two mine entrances"), Mines != nullptr ? Mines->GetInstanceCount() : 0, 2);
     TestTrue(TEXT("Gravewood owns a dedicated root layer"), Gravewood != nullptr && Gravewood->GetInstanceCount() > 0);
     TestTrue(TEXT("Terrain-following road ribbons keep all three routes continuous"),

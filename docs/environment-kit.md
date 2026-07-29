@@ -9,7 +9,7 @@ collision disabled; the invisible deterministic ground and simulation obstacles 
 The runtime resolves semantic slots such as `MountainRock`, `TreeTrunk`, and `BridgeTimber` from
 `/Game/External/VowfallEnvironmentKit`. A missing slot falls back quietly to the source-controlled
 Vowfall kit under `/Game/Art/Environment/VowfallKit`, so programmers and CI can build the project
-without owning every licensed pack. That original kit contains 33 reproducible Geometry Script assets
+without owning every licensed pack. That original kit contains 35 reproducible Geometry Script assets
 and is itself preferred over the legacy Engine primitives.
 
 ## Project Titan decision
@@ -84,9 +84,10 @@ lower saturation, preserve mid-value unit contrast, and keep blood-red accents s
    `C:\UnrealProjects\ProjectTitanSource`.
 2. Review its assets in an overview level; do not migrate folders in bulk.
 3. Import or migrate one approved dependency-complete asset family into its raw local source folder.
-4. Run `Build/EnvironmentKit/intake_project_titan.py` against that source project. It duplicates only
-   the approved family under `/Game/External/VowfallEnvironmentKit`, caps it at 2K, and normalizes sRGB
-   and compression settings.
+4. Enable the built-in Geometry Scripting plugin in the source project, then run
+   `Build/EnvironmentKit/intake_project_titan.py` against it. The script duplicates only the approved
+   surface triplet, caps it at 2K, and bakes all five LODs of the three approved cliff meshes into a
+   100 cm canonical envelope under `/Game/External/VowfallEnvironmentKit`.
 5. Copy the resulting canonical folder into Vowfall's matching ignored `Content/External` folder.
 6. Run `Build/EnvironmentKit/intake_free_surfaces.py` inside Vowfall for the other approved free surfaces.
 7. Normalize mesh names, 100 cm envelope, pivot, material slots, LOD/Nanite, and collision.
@@ -120,6 +121,7 @@ entitled on the project account:
 | Dirty Stone Tiles local import | `T_RoadStone` | Aged central causeway; wet and structural stone slots may fall back to it |
 | [Weathered Wooden Planks](https://www.fab.com/listings/943bdc90-e4c2-4a63-8ca0-1b9556f933dd) | `T_WeatheredWood` | Timber bridge decks and mine supports |
 | [Project Titan](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca), Marshlands Mossy Rock Medium | `T_Foundation` | Blackridge mountain rock and weathered human foundations; selected as a complete `D/N/ORM` family with no signature-biome dependency |
+| Project Titan, Marshlands Rocks 2-4 | `SM_MountainCliff_A/B/C` | Three complementary Blackridge shelf, peak, and broken-block silhouettes; all retain five source LODs while collision and source materials are removed |
 
 The raw Fab folders and the normalized `/Game/External/VowfallEnvironmentKit` copies stay local and are
 ignored by Git. Public source contains only the intake script, provenance, canonical contract, material
@@ -127,8 +129,24 @@ bindings, and deterministic fallbacks.
 
 The UE 5.8 launcher manifest observed during this pass required 65.62 GB of free installation space for
 the complete Titan sample. A workstation without that headroom must use an approved private project store
-or free sufficient space before acquiring the full source; it must not add partial or unverified binaries
-to Git. Vowfall's first intake remains deliberately limited to the three reviewed texture assets above.
+or selectively retrieve only verified entitled packages; it must not add raw or unverified binaries to
+Git. Vowfall's first intake remains deliberately limited to one texture triplet and three reviewed meshes.
+
+## Blackridge cliff selection
+
+The first production mesh pass uses `SM_Marshlands_Rock_2`, `_3`, and `_4`. All three are generic,
+approximately 400-vertex LOD0 meshes with five authored LODs, but their broad shelf, tall peak, and
+asymmetric block silhouettes serve different compositional roles. A deterministic three-way distribution
+breaks repetition along the ridge spine, scatter field, and mine dressing without adding draw-call-heavy
+unique actors.
+
+The large chunky cliff and rock candidates were rejected because they expose only one LOD and read as
+monolithic set pieces. The medium mossy rock was rejected as a mountain mesh because its flat profile
+duplicates the field-rock role. The approved meshes are baked through Unreal Geometry Scripting, scaled
+to a 100 cm maximum dimension, stripped of source material dependencies, and assigned Vowfall's
+`FoundationStone` texture family through a lifted, low-specular Blackridge style at runtime. Human
+foundations retain their own darker style. Nanite remains disabled: five LODs on roughly 400 source
+vertices are cheaper and easier to profile at the RTS camera.
 
 Do not purchase replacement packs for this pass. Future candidates are added only when they are free or
 already entitled, visually coherent with painterly realism, and useful enough to justify their shader,

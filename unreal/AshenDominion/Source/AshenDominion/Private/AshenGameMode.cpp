@@ -31,24 +31,25 @@ void AAshenGameMode::BeginPlay()
 #if !UE_BUILD_SHIPPING
     const bool bCaptureFrontEnd = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureFrontEnd"));
     const bool bCaptureBattle = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureBattle"));
+    const bool bCaptureBlackridge = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureBlackridge"));
     const bool bCaptureWorld = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureWorld"));
-    if (!bCaptureFrontEnd && !bCaptureBattle && !bCaptureWorld)
+    if (!bCaptureFrontEnd && !bCaptureBattle && !bCaptureBlackridge && !bCaptureWorld)
     {
         return;
     }
 
-    if (bCaptureBattle || bCaptureWorld)
+    if (bCaptureBattle || bCaptureBlackridge || bCaptureWorld)
     {
         FTimerHandle StartHandle;
         GetWorldTimerManager().SetTimer(
             StartHandle,
-            [this, bCaptureWorld]()
+            [this, bCaptureBlackridge, bCaptureWorld]()
             {
                 if (AAshenPlayerController *Controller =
                         Cast<AAshenPlayerController>(GetWorld()->GetFirstPlayerController()))
                 {
                     Controller->StartSkirmish();
-                    if (bCaptureWorld)
+                    if (bCaptureBlackridge || bCaptureWorld)
                     {
                         if (AHUD *HUD = Controller->GetHUD())
                         {
@@ -56,7 +57,14 @@ void AAshenGameMode::BeginPlay()
                         }
                         if (AAshenCameraPawn *Camera = Cast<AAshenCameraPawn>(Controller->GetPawn()))
                         {
-                            Camera->FrameWorld();
+                            if (bCaptureWorld)
+                            {
+                                Camera->FrameWorld();
+                            }
+                            else
+                            {
+                                Camera->FrameRegion({1'360.0f, 880.0f, 180.0f}, 2'250.0f);
+                            }
                         }
                     }
                 }
@@ -64,16 +72,27 @@ void AAshenGameMode::BeginPlay()
             0.35f, false);
     }
 
-    const float CaptureDelay = bCaptureBattle || bCaptureWorld ? 8.0f : 2.5f;
+    const float CaptureDelay = bCaptureBattle || bCaptureBlackridge || bCaptureWorld ? 8.0f : 2.5f;
     FTimerHandle CaptureHandle;
     GetWorldTimerManager().SetTimer(
         CaptureHandle,
-        [bCaptureBattle, bCaptureWorld]()
+        [bCaptureBattle, bCaptureBlackridge, bCaptureWorld]()
         {
             const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/Automation"));
             IFileManager::Get().MakeDirectory(*Directory, true);
-            const TCHAR *ScreenshotName =
-                bCaptureWorld ? TEXT("World.png") : (bCaptureBattle ? TEXT("Battle.png") : TEXT("FrontEnd.png"));
+            const TCHAR *ScreenshotName = TEXT("FrontEnd.png");
+            if (bCaptureWorld)
+            {
+                ScreenshotName = TEXT("World.png");
+            }
+            else if (bCaptureBlackridge)
+            {
+                ScreenshotName = TEXT("Blackridge.png");
+            }
+            else if (bCaptureBattle)
+            {
+                ScreenshotName = TEXT("Battle.png");
+            }
             const FString Filename = FPaths::Combine(Directory, ScreenshotName);
             FScreenshotRequest::RequestScreenshot(Filename, true, false);
         },
