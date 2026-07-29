@@ -55,6 +55,22 @@ enum class PlayerId : std::uint8_t { One, Two };
 enum class FactionId : std::uint8_t { Compact, Ascendancy, Concord };
 enum class AIDifficulty : std::uint8_t { Story, Standard, Veteran, Competitive };
 enum class MatchMode : std::uint8_t { Story, Skirmish, PvP };
+enum class StoryMissionId : std::uint8_t {
+  BridgeOfNames,
+  OpenBowl,
+  MercyForTheUncounted,
+  SecondTelling,
+  CityThatWasWrittenOff,
+  LastContradiction,
+  RiverWithTwoHistories,
+  EmergencyWithoutEnd,
+  KindestPrison,
+  OldestVeto,
+  FieldOfNails,
+  CouncilUnderFire,
+  NamesAtTheWater,
+  Count,
+};
 enum class MatchStatus : std::uint8_t { Playing, Won, Lost };
 enum class CommandSource : std::uint8_t { External, CommanderAI };
 enum class VisibilityState : std::uint8_t { Hidden, Explored, Visible };
@@ -269,6 +285,7 @@ struct NavigationObstacle {
 
 struct SimulationConfig {
   MatchMode mode{MatchMode::Skirmish};
+  StoryMissionId story_mission{StoryMissionId::BridgeOfNames};
   FactionId player_one_faction{FactionId::Compact};
   FactionId player_two_faction{FactionId::Ascendancy};
   std::array<bool, 2> commander_players{false, false};

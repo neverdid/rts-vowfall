@@ -67,7 +67,20 @@ bool AAshenPlayerController::InputKey(const FInputKeyEventArgs& Params)
     {
         if (bFrontEndVisible && (Params.Key == EKeys::Enter || Params.Key == EKeys::SpaceBar))
         {
-            DeploySkirmish();
+            if (FrontEndPage == EAshenFrontEndPage::Campaign)
+            {
+                StartStoryPrologue();
+            }
+            else
+            {
+                OpenStoryCampaign();
+            }
+            return true;
+        }
+        if (bFrontEndVisible && Params.Key == EKeys::Escape &&
+            FrontEndPage == EAshenFrontEndPage::Campaign)
+        {
+            FrontEndPage = EAshenFrontEndPage::Home;
             return true;
         }
         if (bFrontEndVisible && Params.Key == EKeys::LeftMouseButton)
@@ -205,7 +218,8 @@ bool AAshenPlayerController::GetSelectionBox(FVector2D& OutMin, FVector2D& OutMa
     return true;
 }
 
-bool AAshenPlayerController::GetFrontEndPrimaryButton(FVector2D& OutMin, FVector2D& OutMax) const
+bool AAshenPlayerController::GetFrontEndButtonRect(const int32 Slot, FVector2D& OutMin,
+                                                   FVector2D& OutMax) const
 {
     int32 ViewportWidth = 0;
     int32 ViewportHeight = 0;
@@ -215,13 +229,44 @@ bool AAshenPlayerController::GetFrontEndPrimaryButton(FVector2D& OutMin, FVector
         return false;
     }
 
+    const float ViewWidth = static_cast<float>(ViewportWidth);
+    const float ViewHeight = static_cast<float>(ViewportHeight);
     const bool bCompact = ViewportHeight < 650;
     const float Margin = ViewportWidth < 760 ? 28.0f : 64.0f;
-    const float Width = FMath::Min(360.0f, static_cast<float>(ViewportWidth) - Margin * 2.0f);
-    const float Y = bCompact ? 270.0f : FMath::Clamp(static_cast<float>(ViewportHeight) * 0.56f, 310.0f,
-                                                     static_cast<float>(ViewportHeight) - 210.0f);
+
+    if (FrontEndPage == EAshenFrontEndPage::Campaign)
+    {
+        if (Slot == 0)
+        {
+            const float Width = FMath::Min(390.0f, ViewWidth - Margin * 2.0f);
+            const float X = ViewportWidth >= 980 ? FMath::Max(Margin, ViewWidth * 0.56f) : Margin;
+            const float Y = FMath::Max(430.0f, ViewHeight - (bCompact ? 74.0f : 104.0f));
+            OutMin = {X, Y};
+            OutMax = {FMath::Min(X + Width, ViewWidth - Margin), Y + (bCompact ? 48.0f : 56.0f)};
+            return true;
+        }
+        if (Slot == 1)
+        {
+            OutMin = {Margin, bCompact ? 18.0f : 28.0f};
+            OutMax = {Margin + 44.0f, OutMin.Y + 40.0f};
+            return true;
+        }
+        return false;
+    }
+
+    if (Slot < 0 || Slot > 2)
+    {
+        return false;
+    }
+    const float Width = FMath::Min(390.0f, ViewWidth - Margin * 2.0f);
+    const float PrimaryY = bCompact ? 258.0f : FMath::Clamp(ViewHeight * 0.52f, 300.0f, ViewHeight - 222.0f);
+    const float PrimaryHeight = bCompact ? 48.0f : 56.0f;
+    const float SecondaryHeight = bCompact ? 39.0f : 44.0f;
+    const float Gap = bCompact ? 8.0f : 10.0f;
+    const float Y = Slot == 0 ? PrimaryY : PrimaryY + PrimaryHeight + Gap +
+                                              static_cast<float>(Slot - 1) * (SecondaryHeight + Gap);
     OutMin = {Margin, Y};
-    OutMax = {Margin + Width, Y + (bCompact ? 50.0f : 58.0f)};
+    OutMax = {Margin + Width, Y + (Slot == 0 ? PrimaryHeight : SecondaryHeight)};
     return true;
 }
 
@@ -279,6 +324,30 @@ bool AAshenPlayerController::GetCommandFeedback(FVector& OutLocation, bool& bOut
 void AAshenPlayerController::StartSkirmish()
 {
     DeploySkirmish();
+}
+
+void AAshenPlayerController::OpenStoryCampaign()
+{
+    if (bFrontEndVisible)
+    {
+        FrontEndPage = EAshenFrontEndPage::Campaign;
+    }
+}
+
+void AAshenPlayerController::StartStoryPrologue()
+{
+    if (!bFrontEndVisible)
+    {
+        return;
+    }
+    if (UAshenSimulationSubsystem* Sim = Simulation())
+    {
+        if (!Sim->IsStoryMatch() || Sim->IsMatchOver())
+        {
+            Sim->ConfigureStoryMission(ashen::core::StoryMissionId::BridgeOfNames);
+        }
+    }
+    DeployConfiguredMatch();
 }
 
 bool AAshenPlayerController::GetCommandButtonRect(const int32 Slot, FVector2D& OutMin, FVector2D& OutMax) const
@@ -859,14 +928,28 @@ void AAshenPlayerController::DeploySkirmish()
         return;
     }
 
+    if (UAshenSimulationSubsystem* Sim = Simulation())
+    {
+        if (Sim->IsStoryMatch() || Sim->IsMatchOver())
+        {
+            Sim->ConfigureSkirmish();
+        }
+    }
+    DeployConfiguredMatch();
+}
+
+void AAshenPlayerController::DeployConfiguredMatch()
+{
+    if (!bFrontEndVisible)
+    {
+        return;
+    }
+
     bFrontEndVisible = false;
+    FrontEndPage = EAshenFrontEndPage::Home;
     PendingCommand = EAshenCommandMode::None;
     if (UAshenSimulationSubsystem* Sim = Simulation())
     {
-        if (Sim->IsMatchOver())
-        {
-            Sim->RestartMatch();
-        }
         Sim->SetGameplayEnabled(true);
     }
 }
@@ -880,6 +963,7 @@ void AAshenPlayerController::ToggleFrontEnd()
 
     ClearSelection();
     PendingCommand = EAshenCommandMode::None;
+    FrontEndPage = EAshenFrontEndPage::Home;
     bFrontEndVisible = true;
     if (UAshenSimulationSubsystem* Sim = Simulation())
     {
@@ -891,17 +975,42 @@ void AAshenPlayerController::HandleFrontEndClick()
 {
     float MouseX = 0.0f;
     float MouseY = 0.0f;
-    FVector2D ButtonMin;
-    FVector2D ButtonMax;
-    if (!GetMousePosition(MouseX, MouseY) || !GetFrontEndPrimaryButton(ButtonMin, ButtonMax))
+    if (!GetMousePosition(MouseX, MouseY))
     {
         return;
     }
 
     const FVector2D Mouse(MouseX, MouseY);
-    if (Mouse.X >= ButtonMin.X && Mouse.X <= ButtonMax.X && Mouse.Y >= ButtonMin.Y && Mouse.Y <= ButtonMax.Y)
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
-        DeploySkirmish();
+        FVector2D ButtonMin;
+        FVector2D ButtonMax;
+        if (!GetFrontEndButtonRect(Slot, ButtonMin, ButtonMax) ||
+            Mouse.X < ButtonMin.X || Mouse.X > ButtonMax.X ||
+            Mouse.Y < ButtonMin.Y || Mouse.Y > ButtonMax.Y)
+        {
+            continue;
+        }
+        if (FrontEndPage == EAshenFrontEndPage::Campaign)
+        {
+            if (Slot == 0)
+            {
+                StartStoryPrologue();
+            }
+            else if (Slot == 1)
+            {
+                FrontEndPage = EAshenFrontEndPage::Home;
+            }
+        }
+        else if (Slot == 0)
+        {
+            OpenStoryCampaign();
+        }
+        else if (Slot == 1)
+        {
+            DeploySkirmish();
+        }
+        return;
     }
 }
 

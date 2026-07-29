@@ -116,6 +116,18 @@ difficulty without frame-rate-dependent decisions.
 
 ## 6. Deliver the campaign vertical slice
 
+Campaign foundation delivered:
+
+- Canonical 13-mission C++ catalog with ordered acts, perspectives, objectives, public vows, reversals,
+  gameplay choices, and concrete consequence keys
+- Responsive main-menu Story path and campaign briefing at 1920x1080, 1280x720, and 800x600
+- Playable **Bridge of Names** foundation launched as authoritative Story simulation state with its own
+  HUD identity, objective, vow, result language, and deterministic capture harness
+- Canonical campaign bible covering the Ledger of the Uncounted, character arcs, Vow mechanic, ending,
+  and writing boundaries
+
+Remaining vertical-slice work:
+
 - One polished opening mission with briefing, dialogue, objectives, checkpoints, save/load, failure
   recovery, cinematics, and difficulty selection
 - One short playable perspective from each faction to prove the multi-perspective narrative structure

@@ -13,6 +13,7 @@
 #include "ashen/core/AIDifficulty.hpp"
 #include "ashen/core/AIDoctrine.hpp"
 #include "ashen/core/AIInfluenceMap.hpp"
+#include "ashen/core/Campaign.hpp"
 #include "ashen/core/Catalog.hpp"
 #include "ashen/core/CommanderAI.hpp"
 #include "ashen/core/Simulation.hpp"
@@ -40,6 +41,56 @@ bool FAshenCoreBootsInUnrealTest::RunTest(const FString &Parameters)
 
     TestEqual(TEXT("Simulation advances at a deterministic tick"), static_cast<int64>(First.tick()), int64{240});
     TestTrue(TEXT("Equivalent matches produce the same state hash"), First.state_hash() == Second.state_hash());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenCampaignCatalogInUnrealTest,
+                                 "Ashen.Story.CampaignCatalog",
+                                 EAutomationTestFlags::EditorContext |
+                                     EAutomationTestFlags::EngineFilter)
+
+bool FAshenCampaignCatalogInUnrealTest::RunTest(const FString &Parameters)
+{
+    static_cast<void>(Parameters);
+    using namespace ashen::core;
+
+    const std::span<const StoryMissionDefinition> Missions = story_missions();
+    TestEqual(TEXT("The authored campaign contains thirteen ordered missions"),
+              static_cast<int32>(Missions.size()),
+              static_cast<int32>(StoryMissionId::Count));
+
+    TSet<FString> Titles;
+    int32 PlayableMissions = 0;
+    for (int32 Index = 0; Index < static_cast<int32>(Missions.size()); ++Index)
+    {
+        const StoryMissionDefinition &Mission = Missions[static_cast<size_t>(Index)];
+        TestEqual(TEXT("Mission id remains aligned with campaign order"),
+                  static_cast<int32>(Mission.id), Index);
+        TestFalse(TEXT("Every mission has an RTS objective"), Mission.objective.empty());
+        TestFalse(TEXT("Every mission begins with a public vow"), Mission.public_vow.empty());
+        TestFalse(TEXT("Every mission owns a reversal"), Mission.reversal.empty());
+        Titles.Add(FString(UTF8_TO_TCHAR(Mission.title.data())));
+        PlayableMissions += Mission.vertical_slice_ready ? 1 : 0;
+    }
+    TestEqual(TEXT("Mission titles remain unique"), Titles.Num(), static_cast<int32>(Missions.size()));
+    TestEqual(TEXT("Only the honest prologue is marked playable"), PlayableMissions, 1);
+
+    const StoryMissionDefinition *Prologue =
+        find_story_mission(StoryMissionId::BridgeOfNames);
+    TestNotNull(TEXT("The Bridge of Names is the campaign entry"), Prologue);
+    TestTrue(TEXT("The prologue launches as a Compact perspective"),
+             Prologue != nullptr && Prologue->player_faction == FactionId::Compact);
+
+    SimulationConfig StoryConfig{};
+    StoryConfig.mode = MatchMode::Story;
+    StoryConfig.story_mission = StoryMissionId::BridgeOfNames;
+    const Simulation StoryMatch{StoryConfig};
+    TestEqual(TEXT("Unreal preserves authoritative story mode"),
+              static_cast<uint8>(StoryMatch.mode()),
+              static_cast<uint8>(MatchMode::Story));
+    TestEqual(TEXT("Unreal preserves the selected story mission"),
+              static_cast<uint8>(StoryMatch.config().story_mission),
+              static_cast<uint8>(StoryMissionId::BridgeOfNames));
     return true;
 }
 

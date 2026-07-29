@@ -30,26 +30,42 @@ void AAshenGameMode::BeginPlay()
 
 #if !UE_BUILD_SHIPPING
     const bool bCaptureFrontEnd = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureFrontEnd"));
+    const bool bCaptureCampaign = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureCampaign"));
+    const bool bCaptureStoryBattle = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureStoryBattle"));
     const bool bCaptureBattle = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureBattle"));
     const bool bCaptureBlackridge = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureBlackridge"));
     const bool bCaptureGravewood = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureGravewood"));
     const bool bCaptureWorld = FParse::Param(FCommandLine::Get(), TEXT("AshenCaptureWorld"));
-    if (!bCaptureFrontEnd && !bCaptureBattle && !bCaptureBlackridge && !bCaptureGravewood && !bCaptureWorld)
+    if (!bCaptureFrontEnd && !bCaptureCampaign && !bCaptureStoryBattle && !bCaptureBattle &&
+        !bCaptureBlackridge && !bCaptureGravewood && !bCaptureWorld)
     {
         return;
     }
 
-    if (bCaptureBattle || bCaptureBlackridge || bCaptureGravewood || bCaptureWorld)
+    if (bCaptureCampaign || bCaptureStoryBattle || bCaptureBattle || bCaptureBlackridge ||
+        bCaptureGravewood || bCaptureWorld)
     {
         FTimerHandle StartHandle;
         GetWorldTimerManager().SetTimer(
             StartHandle,
-            [this, bCaptureBlackridge, bCaptureGravewood, bCaptureWorld]()
+            [this, bCaptureCampaign, bCaptureStoryBattle, bCaptureBlackridge, bCaptureGravewood,
+             bCaptureWorld]()
             {
                 if (AAshenPlayerController *Controller =
                         Cast<AAshenPlayerController>(GetWorld()->GetFirstPlayerController()))
                 {
-                    Controller->StartSkirmish();
+                    if (bCaptureCampaign)
+                    {
+                        Controller->OpenStoryCampaign();
+                    }
+                    else if (bCaptureStoryBattle)
+                    {
+                        Controller->StartStoryPrologue();
+                    }
+                    else
+                    {
+                        Controller->StartSkirmish();
+                    }
                     if (bCaptureBlackridge || bCaptureGravewood || bCaptureWorld)
                     {
                         if (AHUD *HUD = Controller->GetHUD())
@@ -78,11 +94,14 @@ void AAshenGameMode::BeginPlay()
     }
 
     const float CaptureDelay =
-        bCaptureBattle || bCaptureBlackridge || bCaptureGravewood || bCaptureWorld ? 8.0f : 2.5f;
+        bCaptureStoryBattle || bCaptureBattle || bCaptureBlackridge || bCaptureGravewood || bCaptureWorld
+            ? 8.0f
+            : 2.5f;
     FTimerHandle CaptureHandle;
     GetWorldTimerManager().SetTimer(
         CaptureHandle,
-        [bCaptureBattle, bCaptureBlackridge, bCaptureGravewood, bCaptureWorld]()
+        [bCaptureCampaign, bCaptureStoryBattle, bCaptureBattle, bCaptureBlackridge, bCaptureGravewood,
+         bCaptureWorld]()
         {
             const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/Automation"));
             IFileManager::Get().MakeDirectory(*Directory, true);
@@ -90,6 +109,14 @@ void AAshenGameMode::BeginPlay()
             if (bCaptureWorld)
             {
                 ScreenshotName = TEXT("World.png");
+            }
+            else if (bCaptureCampaign)
+            {
+                ScreenshotName = TEXT("Campaign.png");
+            }
+            else if (bCaptureStoryBattle)
+            {
+                ScreenshotName = TEXT("StoryBattle.png");
             }
             else if (bCaptureBlackridge)
             {

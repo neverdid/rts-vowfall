@@ -18,6 +18,12 @@ enum class EAshenCommandMode : uint8
     BuildTurret,
 };
 
+enum class EAshenFrontEndPage : uint8
+{
+    Home,
+    Campaign,
+};
+
 UCLASS()
 class ASHENDOMINION_API AAshenPlayerController final : public APlayerController
 {
@@ -28,6 +34,8 @@ public:
     virtual void SetupInputComponent() override;
     virtual bool InputKey(const FInputKeyEventArgs& Params) override;
     void StartSkirmish();
+    void OpenStoryCampaign();
+    void StartStoryPrologue();
 
     UFUNCTION(BlueprintPure, Category = "Ashen")
     int32 GetSelectedCount() const;
@@ -35,8 +43,13 @@ public:
     UFUNCTION(BlueprintPure, Category = "Ashen")
     bool IsFrontEndVisible() const noexcept { return bFrontEndVisible; }
 
+    bool IsCampaignFrontEndVisible() const noexcept
+    {
+        return bFrontEndVisible && FrontEndPage == EAshenFrontEndPage::Campaign;
+    }
+
     bool GetSelectionBox(FVector2D& OutMin, FVector2D& OutMax) const;
-    bool GetFrontEndPrimaryButton(FVector2D& OutMin, FVector2D& OutMax) const;
+    bool GetFrontEndButtonRect(int32 Slot, FVector2D& OutMin, FVector2D& OutMax) const;
     FString GetCommandModeLabel() const;
     int32 GetPrimarySelectedEntityId() const;
     int32 GetActiveControlGroup() const noexcept { return ActiveControlGroup; }
@@ -68,6 +81,7 @@ private:
     void ResearchFactionDoctrine();
     void ActivateFactionPower();
     void DeploySkirmish();
+    void DeployConfiguredMatch();
     void ToggleFrontEnd();
     void HandleFrontEndClick();
     bool HandleCommandCardClick();
@@ -95,6 +109,7 @@ private:
     int32 LastControlGroup = -1;
     int32 ActiveControlGroup = -1;
     EAshenCommandMode PendingCommand = EAshenCommandMode::None;
+    EAshenFrontEndPage FrontEndPage = EAshenFrontEndPage::Home;
     bool bSelecting = false;
     bool bFrontEndVisible = true;
     bool bLastCommandHostile = false;

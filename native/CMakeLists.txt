@@ -11,6 +11,7 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/AIPlanning.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AIStrategicLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AITacticalLayer.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/Campaign.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Catalog.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/CommanderAI.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/PlayerObservation.cpp
@@ -53,6 +54,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_core_tests PRIVATE ashen_core)
   add_test(NAME ashen_core_tests COMMAND ashen_core_tests)
 
+  add_executable(ashen_campaign_tests tests/CampaignTests.cpp)
+  target_link_libraries(ashen_campaign_tests PRIVATE ashen_core)
+  add_test(NAME ashen_campaign_tests COMMAND ashen_campaign_tests)
+
   add_executable(ashen_commander_ai_tests tests/CommanderAITests.cpp)
   target_link_libraries(ashen_commander_ai_tests PRIVATE ashen_core)
   add_test(NAME ashen_commander_ai_tests COMMAND ashen_commander_ai_tests)
@@ -88,6 +93,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
     get_filename_component(ASHEN_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set_tests_properties(
       ashen_core_tests
+      ashen_campaign_tests
       ashen_commander_ai_tests
       ashen_faction_ai_tests
       ashen_influence_map_tests

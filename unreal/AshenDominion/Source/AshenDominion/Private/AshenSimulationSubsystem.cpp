@@ -665,10 +665,62 @@ FString UAshenSimulationSubsystem::GetObjectiveText() const
     {
         return {};
     }
+    if (bStoryMode)
+    {
+        if (const ashen::core::StoryMissionDefinition* Mission =
+                ashen::core::find_story_mission(ActiveStoryMission))
+        {
+            return CoreText(Mission->objective);
+        }
+    }
     const FAshenPlayerView Player = GetPlayerView(0);
     return FString::Printf(TEXT("Destroy the rival command keep  //  Relics held %d / %d"),
                            Player.ControlledRelics,
                            static_cast<int32>(Runtime->Simulation.control_points().size()));
+}
+
+FString UAshenSimulationSubsystem::GetStoryChapterText() const
+{
+    if (!bStoryMode)
+    {
+        return {};
+    }
+    const ashen::core::StoryMissionDefinition* Mission =
+        ashen::core::find_story_mission(ActiveStoryMission);
+    return Mission == nullptr ? FString() : CoreText(ashen::core::campaign_act_label(Mission->act));
+}
+
+FString UAshenSimulationSubsystem::GetStoryMissionTitle() const
+{
+    if (!bStoryMode)
+    {
+        return {};
+    }
+    const ashen::core::StoryMissionDefinition* Mission =
+        ashen::core::find_story_mission(ActiveStoryMission);
+    return Mission == nullptr ? FString() : CoreText(Mission->title);
+}
+
+FString UAshenSimulationSubsystem::GetStoryProtagonist() const
+{
+    if (!bStoryMode)
+    {
+        return {};
+    }
+    const ashen::core::StoryMissionDefinition* Mission =
+        ashen::core::find_story_mission(ActiveStoryMission);
+    return Mission == nullptr ? FString() : CoreText(Mission->protagonist);
+}
+
+FString UAshenSimulationSubsystem::GetStoryVowText() const
+{
+    if (!bStoryMode)
+    {
+        return {};
+    }
+    const ashen::core::StoryMissionDefinition* Mission =
+        ashen::core::find_story_mission(ActiveStoryMission);
+    return Mission == nullptr ? FString() : CoreText(Mission->public_vow);
 }
 
 int64 UAshenSimulationSubsystem::GetSimulationTick() const
@@ -806,6 +858,29 @@ void UAshenSimulationSubsystem::RestartMatch()
     StartMatch();
 }
 
+void UAshenSimulationSubsystem::ConfigureSkirmish()
+{
+    bStoryMode = false;
+    OpponentDifficulty = EAshenAIDifficulty::Standard;
+    RestartMatch();
+}
+
+void UAshenSimulationSubsystem::ConfigureStoryMission(const ashen::core::StoryMissionId Mission)
+{
+    const ashen::core::StoryMissionDefinition* Definition =
+        ashen::core::find_story_mission(Mission);
+    if (Definition == nullptr || !Definition->vertical_slice_ready)
+    {
+        UE_LOG(LogAshenSimulation, Warning, TEXT("Rejected unavailable story mission %d"),
+               static_cast<int32>(Mission));
+        return;
+    }
+    bStoryMode = true;
+    ActiveStoryMission = Mission;
+    OpponentDifficulty = EAshenAIDifficulty::Story;
+    RestartMatch();
+}
+
 void UAshenSimulationSubsystem::SetOpponentDifficulty(
     const EAshenAIDifficulty Difficulty)
 {
@@ -833,6 +908,18 @@ void UAshenSimulationSubsystem::StartMatch()
 {
     delete Runtime;
     ashen::core::SimulationConfig Config{};
+    if (bStoryMode)
+    {
+        if (const ashen::core::StoryMissionDefinition* Mission =
+                ashen::core::find_story_mission(ActiveStoryMission))
+        {
+            Config.mode = ashen::core::MatchMode::Story;
+            Config.story_mission = Mission->id;
+            Config.player_one_faction = Mission->player_faction;
+            Config.player_two_faction = Mission->opposing_faction;
+            Config.match_seed = static_cast<uint64>(Mission->campaign_order) + 1;
+        }
+    }
     Config.commander_players[ashen::core::player_index(ashen::core::PlayerId::Two)] = true;
     Config.commander_difficulties[ashen::core::player_index(
         ashen::core::PlayerId::Two)] = ToCoreDifficulty(OpponentDifficulty);
@@ -843,10 +930,11 @@ void UAshenSimulationSubsystem::StartMatch()
     KnownControlPointInfluence.Reset();
     bGameplayEnabled = false;
     UE_LOG(LogAshenSimulation, Display,
-           TEXT("Match started: %d entities, %d resource fields, %d fixed ticks/sec, opponent difficulty %s"),
+           TEXT("Match started: %d entities, %d resource fields, %d fixed ticks/sec, mode %s, opponent difficulty %s"),
            static_cast<int32>(Runtime->Simulation.entities().size()),
            static_cast<int32>(Runtime->Simulation.resources().size()),
            ashen::core::kTicksPerSecond,
+           Config.mode == ashen::core::MatchMode::Story ? TEXT("story") : TEXT("skirmish"),
            *CoreText(ashen::core::to_string(
                Config.commander_difficulties[ashen::core::player_index(
                    ashen::core::PlayerId::Two)])));
