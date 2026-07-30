@@ -18,7 +18,8 @@ public:
     AAshenEntityActor();
     virtual void Tick(float DeltaSeconds) override;
 
-    void InitializeEntity(int32 InEntityId, uint8 InOwnerIndex, EAshenEntityArchetype InArchetype, float Radius);
+    void InitializeEntity(int32 InEntityId, uint8 InOwnerIndex, EAshenFaction InFaction,
+                          EAshenEntityArchetype InArchetype, float Radius);
     void ApplySimulationState(const FVector& GroundPosition, float HealthFraction, float ResolveFraction,
                               float ConstructionProgress, bool bUnderConstruction);
     void SetSelected(bool bInSelected);
@@ -29,6 +30,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Ashen")
     uint8 GetOwnerIndex() const noexcept { return OwnerIndex; }
+
+    UFUNCTION(BlueprintPure, Category = "Ashen")
+    EAshenFaction GetFaction() const noexcept { return Faction; }
 
     UFUNCTION(BlueprintPure, Category = "Ashen")
     EAshenEntityArchetype GetArchetype() const noexcept { return Archetype; }
@@ -68,6 +72,7 @@ private:
 
     int32 EntityId = 0;
     uint8 OwnerIndex = 0;
+    EAshenFaction Faction = EAshenFaction::None;
     EAshenEntityArchetype Archetype = EAshenEntityArchetype::Worker;
     float VisualHeight = 80.0f;
     float HealthBarWidth = 50.0f;

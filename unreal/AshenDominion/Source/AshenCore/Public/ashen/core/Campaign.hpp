@@ -24,13 +24,6 @@ enum class CampaignPerspective : std::uint8_t {
   Ensemble,
 };
 
-enum class VowResolution : std::uint8_t {
-  Unresolved,
-  Kept,
-  Broken,
-  Amended,
-};
-
 struct StoryMissionDefinition {
   StoryMissionId id{StoryMissionId::BridgeOfNames};
   CampaignAct act{CampaignAct::Prologue};

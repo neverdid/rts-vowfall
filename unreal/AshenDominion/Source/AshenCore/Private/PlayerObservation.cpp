@@ -45,6 +45,7 @@ void hash_order(std::uint64_t& hash, const Order& order) noexcept {
 void hash_owned_entity(std::uint64_t& hash, const Entity& entity) noexcept {
   hash_integral(hash, entity.id.value);
   hash_integral(hash, static_cast<std::uint8_t>(entity.owner));
+  hash_integral(hash, static_cast<std::uint8_t>(entity.faction));
   hash_integral(hash, static_cast<std::uint8_t>(entity.type));
   hash_integral(hash, static_cast<std::uint8_t>(entity.kind));
   hash_vec(hash, entity.position);
@@ -64,6 +65,7 @@ void hash_owned_entity(std::uint64_t& hash, const Entity& entity) noexcept {
   hash_integral(hash, entity.terror);
   hash_integral(hash, entity.ward);
   hash_integral(hash, entity.resolve);
+  hash_integral(hash, static_cast<std::uint8_t>(entity.resolve_state));
   hash_integral(hash, entity.supply_cost);
   hash_integral(hash, entity.supply_provided);
   hash_integral(hash, entity.carrying);
@@ -252,6 +254,7 @@ std::uint64_t PlayerObservation::hash() const noexcept {
   for (const auto& enemy : known_enemies_) {
     hash_integral(hash, enemy.id.value);
     hash_integral(hash, static_cast<std::uint8_t>(enemy.owner));
+    hash_integral(hash, static_cast<std::uint8_t>(enemy.faction));
     hash_integral(hash, static_cast<std::uint8_t>(enemy.type));
     hash_integral(hash, static_cast<std::uint8_t>(enemy.kind));
     hash_vec(hash, enemy.position);

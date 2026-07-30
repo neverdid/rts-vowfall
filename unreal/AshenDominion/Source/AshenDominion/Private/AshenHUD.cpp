@@ -39,6 +39,22 @@ FString StanceLabel(const EAshenStance Stance)
     }
     return TEXT("AGGRESSIVE");
 }
+
+FLinearColor FactionColor(const EAshenFaction Faction)
+{
+    switch (Faction)
+    {
+    case EAshenFaction::Compact:
+        return Bronze;
+    case EAshenFaction::Ascendancy:
+        return Blood;
+    case EAshenFaction::Concord:
+        return Verdigris;
+    case EAshenFaction::None:
+        return Bone;
+    }
+    return Bone;
+}
 }
 
 void AAshenHUD::DrawHUD()
@@ -636,7 +652,7 @@ void AAshenHUD::DrawTacticalMap(const UAshenSimulationSubsystem& Simulation)
                            DotSize * 0.5f;
         const float DotY = MapY + FMath::Clamp(Position.Y / Ashen::WorldLayout::Height, 0.0f, 1.0f) * MapHeight -
                            DotSize * 0.5f;
-        DrawRect(Entity->GetOwnerIndex() == 0 ? Bronze : Blood, DotX, DotY, DotSize, DotSize);
+        DrawRect(FactionColor(Entity->GetFaction()), DotX, DotY, DotSize, DotSize);
     }
 
     for (const FAshenControlPointView& Point : Simulation.GetControlPointViews())
@@ -652,7 +668,7 @@ void AAshenHUD::DrawTacticalMap(const UAshenSimulationSubsystem& Simulation)
         const float DotY = MapY + FMath::Clamp(Point.WorldPosition.Y / Ashen::WorldLayout::Height, 0.0f, 1.0f) *
                                              MapHeight -
                            3.0f;
-        FLinearColor PointColor = Point.OwnerIndex == 0 ? Bronze : Point.OwnerIndex == 1 ? Blood : Bone;
+        FLinearColor PointColor = FactionColor(Point.OwnerFaction);
         if (Point.Visibility == EAshenVisibility::Explored)
         {
             PointColor *= 0.58f;

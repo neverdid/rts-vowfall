@@ -84,6 +84,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     FAshenVisibilityGridView GetLocalVisibilityGrid() const;
 
+    UFUNCTION(BlueprintPure, Category = "Ashen|Events")
+    TArray<FAshenSimulationEventView> GetSimulationEventsSince(int64 LastEventId) const;
+
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     TArray<FAshenResearchView> GetResearchViews(int32 ProducerId) const;
 

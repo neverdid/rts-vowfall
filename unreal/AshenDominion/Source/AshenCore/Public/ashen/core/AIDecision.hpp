@@ -183,6 +183,7 @@ struct AIPlannedDecision {
   FactionId doctrine_faction{FactionId::Compact};
   AITemperament temperament{AITemperament::Steady};
   std::uint64_t doctrine_hash{};
+  std::uint64_t strategy_state_hash{};
   std::vector<AICandidateScore> candidates{};
   std::size_t selected_candidate{};
   std::size_t evaluated_candidates{};
@@ -216,6 +217,7 @@ struct AIDecisionRecord {
   FactionId doctrine_faction{FactionId::Compact};
   AITemperament temperament{AITemperament::Steady};
   std::uint64_t doctrine_hash{};
+  std::uint64_t strategy_state_hash{};
   std::vector<AICandidateScore> candidates{};
   std::size_t selected_candidate{};
   std::size_t evaluated_candidates{};

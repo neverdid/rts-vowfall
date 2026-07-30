@@ -2,10 +2,13 @@
 
 #include "ashen/core/CommanderAI.hpp"
 #include "ashen/core/PlayerObservation.hpp"
+#include "ashen/core/SimulationEvent.hpp"
+#include "ashen/core/SpatialGrid.hpp"
 #include "ashen/core/Types.hpp"
 #include "ashen/core/VisibilityGrid.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -41,6 +44,18 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] const std::vector<AIDecisionRecord>& ai_decision_trace() const noexcept {
     return ai_decision_trace_;
   }
+  [[nodiscard]] const std::vector<SimulationEvent>& events() const noexcept {
+    return events_;
+  }
+  [[nodiscard]] const std::vector<VowState>& vows() const noexcept {
+    return vows_;
+  }
+  [[nodiscard]] const SpatialGrid& spatial_grid() const noexcept {
+    return spatial_grid_;
+  }
+  [[nodiscard]] std::uint64_t event_digest() const noexcept {
+    return event_digest_;
+  }
   [[nodiscard]] const Entity* find_entity(EntityId id) const noexcept;
   [[nodiscard]] const ResourceNode* find_resource(ResourceId id) const noexcept;
   [[nodiscard]] const ControlPoint* find_control_point(ControlPointId id) const noexcept;
@@ -63,6 +78,7 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] Entity* find_entity_mutable(EntityId id) noexcept;
   [[nodiscard]] ResourceNode* find_resource_mutable(ResourceId id) noexcept;
   [[nodiscard]] ControlPoint* find_control_point_mutable(ControlPointId id) noexcept;
+  [[nodiscard]] VowState* find_vow_mutable(VowId id) noexcept;
   [[nodiscard]] std::uint64_t enqueue_with_context(Command command, CommandSource source,
                                                    std::uint64_t observation_hash,
                                                    std::uint64_t ai_decision_id = 0);
@@ -83,6 +99,10 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] CommandResult apply_activate_power(const Command& command);
   [[nodiscard]] CommandResult apply_retreat(const Command& command);
   [[nodiscard]] CommandResult apply_set_stance(const Command& command);
+  [[nodiscard]] CommandResult apply_make_vow(const Command& command);
+  [[nodiscard]] CommandResult apply_keep_vow(const Command& command);
+  [[nodiscard]] CommandResult apply_break_vow(const Command& command);
+  [[nodiscard]] CommandResult apply_amend_vow(const Command& command);
   void apply_due_commands();
   void update_ruin_tide();
   void update_research();
@@ -101,6 +121,7 @@ class ASHENCORE_API Simulation final {
   void refresh_visibility() noexcept;
   void refresh_observation_memory();
   void resolve_unit_separation();
+  void apply_damage(Entity& target, EntityId source, std::int32_t amount);
   void remove_dead_entities();
   void update_match_status();
   void set_order(Entity& entity, Order order, bool queue);
@@ -120,6 +141,8 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] std::vector<CommandCapability> command_capabilities(PlayerId owner) const;
   [[nodiscard]] std::int32_t resolve_multiplier_basis(const Entity& entity) const noexcept;
   void apply_research_bonuses(Entity& entity, bool preserve_health);
+  void emit_event(SimulationEventPayload payload);
+  void rebuild_entity_index() noexcept;
 
   struct ResourceMemory {
     bool discovered{};
@@ -154,17 +177,23 @@ class ASHENCORE_API Simulation final {
   std::array<std::vector<ObservedEnemy>, 2> enemy_memory_{};
   std::array<CommanderAI, 2> commanders_{CommanderAI{PlayerId::One}, CommanderAI{PlayerId::Two}};
   std::vector<Entity> entities_{};
+  std::vector<std::size_t> entity_index_by_id_{};
   std::vector<ResourceNode> resources_{};
   std::vector<ControlPoint> control_points_{};
+  std::vector<VowState> vows_{};
+  SpatialGrid spatial_grid_{};
   std::vector<QueuedCommand> command_queue_{};
   std::vector<CommandTraceEntry> command_trace_{};
   std::vector<AIDecisionRecord> ai_decision_trace_{};
+  std::vector<SimulationEvent> events_{};
   std::int32_t ruin_tide_{4};
   std::uint32_t next_entity_id_{1};
   std::uint32_t next_resource_id_{1};
   std::uint32_t next_control_point_id_{1};
   std::uint64_t next_sequence_{1};
   std::uint64_t next_ai_decision_id_{1};
+  std::uint64_t next_event_id_{1};
+  std::uint64_t event_digest_{14'695'981'039'346'656'037ULL};
 };
 
 }  // namespace ashen::core

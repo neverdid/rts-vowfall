@@ -24,6 +24,23 @@ const FLinearColor MonsterFlesh(0.24f, 0.018f, 0.028f);
 const FLinearColor MonsterDark(0.055f, 0.018f, 0.025f);
 const FLinearColor MonsterBone(0.49f, 0.42f, 0.31f);
 const FLinearColor MonsterBlood(0.52f, 0.015f, 0.022f);
+const FLinearColor ConcordVerdigris(0.08f, 0.46f, 0.39f);
+
+FLinearColor FactionColor(const EAshenFaction Faction)
+{
+    switch (Faction)
+    {
+    case EAshenFaction::Compact:
+        return HumanBronze;
+    case EAshenFaction::Ascendancy:
+        return MonsterBlood;
+    case EAshenFaction::Concord:
+        return ConcordVerdigris;
+    case EAshenFaction::None:
+        return FLinearColor::White;
+    }
+    return FLinearColor::White;
+}
 }
 
 AAshenEntityActor::AAshenEntityActor()
@@ -68,10 +85,12 @@ AAshenEntityActor::AAshenEntityActor()
 }
 
 void AAshenEntityActor::InitializeEntity(const int32 InEntityId, const uint8 InOwnerIndex,
+                                         const EAshenFaction InFaction,
                                          const EAshenEntityArchetype InArchetype, const float Radius)
 {
     EntityId = InEntityId;
     OwnerIndex = InOwnerIndex;
+    Faction = InFaction;
     Archetype = InArchetype;
     const float Diameter = FMath::Max(20.0f, Radius * 2.0f);
 
@@ -85,7 +104,7 @@ void AAshenEntityActor::InitializeEntity(const int32 InEntityId, const uint8 InO
         HealthFill->SetStaticMesh(BarMesh);
     }
 
-    if (OwnerIndex == 0)
+    if (Faction != EAshenFaction::Ascendancy)
     {
         BuildHumanVisuals(Diameter);
     }
@@ -94,17 +113,11 @@ void AAshenEntityActor::InitializeEntity(const int32 InEntityId, const uint8 InO
         BuildMonsterVisuals(Diameter);
     }
 
-    const FLinearColor FactionColor = OwnerIndex == 0 ? HumanBronze : MonsterBlood;
-    FactionBaseColor = FactionColor;
-    Ashen::Materials::Apply(SelectionMarker, this,
-                            OwnerIndex == 0 ? FLinearColor(0.95f, 0.58f, 0.10f)
-                                            : FLinearColor(0.92f, 0.06f, 0.08f),
-                            0.32f);
+    const FLinearColor ResolvedFactionColor = FactionColor(Faction);
+    FactionBaseColor = ResolvedFactionColor;
+    Ashen::Materials::Apply(SelectionMarker, this, ResolvedFactionColor, 0.32f);
     Ashen::Materials::Apply(HealthBack, this, FLinearColor(0.012f, 0.014f, 0.014f), 0.88f);
-    Ashen::Materials::Apply(HealthFill, this,
-                            OwnerIndex == 0 ? FLinearColor(0.18f, 0.68f, 0.26f)
-                                            : FLinearColor(0.82f, 0.06f, 0.08f),
-                            0.46f);
+    Ashen::Materials::Apply(HealthFill, this, FLinearColor(0.18f, 0.68f, 0.26f), 0.46f);
 
     SelectionMarker->SetRelativeScale3D({Diameter * 1.45f / 100.0f, Diameter * 1.45f / 100.0f, 0.024f});
     SelectionMarker->SetRelativeLocation({0.0f, 0.0f, 2.0f});
@@ -115,7 +128,7 @@ void AAshenEntityActor::InitializeEntity(const int32 InEntityId, const uint8 InO
     HealthFill->SetRelativeLocation({0.0f, 0.0f, VisualHeight + 24.5f});
 
     FactionLight->SetRelativeLocation({0.0f, 0.0f, VisualHeight * 0.62f});
-    FactionLight->SetLightColor(FactionColor);
+    FactionLight->SetLightColor(ResolvedFactionColor);
     FactionLight->SetAttenuationRadius(FMath::Clamp(Diameter * 2.5f, 145.0f, 430.0f));
     SetActorRotation(FRotator(0.0f, OwnerIndex == 0 ? 0.0f : 180.0f, 0.0f));
     EntityMesh->SetCustomDepthStencilValue(OwnerIndex == 0 ? 1 : 2);

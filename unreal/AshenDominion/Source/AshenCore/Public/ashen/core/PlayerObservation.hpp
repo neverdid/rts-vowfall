@@ -16,6 +16,7 @@ class CommanderAI;
 struct ObservedEnemy {
   EntityId id{};
   PlayerId owner{PlayerId::One};
+  FactionId faction{FactionId::Compact};
   EntityType type{EntityType::Worker};
   EntityKind kind{EntityKind::Unit};
   Vec2 position{};

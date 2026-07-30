@@ -20,6 +20,23 @@ const FLinearColor RelicIron(0.035f, 0.041f, 0.038f);
 const FLinearColor NeutralRelic(0.31f, 0.34f, 0.28f);
 const FLinearColor CompactRelic(0.92f, 0.48f, 0.08f);
 const FLinearColor GloamRelic(0.72f, 0.018f, 0.04f);
+const FLinearColor ConcordRelic(0.08f, 0.48f, 0.40f);
+
+FLinearColor FactionRelicColor(const EAshenFaction Faction)
+{
+    switch (Faction)
+    {
+    case EAshenFaction::Compact:
+        return CompactRelic;
+    case EAshenFaction::Ascendancy:
+        return GloamRelic;
+    case EAshenFaction::Concord:
+        return ConcordRelic;
+    case EAshenFaction::None:
+        return NeutralRelic;
+    }
+    return NeutralRelic;
+}
 }
 
 AAshenControlPointActor::AAshenControlPointActor()
@@ -74,7 +91,7 @@ void AAshenControlPointActor::InitializeControlPoint(const int32 InControlPointI
 
     Ashen::Materials::Apply(ShrineBase, this, RelicStone, 0.92f);
     Ashen::Materials::Apply(Reliquary, this, NeutralRelic, 0.42f);
-    RefreshCaptureMaterial(-1, 0.0f);
+    RefreshCaptureMaterial(EAshenFaction::None, EAshenFaction::None, 0.0f);
 
     for (int32 Index = 0; Index < 6; ++Index)
     {
@@ -96,13 +113,15 @@ void AAshenControlPointActor::InitializeControlPoint(const int32 InControlPointI
 #endif
 }
 
-void AAshenControlPointActor::ApplySimulationState(const FVector& GroundPosition, const int32 OwnerIndex,
+void AAshenControlPointActor::ApplySimulationState(const FVector& GroundPosition,
+                                                    const EAshenFaction OwnerFaction,
+                                                    const EAshenFaction PressureFaction,
                                                     const float Influence, const int32 RuinTide)
 {
     SetActorLocation(GroundPosition);
-    RefreshCaptureMaterial(OwnerIndex, Influence);
+    RefreshCaptureMaterial(OwnerFaction, PressureFaction, Influence);
 
-    const FLinearColor OwnerColor = OwnerIndex == 0 ? CompactRelic : OwnerIndex == 1 ? GloamRelic : NeutralRelic;
+    const FLinearColor OwnerColor = FactionRelicColor(OwnerFaction);
     RelicLight->SetLightColor(OwnerColor);
     const float Pressure = FMath::Clamp(FMath::Abs(Influence), 0.0f, 1.0f);
     const float TidePulse = 0.72f + static_cast<float>(RuinTide) / 100.0f * 0.42f;
@@ -140,19 +159,21 @@ UStaticMeshComponent* AAshenControlPointActor::CreatePart(UStaticMesh* Mesh, con
     return Part;
 }
 
-void AAshenControlPointActor::RefreshCaptureMaterial(const int32 OwnerIndex, const float Influence)
+void AAshenControlPointActor::RefreshCaptureMaterial(const EAshenFaction OwnerFaction,
+                                                      const EAshenFaction PressureFaction,
+                                                      const float Influence)
 {
     const int32 Bucket = FMath::Clamp(FMath::RoundToInt(FMath::Abs(Influence) * 8.0f), 0, 8);
-    if (OwnerIndex == LastOwnerIndex && Bucket == LastInfluenceBucket)
+    if (OwnerFaction == LastOwnerFaction && PressureFaction == LastPressureFaction &&
+        Bucket == LastInfluenceBucket)
     {
         return;
     }
-    LastOwnerIndex = OwnerIndex;
+    LastOwnerFaction = OwnerFaction;
+    LastPressureFaction = PressureFaction;
     LastInfluenceBucket = Bucket;
 
-    const FLinearColor CapturingColor = Influence > 0.01f ? CompactRelic
-                                      : Influence < -0.01f ? GloamRelic
-                                                           : NeutralRelic;
+    const FLinearColor CapturingColor = FactionRelicColor(PressureFaction);
     const float Pressure = static_cast<float>(Bucket) / 8.0f;
     const FLinearColor DiscColor = FLinearColor::LerpUsingHSV(RelicIron, CapturingColor, 0.25f + Pressure * 0.75f);
     Ashen::Materials::Apply(CaptureDisc, this, DiscColor, 0.46f);

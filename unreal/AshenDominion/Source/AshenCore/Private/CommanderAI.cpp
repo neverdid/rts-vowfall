@@ -60,6 +60,10 @@ void hash_integral(std::uint64_t& hash, const Value value) noexcept {
     case CommandType::Research:
     case CommandType::ActivatePower:
     case CommandType::SetStance:
+    case CommandType::MakeVow:
+    case CommandType::KeepVow:
+    case CommandType::BreakVow:
+    case CommandType::AmendVow:
       return false;
   }
   return false;
@@ -136,7 +140,9 @@ void apply_command_precision(AIPlannedDecision& decision,
 
 CommanderAI::CommanderAI(const PlayerId player,
                          const AIDifficulty difficulty) noexcept
-    : player_(player), difficulty_(difficulty) {}
+    : player_(player),
+      difficulty_(difficulty),
+      strategy_state_(initial_ai_strategy_state(player)) {}
 
 const AIDifficultyProfile& CommanderAI::difficulty_profile() const noexcept {
   return ai_difficulty_profile(difficulty_);
@@ -144,6 +150,7 @@ const AIDifficultyProfile& CommanderAI::difficulty_profile() const noexcept {
 
 void CommanderAI::reset(const AIDifficulty difficulty) noexcept {
   difficulty_ = difficulty;
+  strategy_state_ = initial_ai_strategy_state(player_);
   observation_history_.clear();
 }
 
@@ -186,7 +193,9 @@ PlayerObservation CommanderAI::perceive(
 }
 
 CommanderPlan CommanderAI::update(const PlayerObservation& observation) {
-  return plan(perceive(observation));
+  const auto perceived = perceive(observation);
+  strategy_state_ = update_ai_strategy_state(strategy_state_, perceived);
+  return plan(perceived);
 }
 
 CommanderPlan CommanderAI::plan(const PlayerObservation& observation) const {
@@ -225,8 +234,11 @@ CommanderPlan CommanderAI::plan(const PlayerObservation& observation) const {
       result.decisions.push_back(std::move(*micro));
     }
   }
+  const auto strategy_state_hash =
+      ai_strategy_state_hash(strategy_state_);
   for (auto& decision : result.decisions) {
     decision.command_latency_ticks = difficulty.command_latency_ticks;
+    decision.strategy_state_hash = strategy_state_hash;
     apply_command_precision(decision, observation, difficulty);
   }
   return result;
@@ -247,6 +259,7 @@ std::uint64_t CommanderAI::state_hash() const noexcept {
   hash_integral(hash, static_cast<std::uint8_t>(player_));
   hash_integral(hash, static_cast<std::uint8_t>(difficulty_));
   hash_integral(hash, ai_difficulty_hash(difficulty_profile()));
+  hash_integral(hash, ai_strategy_state_hash(strategy_state_));
   hash_integral(hash, observation_history_.size());
   for (const auto& observation : observation_history_) {
     hash_integral(hash, observation.hash());
