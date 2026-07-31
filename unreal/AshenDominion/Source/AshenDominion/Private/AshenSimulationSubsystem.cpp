@@ -292,8 +292,10 @@ void UAshenSimulationSubsystem::Tick(const float DeltaTime)
     int32 Steps = 0;
     while (Accumulator >= FixedStepSeconds && Steps < MaxCatchUpSteps)
     {
+        const ashen::core::Tick PreviousTick = Runtime->Simulation.tick();
         Runtime->Simulation.step();
-        if (Runtime->Simulation.tick() % ReplayCheckpointInterval == 0)
+        if (Runtime->Simulation.tick() != PreviousTick &&
+            Runtime->Simulation.tick() % ReplayCheckpointInterval == 0)
         {
             Runtime->ReplayRecorder->capture_checkpoint(Runtime->Simulation);
         }
