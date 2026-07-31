@@ -135,6 +135,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Ashen|State")
     void RestartMatch();
 
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Persistence")
+    bool SaveCheckpoint();
+
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Persistence")
+    bool LoadCheckpoint();
+
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Persistence")
+    bool ExportReplay();
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Persistence")
+    bool HasCheckpoint() const noexcept { return bCheckpointAvailable; }
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Persistence")
+    int64 GetCheckpointTick() const noexcept { return static_cast<int64>(SavedCheckpointTick); }
+
     void ConfigureSkirmish();
     void ConfigureStoryMission(ashen::core::StoryMissionId Mission);
 
@@ -156,6 +171,7 @@ public:
 private:
     void StartMatch();
     void PrimeOpeningEconomy();
+    void DestroyWorldActors();
     void SyncWorldActors();
     bool StoreCommandResult(bool bOk, const FString& FailureMessage);
     FVector ToWorldPosition(int32 CoreX, int32 CoreY) const;
@@ -166,6 +182,8 @@ private:
     bool bStoryMode = false;
     ashen::core::StoryMissionId ActiveStoryMission = ashen::core::StoryMissionId::BridgeOfNames;
     EAshenAIDifficulty OpponentDifficulty = EAshenAIDifficulty::Standard;
+    uint64 SavedCheckpointTick = 0;
+    bool bCheckpointAvailable = false;
     FString LastCommandMessage;
     TMap<uint32, TWeakObjectPtr<AAshenEntityActor>> EntityActors;
     TMap<uint32, TWeakObjectPtr<AAshenResourceActor>> ResourceActors;

@@ -59,7 +59,10 @@ memory, queued commands, audit traces, events, stable-ID cursors, and the event 
 Entity lookup and spatial cells are derived and rebuilt after load. `ReplayV1` embeds
 that checkpoint, records subsequent external submissions, and verifies regenerated
 AI commands, events, checkpoints, and final state. There is not yet an Unreal
-save-game adapter, player-facing replay flow, or migration from a prior schema.
+checkpoint browser, replay playback flow, or migration from a prior schema. The
+current Unreal adapter wraps SnapshotV1 in `USaveGame`, atomically swaps only a
+validated restore, records player submissions, and exports ReplayV1 only after
+in-memory verification succeeds.
 
 ## Current deterministic step order
 
@@ -278,8 +281,11 @@ boundaries, lets the normal fog-limited commander regenerate AI work, and compar
 checkpoint followed by the complete command and event audit suffix and final state.
 `ashen_replay record|inspect|verify` provides the native inspection boundary. ReplayV1
 rejects incompatible definitions and malformed, oversized, truncated, trailing, or
-checksum-invalid data. V1 has no best-effort migration; schema migration and the
-Unreal/player-facing adapters remain explicit follow-up work.
+checksum-invalid data. Unreal uses the same validation boundary for its F5/F9 quick
+checkpoint, starts a fresh recorder at the checkpoint boundary, samples replay
+checkpoints during fixed stepping, and writes F6 exports under `Saved/Replays` only
+after deterministic verification. V1 has no best-effort migration; future schema
+migration, named checkpoint browsing, and replay playback remain explicit follow-up work.
 
 ## Unreal integration boundary
 

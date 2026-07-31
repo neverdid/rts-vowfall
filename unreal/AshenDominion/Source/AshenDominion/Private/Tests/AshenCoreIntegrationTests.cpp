@@ -1,12 +1,14 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AshenArena.h"
+#include "AshenCheckpointSaveGame.h"
 #include "AshenEnvironmentKit.h"
 #include "AshenWorldLayout.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/AutomationTest.h"
 #include "ProceduralMeshComponent.h"
 #include "UObject/UObjectGlobals.h"
@@ -18,10 +20,12 @@
 #include "ashen/core/CommanderAI.hpp"
 #include "ashen/core/Content.hpp"
 #include "ashen/core/Simulation.hpp"
+#include "ashen/core/Snapshot.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <span>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenCoreBootsInUnrealTest, "Ashen.Core.BootsInUnreal",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -43,6 +47,64 @@ bool FAshenCoreBootsInUnrealTest::RunTest(const FString &Parameters)
     TestEqual(TEXT("Simulation advances at a deterministic tick"), static_cast<int64>(First.tick()), int64{240});
     TestTrue(TEXT("Equivalent matches produce the same state hash"), First.state_hash() == Second.state_hash());
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenCheckpointSaveAdapterTest, "Ashen.Core.UnrealCheckpointAdapter",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAshenCheckpointSaveAdapterTest::RunTest(const FString& Parameters)
+{
+    static_cast<void>(Parameters);
+
+    ashen::core::Simulation Original{};
+    Original.run(73);
+    const std::vector<std::uint8_t> Snapshot = ashen::core::save_snapshot_v1(Original);
+
+    UAshenCheckpointSaveGame* Save = Cast<UAshenCheckpointSaveGame>(
+        UGameplayStatics::CreateSaveGameObject(UAshenCheckpointSaveGame::StaticClass()));
+    TestNotNull(TEXT("Unreal creates the checkpoint adapter"), Save);
+    if (Save == nullptr)
+    {
+        return false;
+    }
+
+    Save->SnapshotSchemaVersion = ashen::core::kSnapshotSchemaVersion;
+    Save->ContentDigest = ashen::core::current_content_digest();
+    Save->PipelineDigest = ashen::core::current_pipeline_digest();
+    Save->CheckpointTick = Original.tick();
+    Save->CheckpointStateHash = Original.state_hash();
+    Save->SavedAtUtc = FDateTime::UtcNow();
+    Save->SnapshotBytes.Append(Snapshot.data(), static_cast<int32>(Snapshot.size()));
+
+    const FString SlotName = FString::Printf(TEXT("AshenCheckpointAdapterTest-%s"),
+                                              *FGuid::NewGuid().ToString(EGuidFormats::Digits));
+    const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, SlotName, 0);
+    TestTrue(TEXT("Checkpoint adapter writes through Unreal's save-game system"), bSaved);
+
+    const UAshenCheckpointSaveGame* Loaded = Cast<UAshenCheckpointSaveGame>(
+        UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+    TestNotNull(TEXT("Checkpoint adapter reloads from the save slot"), Loaded);
+    if (Loaded != nullptr)
+    {
+        TestEqual(TEXT("Adapter version survives serialization"), Loaded->AdapterVersion,
+                  UAshenCheckpointSaveGame::CurrentAdapterVersion);
+        TestEqual(TEXT("Checkpoint tick survives serialization"), Loaded->CheckpointTick, Original.tick());
+        TestTrue(TEXT("Snapshot bytes survive serialization"), Loaded->SnapshotBytes == Save->SnapshotBytes);
+
+        const std::span<const std::uint8_t> Bytes{
+            Loaded->SnapshotBytes.GetData(), static_cast<size_t>(Loaded->SnapshotBytes.Num())};
+        ashen::core::SnapshotLoadResult Restored = ashen::core::load_snapshot_v1(Bytes);
+        TestTrue(TEXT("SnapshotV1 accepts the Unreal-persisted payload"), static_cast<bool>(Restored));
+        if (Restored)
+        {
+            TestTrue(TEXT("Unreal save round trip preserves the authoritative state hash"),
+                     Restored.simulation->state_hash() == Original.state_hash());
+        }
+    }
+
+    TestTrue(TEXT("Automation checkpoint slot is removed"),
+             UGameplayStatics::DeleteGameInSlot(SlotName, 0));
+    return bSaved && Loaded != nullptr;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenFactionIdentityInUnrealTest,

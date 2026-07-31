@@ -121,15 +121,17 @@ repository modules, not a promise that every listed module changes in one patch.
 
 ### X1 — Versioned snapshot and replay format
 
-- **Status:** In progress.
+- **Status:** Complete for V1.
 - **Goal:** Save and restore all authoritative state and verify replay events/hashes.
 - **Complete:** Portable little-endian SnapshotV1 and ReplayV1 containers,
   schema/content/pipeline compatibility checks, bounded/checksummed loads, exact
   checkpoint restore, derived index rebuild, external-input recording, regenerated
   AI/command/event verification, checkpoint hashes, deterministic continuation tests,
-  and a native record/inspect/verify tool.
-- **Remaining:** Explicit future-version migrations, the Unreal save-game adapter,
-  and player-facing checkpoint/replay flows.
+  a native record/inspect/verify tool, an Unreal `USaveGame` adapter, atomic validated
+  quick restore, player-command recording, verified Unreal replay export, HUD feedback,
+  and an engine save-slot round-trip test.
+- **Deferred beyond V1:** Explicit migrations when a later schema exists, named
+  checkpoint browsing, and replay playback/scrubbing UI.
 - **Files:** new `Snapshot.*`, `Replay.*`, `Simulation.*`, native tools, Unreal save
   adapter.
 - **Dependencies:** All Now state schemas and stable content digest.

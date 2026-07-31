@@ -98,6 +98,21 @@ bool AAshenPlayerController::InputKey(const FInputKeyEventArgs& Params)
             ToggleFrontEnd();
             return true;
         }
+        if (!bFrontEndVisible && Params.Key == EKeys::F5)
+        {
+            QuickSaveCheckpoint();
+            return true;
+        }
+        if (!bFrontEndVisible && Params.Key == EKeys::F9)
+        {
+            RestoreCheckpoint();
+            return true;
+        }
+        if (!bFrontEndVisible && Params.Key == EKeys::F6)
+        {
+            ExportReplay();
+            return true;
+        }
         if (!bFrontEndVisible && Params.Key == EKeys::LeftMouseButton && PendingCommand != EAshenCommandMode::None)
         {
             ExecutePendingCommand();
@@ -968,6 +983,40 @@ void AAshenPlayerController::ToggleFrontEnd()
     if (UAshenSimulationSubsystem* Sim = Simulation())
     {
         Sim->SetGameplayEnabled(false);
+    }
+}
+
+void AAshenPlayerController::QuickSaveCheckpoint()
+{
+    if (UAshenSimulationSubsystem* Sim = Simulation())
+    {
+        Sim->SaveCheckpoint();
+    }
+}
+
+void AAshenPlayerController::RestoreCheckpoint()
+{
+    UAshenSimulationSubsystem* Sim = Simulation();
+    if (Sim == nullptr || !Sim->LoadCheckpoint())
+    {
+        return;
+    }
+
+    ClearSelection();
+    for (TArray<TWeakObjectPtr<AAshenEntityActor>>& Group : ControlGroups)
+    {
+        Group.Reset();
+    }
+    PendingCommand = EAshenCommandMode::None;
+    ActiveControlGroup = -1;
+    LastControlGroup = -1;
+}
+
+void AAshenPlayerController::ExportReplay()
+{
+    if (UAshenSimulationSubsystem* Sim = Simulation())
+    {
+        Sim->ExportReplay();
     }
 }
 

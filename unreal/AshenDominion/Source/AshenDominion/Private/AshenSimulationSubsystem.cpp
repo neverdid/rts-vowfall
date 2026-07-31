@@ -1,18 +1,27 @@
 #include "AshenSimulationSubsystem.h"
 
+#include "AshenCheckpointSaveGame.h"
 #include "AshenControlPointActor.h"
 #include "AshenEntityActor.h"
 #include "AshenResourceActor.h"
 #include "ashen/core/Catalog.hpp"
+#include "ashen/core/Replay.hpp"
 #include "ashen/core/Simulation.hpp"
 #include "ashen/core/SimulationEvent.hpp"
+#include "ashen/core/Snapshot.hpp"
 
 #include "Engine/World.h"
+#include "HAL/FileManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Stats/Stats.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <memory>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -22,15 +31,37 @@ DEFINE_LOG_CATEGORY_STATIC(LogAshenSimulation, Log, All);
 class FAshenSimulationRuntime final
 {
 public:
-    explicit FAshenSimulationRuntime(const ashen::core::SimulationConfig& Config) : Simulation(Config) {}
+    explicit FAshenSimulationRuntime(const ashen::core::SimulationConfig& Config)
+        : Simulation(Config), ReplayRecorder(MakeUnique<ashen::core::ReplayRecorder>(Simulation))
+    {
+    }
+
+    explicit FAshenSimulationRuntime(ashen::core::Simulation&& RestoredSimulation)
+        : Simulation(std::move(RestoredSimulation)), ReplayRecorder(MakeUnique<ashen::core::ReplayRecorder>(Simulation))
+    {
+    }
+
+    ashen::core::CommandResult ExecuteExternal(ashen::core::Command Command)
+    {
+        return ReplayRecorder->execute_now(Simulation, std::move(Command));
+    }
+
+    void ResetReplayRecorder()
+    {
+        ReplayRecorder = MakeUnique<ashen::core::ReplayRecorder>(Simulation);
+    }
 
     ashen::core::Simulation Simulation;
+    TUniquePtr<ashen::core::ReplayRecorder> ReplayRecorder;
 };
 
 namespace
 {
 constexpr float FixedStepSeconds = 1.0f / static_cast<float>(ashen::core::kTicksPerSecond);
 constexpr int32 MaxCatchUpSteps = 8;
+constexpr ashen::core::Tick ReplayCheckpointInterval = 600;
+const FString CheckpointSlotName(TEXT("VowfallQuickCheckpoint"));
+constexpr int32 CheckpointUserIndex = 0;
 
 bool ContainsInvalidId(const TArray<int32>& EntityIds)
 {
@@ -189,6 +220,23 @@ ashen::core::AIDifficulty ToCoreDifficulty(const EAshenAIDifficulty Difficulty)
     return AIDifficulty::Standard;
 }
 
+EAshenAIDifficulty ToAshenDifficulty(const ashen::core::AIDifficulty Difficulty)
+{
+    using ashen::core::AIDifficulty;
+    switch (Difficulty)
+    {
+    case AIDifficulty::Story:
+        return EAshenAIDifficulty::Story;
+    case AIDifficulty::Standard:
+        return EAshenAIDifficulty::Standard;
+    case AIDifficulty::Veteran:
+        return EAshenAIDifficulty::Veteran;
+    case AIDifficulty::Competitive:
+        return EAshenAIDifficulty::Competitive;
+    }
+    return EAshenAIDifficulty::Standard;
+}
+
 FString CoreText(const std::string_view Text)
 {
     return FString(UTF8_TO_TCHAR(Text.data()));
@@ -209,6 +257,7 @@ void UAshenSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     Accumulator = 0.0f;
+    bCheckpointAvailable = UGameplayStatics::DoesSaveGameExist(CheckpointSlotName, CheckpointUserIndex);
 }
 
 void UAshenSimulationSubsystem::Deinitialize()
@@ -243,7 +292,13 @@ void UAshenSimulationSubsystem::Tick(const float DeltaTime)
     int32 Steps = 0;
     while (Accumulator >= FixedStepSeconds && Steps < MaxCatchUpSteps)
     {
+        const ashen::core::Tick PreviousTick = Runtime->Simulation.tick();
         Runtime->Simulation.step();
+        if (Runtime->Simulation.tick() != PreviousTick &&
+            Runtime->Simulation.tick() % ReplayCheckpointInterval == 0)
+        {
+            Runtime->ReplayRecorder->capture_checkpoint(Runtime->Simulation);
+        }
         Accumulator -= FixedStepSeconds;
         ++Steps;
     }
@@ -277,7 +332,7 @@ bool UAshenSimulationSubsystem::IssueMove(const TArray<int32>& EntityIds, const 
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -299,7 +354,7 @@ bool UAshenSimulationSubsystem::IssueAttack(const TArray<int32>& EntityIds, cons
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -321,7 +376,7 @@ bool UAshenSimulationSubsystem::IssueAttackMove(const TArray<int32>& EntityIds, 
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -343,7 +398,7 @@ bool UAshenSimulationSubsystem::IssueGather(const TArray<int32>& EntityIds, cons
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -365,7 +420,7 @@ bool UAshenSimulationSubsystem::IssuePatrol(const TArray<int32>& EntityIds, cons
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -384,7 +439,7 @@ bool UAshenSimulationSubsystem::IssueStop(const TArray<int32>& EntityIds)
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -404,7 +459,7 @@ bool UAshenSimulationSubsystem::IssueHold(const TArray<int32>& EntityIds, const 
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -420,7 +475,7 @@ bool UAshenSimulationSubsystem::IssueSetRallyPoint(const int32 ProducerId, const
     Command.type = ashen::core::CommandType::SetRallyPoint;
     Command.producer = ashen::core::EntityId{static_cast<uint32>(ProducerId)};
     Command.target = ToCorePosition(WorldTarget);
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("Rally point set.") : CoreText(Result.reason));
 }
 
@@ -449,7 +504,7 @@ bool UAshenSimulationSubsystem::IssueTrain(const int32 ProducerId, const bool bS
     Command.type = ashen::core::CommandType::Train;
     Command.producer = ashen::core::EntityId{static_cast<uint32>(ProducerId)};
     Command.train_type = UnitType;
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? FString() : CoreText(Result.reason));
 }
 
@@ -468,7 +523,7 @@ bool UAshenSimulationSubsystem::IssueBuild(const int32 WorkerId, const EAshenEnt
     Command.entities = {ashen::core::EntityId{static_cast<uint32>(WorkerId)}};
     Command.target = ToCorePosition(WorldTarget);
     Command.building_type = ToEntityType(Building);
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("Construction order accepted.") : CoreText(Result.reason));
 }
 
@@ -494,7 +549,7 @@ bool UAshenSimulationSubsystem::IssueResearch(const int32 ProducerId, const EAsh
     Command.type = ashen::core::CommandType::Research;
     Command.producer = ashen::core::EntityId{static_cast<uint32>(ProducerId)};
     Command.research = ToResearch(Research);
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("Doctrine entered the archive queue.")
                                                    : CoreText(Result.reason));
 }
@@ -508,7 +563,7 @@ bool UAshenSimulationSubsystem::IssueActivatePower()
     ashen::core::Command Command{};
     Command.player = ashen::core::PlayerId::One;
     Command.type = ashen::core::CommandType::ActivatePower;
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? GetFactionPowerLabel() : CoreText(Result.reason));
 }
 
@@ -525,7 +580,7 @@ bool UAshenSimulationSubsystem::IssueRetreat(const TArray<int32>& EntityIds)
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("Retreat route set to the March Keep.")
                                                    : CoreText(Result.reason));
 }
@@ -544,7 +599,7 @@ bool UAshenSimulationSubsystem::IssueSetStance(const TArray<int32>& EntityIds, c
     {
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
-    const auto Result = Runtime->Simulation.execute_now(std::move(Command));
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("War-band stance updated.") : CoreText(Result.reason));
 }
 
@@ -1043,6 +1098,163 @@ void UAshenSimulationSubsystem::SetGameplayEnabled(const bool bEnabled)
 
 void UAshenSimulationSubsystem::RestartMatch()
 {
+    DestroyWorldActors();
+    StartMatch();
+}
+
+bool UAshenSimulationSubsystem::SaveCheckpoint()
+{
+    if (Runtime == nullptr)
+    {
+        return StoreCommandResult(false, TEXT("CHECKPOINT FAILED // no active simulation"));
+    }
+
+    const std::vector<std::uint8_t> Bytes = ashen::core::save_snapshot_v1(Runtime->Simulation);
+    if (Bytes.size() > static_cast<size_t>(MAX_int32))
+    {
+        return StoreCommandResult(false, TEXT("CHECKPOINT FAILED // snapshot exceeds Unreal save limits"));
+    }
+
+    UAshenCheckpointSaveGame* Checkpoint = Cast<UAshenCheckpointSaveGame>(
+        UGameplayStatics::CreateSaveGameObject(UAshenCheckpointSaveGame::StaticClass()));
+    if (Checkpoint == nullptr)
+    {
+        return StoreCommandResult(false, TEXT("CHECKPOINT FAILED // save adapter unavailable"));
+    }
+
+    Checkpoint->SnapshotSchemaVersion = ashen::core::kSnapshotSchemaVersion;
+    Checkpoint->ContentDigest = ashen::core::current_content_digest();
+    Checkpoint->PipelineDigest = ashen::core::current_pipeline_digest();
+    Checkpoint->CheckpointTick = Runtime->Simulation.tick();
+    Checkpoint->CheckpointStateHash = Runtime->Simulation.state_hash();
+    Checkpoint->SavedAtUtc = FDateTime::UtcNow();
+    Checkpoint->SnapshotBytes.Append(Bytes.data(), static_cast<int32>(Bytes.size()));
+
+    if (!UGameplayStatics::SaveGameToSlot(Checkpoint, CheckpointSlotName, CheckpointUserIndex))
+    {
+        return StoreCommandResult(false, TEXT("CHECKPOINT FAILED // could not write save slot"));
+    }
+
+    bCheckpointAvailable = true;
+    SavedCheckpointTick = Checkpoint->CheckpointTick;
+    Runtime->ResetReplayRecorder();
+    LastCommandMessage = FString::Printf(TEXT("CHECKPOINT SEALED // TICK %llu"),
+                                         static_cast<unsigned long long>(SavedCheckpointTick));
+    UE_LOG(LogAshenSimulation, Display, TEXT("Saved SnapshotV1 checkpoint at tick %llu (%d bytes)"),
+           static_cast<unsigned long long>(SavedCheckpointTick), Checkpoint->SnapshotBytes.Num());
+    return true;
+}
+
+bool UAshenSimulationSubsystem::LoadCheckpoint()
+{
+    if (!UGameplayStatics::DoesSaveGameExist(CheckpointSlotName, CheckpointUserIndex))
+    {
+        bCheckpointAvailable = false;
+        return StoreCommandResult(false, TEXT("RESTORE FAILED // no checkpoint in the archive"));
+    }
+
+    const UAshenCheckpointSaveGame* Checkpoint = Cast<UAshenCheckpointSaveGame>(
+        UGameplayStatics::LoadGameFromSlot(CheckpointSlotName, CheckpointUserIndex));
+    if (Checkpoint == nullptr || Checkpoint->AdapterVersion != UAshenCheckpointSaveGame::CurrentAdapterVersion)
+    {
+        return StoreCommandResult(false, TEXT("RESTORE FAILED // unsupported save adapter"));
+    }
+
+    const std::span<const std::uint8_t> Bytes{
+        Checkpoint->SnapshotBytes.GetData(), static_cast<size_t>(Checkpoint->SnapshotBytes.Num())};
+    ashen::core::SnapshotLoadResult Loaded = ashen::core::load_snapshot_v1(Bytes);
+    if (!Loaded)
+    {
+        LastCommandMessage = FString::Printf(TEXT("RESTORE REJECTED // %s"),
+                                             *CoreText(ashen::core::to_string(Loaded.error)));
+        UE_LOG(LogAshenSimulation, Warning, TEXT("Rejected checkpoint SnapshotV1: %s"), *LastCommandMessage);
+        return false;
+    }
+
+    const bool bMetadataMatches =
+        Checkpoint->SnapshotSchemaVersion == Loaded.header.schema_version &&
+        Checkpoint->ContentDigest == Loaded.header.content_digest &&
+        Checkpoint->PipelineDigest == Loaded.header.pipeline_digest &&
+        Checkpoint->CheckpointTick == Loaded.header.checkpoint_tick &&
+        Checkpoint->CheckpointStateHash == Loaded.header.checkpoint_state_hash;
+    if (!bMetadataMatches)
+    {
+        return StoreCommandResult(false, TEXT("RESTORE REJECTED // save metadata does not match SnapshotV1"));
+    }
+
+    FAshenSimulationRuntime* RestoredRuntime =
+        new FAshenSimulationRuntime(std::move(*Loaded.simulation));
+    FAshenSimulationRuntime* PreviousRuntime = Runtime;
+    Runtime = RestoredRuntime;
+    delete PreviousRuntime;
+
+    const ashen::core::SimulationConfig& Config = Runtime->Simulation.config();
+    bStoryMode = Config.mode == ashen::core::MatchMode::Story;
+    ActiveStoryMission = Config.story_mission;
+    OpponentDifficulty = ToAshenDifficulty(
+        Config.commander_difficulties[ashen::core::player_index(ashen::core::PlayerId::Two)]);
+    Accumulator = 0.0f;
+    bCheckpointAvailable = true;
+    SavedCheckpointTick = Loaded.header.checkpoint_tick;
+    DestroyWorldActors();
+    SyncWorldActors();
+
+    LastCommandMessage = FString::Printf(TEXT("CHECKPOINT RESTORED // TICK %llu"),
+                                         static_cast<unsigned long long>(SavedCheckpointTick));
+    UE_LOG(LogAshenSimulation, Display, TEXT("Restored SnapshotV1 checkpoint at tick %llu"),
+           static_cast<unsigned long long>(SavedCheckpointTick));
+    return true;
+}
+
+bool UAshenSimulationSubsystem::ExportReplay()
+{
+    if (Runtime == nullptr || !Runtime->ReplayRecorder.IsValid())
+    {
+        return StoreCommandResult(false, TEXT("REPLAY EXPORT FAILED // no active recording"));
+    }
+
+    const ashen::core::ReplayData Replay = Runtime->ReplayRecorder->finish(Runtime->Simulation);
+    const std::vector<std::uint8_t> Bytes = ashen::core::save_replay_v1(Replay);
+    if (Bytes.size() > static_cast<size_t>(MAX_int32))
+    {
+        return StoreCommandResult(false, TEXT("REPLAY EXPORT FAILED // recording exceeds Unreal file limits"));
+    }
+
+    const ashen::core::ReplayVerificationResult Verification = ashen::core::verify_replay_v1(Bytes);
+    if (!Verification)
+    {
+        LastCommandMessage = FString::Printf(TEXT("REPLAY REJECTED // %s at tick %llu"),
+                                             *CoreText(ashen::core::to_string(Verification.error)),
+                                             static_cast<unsigned long long>(Verification.mismatch_tick));
+        UE_LOG(LogAshenSimulation, Error, TEXT("Refused to export invalid ReplayV1: %s"), *LastCommandMessage);
+        return false;
+    }
+
+    const FString ReplayDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"));
+    if (!IFileManager::Get().DirectoryExists(*ReplayDirectory) &&
+        !IFileManager::Get().MakeDirectory(*ReplayDirectory, true))
+    {
+        return StoreCommandResult(false, TEXT("REPLAY EXPORT FAILED // could not create Saved/Replays"));
+    }
+    const FString ExportId = FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(8);
+    const FString Filename = FString::Printf(
+        TEXT("Vowfall-%s-tick-%llu-%s.vowreplay"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d-%H%M%S")),
+        static_cast<unsigned long long>(Runtime->Simulation.tick()), *ExportId);
+    const FString ReplayPath = FPaths::Combine(ReplayDirectory, Filename);
+    TArray<uint8> UnrealBytes;
+    UnrealBytes.Append(Bytes.data(), static_cast<int32>(Bytes.size()));
+    if (!FFileHelper::SaveArrayToFile(UnrealBytes, *ReplayPath))
+    {
+        return StoreCommandResult(false, TEXT("REPLAY EXPORT FAILED // could not write replay file"));
+    }
+
+    LastCommandMessage = FString::Printf(TEXT("REPLAY VERIFIED // Saved/Replays/%s"), *Filename);
+    UE_LOG(LogAshenSimulation, Display, TEXT("Exported verified ReplayV1: %s"), *ReplayPath);
+    return true;
+}
+
+void UAshenSimulationSubsystem::DestroyWorldActors()
+{
     for (const TPair<uint32, TWeakObjectPtr<AAshenEntityActor>>& Pair : EntityActors)
     {
         if (Pair.Value.IsValid())
@@ -1067,7 +1279,8 @@ void UAshenSimulationSubsystem::RestartMatch()
     EntityActors.Reset();
     ResourceActors.Reset();
     ControlPointActors.Reset();
-    StartMatch();
+    KnownControlPointOwners.Reset();
+    KnownControlPointInfluence.Reset();
 }
 
 void UAshenSimulationSubsystem::ConfigureSkirmish()
@@ -1189,6 +1402,7 @@ void UAshenSimulationSubsystem::PrimeOpeningEconomy()
     Gather.entities = std::move(Workers);
     Gather.resource = ChosenResource->id;
     static_cast<void>(Runtime->Simulation.execute_now(std::move(Gather)));
+    Runtime->ResetReplayRecorder();
     UE_LOG(LogAshenSimulation, Display, TEXT("Opening workers assigned to cursed iron"));
 }
 

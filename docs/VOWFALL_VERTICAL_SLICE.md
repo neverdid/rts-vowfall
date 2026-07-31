@@ -78,9 +78,9 @@ queries, event order, and tie-breaking are explicit.
 - Full casualty persistence, supply graph, cohesion simulation, projectiles, facing,
   cover, charges, bracing, suppression, pursuit, or transformation gameplay.
 - A UMG/CommonUI HUD replacement.
-- Player-facing save/load, checkpoint selection, replay playback, or Unreal save-game
-  integration in this pass; the portable SnapshotV1/ReplayV1 engineering boundary is
-  intentionally headless.
+- Named checkpoint selection or replay playback in this pass. Unreal now provides a
+  SnapshotV1 quick checkpoint/restore path and verified ReplayV1 export, while a
+  browser and playback controls remain later production UI.
 - Multiplayer, matchmaking, networking expansion, seasonal systems, cosmetics,
   procedural campaign growth, machine-learning AI, or mod support.
 - The Mercy Engine, a morality meter, prophecy, chosen-one structure, secret bloodline,
@@ -100,7 +100,7 @@ queries, event order, and tie-breaking are explicit.
 | Vows | `StoryMissionDefinition::public_vow` text | Authoritative lifecycle, commands, events, save/replay contract |
 | AI | Fog-limited `PlayerObservation` and `CommanderAI` | Persistent strategic state derived only from observations |
 | Unreal | Fixed-step subsystem, actor proxies, Canvas HUD | Faction/content/event plumbing; later view models and UMG |
-| Replay | SnapshotV1 restore plus ReplayV1 external-input recording and command/event/checkpoint verification | Unreal save-game and player-facing replay adapters later |
+| Replay | SnapshotV1 restore, Unreal quick-save adapter, ReplayV1 external-input recording, verification, and export | Named checkpoint browser and replay playback later |
 
 ## Phase 1 acceptance criteria
 
@@ -136,8 +136,8 @@ Phase 1 is accepted when:
   fog, and AI perception simultaneously. Phase 1 therefore extracts incrementally and
   records legacy ordering until each transition has equivalence tests.
 - SnapshotV1 versions the state/hash compatibility boundary and rejects incompatible
-  content or pipeline definitions. Future schema changes still require explicit
-  migrations before player-facing saves can be supported long-term.
+  content or pipeline definitions. Unreal quick saves use that boundary directly;
+  future schema changes still require explicit migrations for long-lived saves.
 - The actor layer previously used owner index for faction silhouettes and minimap
   colors. Phase 1 routes explicit faction metadata instead; Unreal mirror-match
   runtime capture remains a production gate because the engine SDK was unavailable
