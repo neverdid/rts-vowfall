@@ -12,6 +12,7 @@ namespace ashen::core {
 inline constexpr Tick kMobileObservationMemoryTicks = 2'400;
 
 class CommanderAI;
+class SnapshotCodec;
 
 struct ObservedEnemy {
   EntityId id{};
@@ -99,6 +100,7 @@ class ASHENCORE_API PlayerObservation final {
  private:
   friend class CommanderAI;
   friend class Simulation;
+  friend class SnapshotCodec;
 
   [[nodiscard]] PlayerObservation with_delayed_opponent_knowledge(
       const PlayerObservation* delayed, Tick mobile_memory_ticks) const;

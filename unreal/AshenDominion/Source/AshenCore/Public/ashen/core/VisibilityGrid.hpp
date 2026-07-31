@@ -7,6 +7,8 @@
 
 namespace ashen::core {
 
+class SnapshotCodec;
+
 class ASHENCORE_API VisibilityGrid final {
  public:
   void reset(Vec2 map_size, std::int32_t cell_size);
@@ -22,6 +24,8 @@ class ASHENCORE_API VisibilityGrid final {
   [[nodiscard]] const std::vector<VisibilityState>& cells() const noexcept { return cells_; }
 
  private:
+  friend class SnapshotCodec;
+
   [[nodiscard]] std::size_t index(std::int32_t column, std::int32_t row) const noexcept;
   [[nodiscard]] bool cell_intersects_circle(std::int32_t column, std::int32_t row, Vec2 center,
                                             std::int32_t radius) const noexcept;

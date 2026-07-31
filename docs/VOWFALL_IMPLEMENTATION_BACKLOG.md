@@ -121,13 +121,20 @@ repository modules, not a promise that every listed module changes in one patch.
 
 ### X1 — Versioned snapshot and replay format
 
+- **Status:** In progress.
 - **Goal:** Save and restore all authoritative state and verify replay events/hashes.
+- **Complete:** Portable little-endian SnapshotV1, schema/content/pipeline
+  compatibility checks, bounded/checksummed loads, exact checkpoint restore, derived
+  index rebuild, and deterministic AI continuation tests.
+- **Remaining:** Replay container/verifier, explicit future-version migrations,
+  native inspection tooling, and the Unreal save-game adapter.
 - **Files:** new `Snapshot.*`, `Replay.*`, `Simulation.*`, native tools, Unreal save
   adapter.
 - **Dependencies:** All Now state schemas and stable content digest.
 - **Acceptance:** Restore at a checkpoint produces the same next commands, events,
   AI state, and final hash as uninterrupted play; compatible migrations are explicit.
-- **Tests:** Round trip, corrupted version/content, checkpoint continuation, replay.
+- **Tests:** Round trip, corrupted version/content/pipeline/payload, checkpoint
+  continuation (complete); replay verification (remaining).
 - **Risk:** Critical.
 
 ### X2 — Scenario/objective system

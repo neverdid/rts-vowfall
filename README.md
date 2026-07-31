@@ -19,7 +19,8 @@ The repository now has two active production layers and one archived prototype:
   forests, roads, bridges, a contested island, and shader-driven river water.
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
   Unreal compile these exact same sources, so gameplay rules do not fork between clients. The canonical
-  13-mission campaign catalog and selected story mission are authoritative C++ state as well.
+  13-mission campaign catalog and selected story mission are authoritative C++ state as well. Its
+  versioned SnapshotV1 API can checkpoint and deterministically restore the portable simulation.
 - `src/` is the frozen TypeScript/Three.js prototype retained for design provenance. It is not an active
   client, gameplay authority, parity target, or CI requirement. New gameplay, AI, presentation, and
   testing work belongs in Unreal and `AshenCore`.
@@ -31,8 +32,8 @@ is not destabilized by a cosmetic path change.
 The Unreal competitive vertical slice and Story-mode foundation are playable, but neither is being presented as
 a finished game. The menu exposes the full campaign spine and launches **The Bridge of Names** with its own
 briefing, objective, public vow, and deterministic Story identity. Scripted reversals, dialogue, checkpoints,
-save/load, cinematics, production terrain and characters, matchmaking, and authoritative online PvP remain later
-milestones.
+player-facing save/load, replay files, cinematics, production terrain and characters, matchmaking, and
+authoritative online PvP remain later milestones.
 
 ## Unreal client
 

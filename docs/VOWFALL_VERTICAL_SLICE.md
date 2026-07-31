@@ -98,7 +98,7 @@ queries, event order, and tie-breaking are explicit.
 | Vows | `StoryMissionDefinition::public_vow` text | Authoritative lifecycle, commands, events, save/replay contract |
 | AI | Fog-limited `PlayerObservation` and `CommanderAI` | Persistent strategic state derived only from observations |
 | Unreal | Fixed-step subsystem, actor proxies, Canvas HUD | Faction/content/event plumbing; later view models and UMG |
-| Replay | Command equality and self-play checkpoints | Versioned snapshot plus command/event replay later |
+| Replay | SnapshotV1 restore, command equality, and self-play checkpoints | Command/event replay container and verifier later |
 
 ## Phase 1 acceptance criteria
 
@@ -133,8 +133,9 @@ Phase 1 is accepted when:
 - Reordering the current `Simulation::step()` would change combat, resolve, capture,
   fog, and AI perception simultaneously. Phase 1 therefore extracts incrementally and
   records legacy ordering until each transition has equivalence tests.
-- The state-hash schema is not versioned today. New authoritative fields intentionally
-  change hashes and require a compatibility version before shipping saves or replays.
+- SnapshotV1 versions the state/hash compatibility boundary and rejects incompatible
+  content or pipeline definitions. Future schema changes still require explicit
+  migrations before player-facing saves can be supported long-term.
 - The actor layer previously used owner index for faction silhouettes and minimap
   colors. Phase 1 routes explicit faction metadata instead; Unreal mirror-match
   runtime capture remains a production gate because the engine SDK was unavailable
