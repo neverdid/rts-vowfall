@@ -16,7 +16,9 @@ The repository now has two active production layers and one archived prototype:
   clickable command card, a deployment menu, tactical minimap, an unlocked campaign briefing, and a
   core-owned, fog-constrained, influence-aware commander that can control either player. It also has two
   distinct multi-part faction silhouettes and a procedural dark-medieval battlefield with castles,
-  forests, roads, bridges, a contested island, and shader-driven river water.
+  forests, roads, bridges, a contested island, and shader-driven river water. SnapshotV1 quick
+  checkpoints can be saved and restored through Unreal, and verified ReplayV1 files can be exported
+  from the running match.
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
   Unreal compile these exact same sources, so gameplay rules do not fork between clients. The canonical
   13-mission campaign catalog and selected story mission are authoritative C++ state as well. Its
@@ -33,8 +35,8 @@ is not destabilized by a cosmetic path change.
 The Unreal competitive vertical slice and Story-mode foundation are playable, but neither is being presented as
 a finished game. The menu exposes the full campaign spine and launches **The Bridge of Names** with its own
 briefing, objective, public vow, and deterministic Story identity. Scripted reversals, dialogue, player-facing
-checkpoint/save/load and replay UI, cinematics, production terrain and characters, matchmaking, and authoritative
-online PvP remain later milestones.
+checkpoint selection and replay playback, cinematics, production terrain and characters, matchmaking,
+and authoritative online PvP remain later milestones.
 
 ## Unreal client
 
@@ -65,6 +67,7 @@ Current controls:
 - Q and E: train the primary or secondary unit from a selected producer
 - Y: research the Black-Iron Age; U: research the selected structure's faction doctrine
 - F: activate the faction power when its ore cost and cooldown are ready
+- F5: save the quick checkpoint; F9: restore it; F6: export a verified `.vowreplay` to `Saved/Replays`
 - Command-card buttons mirror the hotkeys and show unavailable tech or cooldown actions as disabled
 - Enter or Space: open the campaign from the main menu, then begin the prologue
 - Escape: cancel a pending command mode, or pause and return to the deployment screen
@@ -222,7 +225,9 @@ Record, inspect, or deterministically verify a portable ReplayV1 file with the n
 
 The verifier restores the embedded SnapshotV1 checkpoint, resubmits only recorded external inputs, regenerates
 fog-limited AI decisions and typed events, and rejects command, event, checkpoint, or final-state divergence.
-This is a headless engineering boundary; the Unreal save-game and player-facing replay adapters remain future work.
+Unreal stores the same SnapshotV1 bytes inside its quick-save adapter and refuses incompatible or corrupt saves.
+Its F6 export records player submissions, regenerates AI and events during verification, and writes the ReplayV1
+file only after that verification passes. Named checkpoint browsing and replay playback remain future UI work.
 
 ## Archived web prototype
 

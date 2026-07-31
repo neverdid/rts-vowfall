@@ -457,6 +457,11 @@ void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
                                                            : *FString::Printf(TEXT("%.0fs"), Player.PowerCooldownSeconds));
     DrawText(ResearchLine, DimBone, GridMin.X, GridMin.Y - 19.0f,
              GEngine->GetSmallFont(), 0.62f, false);
+    const FString PersistenceLine = Simulation.HasCheckpoint()
+                                        ? TEXT("F5 CHECKPOINT  //  F9 RESTORE READY  //  F6 EXPORT REPLAY")
+                                        : TEXT("F5 CHECKPOINT  //  F9 RESTORE EMPTY  //  F6 EXPORT REPLAY");
+    DrawText(PersistenceLine, DimBone, GridMin.X, GridMin.Y - 35.0f,
+             GEngine->GetSmallFont(), 0.58f, false);
 
     if (!Simulation.GetLastCommandMessage().IsEmpty())
     {

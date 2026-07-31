@@ -83,6 +83,9 @@ private:
     void DeploySkirmish();
     void DeployConfiguredMatch();
     void ToggleFrontEnd();
+    void QuickSaveCheckpoint();
+    void RestoreCheckpoint();
+    void ExportReplay();
     void HandleFrontEndClick();
     bool HandleCommandCardClick();
     void ExecuteCommandSlot(int32 Slot);
