@@ -17,6 +17,7 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/Content.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/CommanderAI.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/PlayerObservation.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/Replay.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/ResolveSystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Simulation.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/SimulationEvent.cpp
@@ -40,6 +41,9 @@ endif()
 
 add_executable(ashen_headless tools/headless_main.cpp)
 target_link_libraries(ashen_headless PRIVATE ashen_core)
+
+add_executable(ashen_replay tools/replay_main.cpp)
+target_link_libraries(ashen_replay PRIVATE ashen_core)
 
 add_library(ashen_benchmarks STATIC benchmark/SelfPlay.cpp)
 target_include_directories(ashen_benchmarks PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -96,6 +100,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_snapshot_tests PRIVATE ashen_core)
   add_test(NAME ashen_snapshot_tests COMMAND ashen_snapshot_tests)
 
+  add_executable(ashen_replay_tests tests/ReplayTests.cpp)
+  target_link_libraries(ashen_replay_tests PRIVATE ashen_core)
+  add_test(NAME ashen_replay_tests COMMAND ashen_replay_tests)
+
   add_executable(ashen_parity_runner tools/parity_runner.cpp)
   target_link_libraries(ashen_parity_runner PRIVATE ashen_core)
   add_test(NAME ashen_parity_catalog COMMAND ashen_parity_runner --catalog)
@@ -119,6 +127,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
       ashen_self_play_tests
       ashen_foundation_tests
       ashen_snapshot_tests
+      ashen_replay_tests
       ashen_parity_catalog
       ashen_self_play_fixed_suite
       PROPERTIES

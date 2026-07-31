@@ -78,7 +78,9 @@ queries, event order, and tie-breaking are explicit.
 - Full casualty persistence, supply graph, cohesion simulation, projectiles, facing,
   cover, charges, bracing, suppression, pursuit, or transformation gameplay.
 - A UMG/CommonUI HUD replacement.
-- Save/load, checkpoint restore, or a versioned replay file in this pass.
+- Player-facing save/load, checkpoint selection, replay playback, or Unreal save-game
+  integration in this pass; the portable SnapshotV1/ReplayV1 engineering boundary is
+  intentionally headless.
 - Multiplayer, matchmaking, networking expansion, seasonal systems, cosmetics,
   procedural campaign growth, machine-learning AI, or mod support.
 - The Mercy Engine, a morality meter, prophecy, chosen-one structure, secret bloodline,
@@ -98,7 +100,7 @@ queries, event order, and tie-breaking are explicit.
 | Vows | `StoryMissionDefinition::public_vow` text | Authoritative lifecycle, commands, events, save/replay contract |
 | AI | Fog-limited `PlayerObservation` and `CommanderAI` | Persistent strategic state derived only from observations |
 | Unreal | Fixed-step subsystem, actor proxies, Canvas HUD | Faction/content/event plumbing; later view models and UMG |
-| Replay | SnapshotV1 restore, command equality, and self-play checkpoints | Command/event replay container and verifier later |
+| Replay | SnapshotV1 restore plus ReplayV1 external-input recording and command/event/checkpoint verification | Unreal save-game and player-facing replay adapters later |
 
 ## Phase 1 acceptance criteria
 
