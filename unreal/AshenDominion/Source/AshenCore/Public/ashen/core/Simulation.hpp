@@ -15,6 +15,8 @@
 
 namespace ashen::core {
 
+class SnapshotCodec;
+
 class ASHENCORE_API Simulation final {
  public:
   explicit Simulation(const SimulationConfig& config = {});
@@ -74,6 +76,8 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] std::uint64_t state_hash() const noexcept;
 
  private:
+  friend class SnapshotCodec;
+
   [[nodiscard]] PlayerState& mutable_player(PlayerId id) noexcept;
   [[nodiscard]] Entity* find_entity_mutable(EntityId id) noexcept;
   [[nodiscard]] ResourceNode* find_resource_mutable(ResourceId id) noexcept;

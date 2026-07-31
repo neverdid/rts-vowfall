@@ -53,8 +53,11 @@ obstacles, starting factions, starting resources, and starting forces.
 
 The native parity runner can construct a scenario and serialize a JSON result. The
 self-play harness records command and AI traces plus periodic hashes and duplicates
-runs to detect nondeterminism. There is no authoritative snapshot loader, checkpoint
-restore, versioned save schema, or replay file.
+runs to detect nondeterminism. `SnapshotV1` is the portable authoritative checkpoint
+format: it round-trips simulation configuration, authoritative state, fog and AI
+memory, queued commands, audit traces, events, stable-ID cursors, and the event digest.
+Entity lookup and spatial cells are derived and rebuilt after load. There is not yet
+an Unreal save-game adapter, replay file, or migration from a prior snapshot schema.
 
 ## Current deterministic step order
 
@@ -233,24 +236,30 @@ risk is legacy pairwise unit separation.
 
 ## Save and replay implications
 
-Phase 1 changes the state-hash schema by adding explicit entity faction, resolve state,
+Phase 1 changed the state-hash schema by adding explicit entity faction, resolve state,
 Vows, AI strategic state, event sequence/digest, spatial configuration, and new command
-payloads. Equal new-build runs must remain equal; old hash values are not compatible.
+payloads. SnapshotV1 makes that compatibility boundary explicit.
 
-Before save/load ships, a snapshot header must include:
+The fixed, little-endian SnapshotV1 header contains:
 
-- schema version and compatible migration range;
-- content registry digest and definition versions;
-- simulation tick rate and deterministic pipeline version;
-- map/scenario ID and version;
-- match seed, player/faction/control configuration, and difficulty profiles;
-- next stable IDs and authoritative state;
-- command/event replay cursor and checkpoint state hash.
+- schema and minimum-reader versions;
+- digests of the complete built-in content registry, gameplay/AI catalog, and
+  deterministic pipeline contract, including ticks per second;
+- checkpoint tick and state hash;
+- bounded payload size and payload checksum.
 
-Replay records accepted and rejected commands with issue/application ticks and content
-version. Events are regenerated and compared by ID/type/digest; they are not accepted
-as authoritative input. Checkpoint restore must produce the same next event, AI
-strategic state, command trace, and state hash as uninterrupted play.
+The protected payload carries map/scenario identity, match seed,
+player/faction/control configuration, difficulty profiles, next stable IDs, all
+authoritative state, and the complete command, AI-decision, and event audit histories.
+Loads reject incompatible versions, content, or pipeline definitions and malformed,
+oversized, truncated, trailing, or checksum-invalid data. V1 has no implicit
+best-effort migration.
+
+A restored live AI match is tested to produce the same subsequent commands, events,
+AI state, final hash, and SnapshotV1 bytes as uninterrupted play. A future replay file
+will record accepted and rejected commands with issue/application ticks and content
+version. Replay verification will regenerate events and compare their IDs, types, and
+digest rather than accepting events as authoritative input.
 
 ## Unreal integration boundary
 

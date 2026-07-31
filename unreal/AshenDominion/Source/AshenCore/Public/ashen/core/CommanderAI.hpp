@@ -10,6 +10,8 @@
 
 namespace ashen::core {
 
+class SnapshotCodec;
+
 // CommanderAI deliberately has no Simulation dependency. Its only input is a sanitized observation and
 // its only output is the same Command value a human player submits.
 class ASHENCORE_API CommanderAI final {
@@ -33,6 +35,8 @@ class ASHENCORE_API CommanderAI final {
   [[nodiscard]] std::uint64_t state_hash() const noexcept;
 
  private:
+  friend class SnapshotCodec;
+
   PlayerId player_{PlayerId::One};
   AIDifficulty difficulty_{AIDifficulty::Competitive};
   AIStrategyState strategy_state_{};
