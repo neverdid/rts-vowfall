@@ -214,8 +214,8 @@ void Simulation::reset(const SimulationConfig& config) {
   static_cast<void>(add_control_point({config.map_size.x / 2, world(1'020, 0).x}));
 }
 
-void Simulation::enqueue(Command command) {
-  static_cast<void>(enqueue_with_context(std::move(command), CommandSource::External, 0));
+std::uint64_t Simulation::enqueue(Command command) {
+  return enqueue_with_context(std::move(command), CommandSource::External, 0);
 }
 
 std::uint64_t Simulation::enqueue_with_context(Command command, const CommandSource source,
@@ -243,6 +243,8 @@ CommandResult Simulation::execute_now(Command command) {
   command.execute_tick = tick_;
   if (command.sequence == 0) {
     command.sequence = next_sequence_++;
+  } else {
+    next_sequence_ = std::max(next_sequence_, command.sequence + 1);
   }
   const auto result = apply_command(command);
   command_trace_.push_back(CommandTraceEntry{tick_, tick_, CommandSource::External, 0, 0,

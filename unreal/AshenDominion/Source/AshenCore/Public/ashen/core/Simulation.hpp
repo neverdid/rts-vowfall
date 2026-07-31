@@ -22,7 +22,7 @@ class ASHENCORE_API Simulation final {
   explicit Simulation(const SimulationConfig& config = {});
 
   void reset(const SimulationConfig& config = {});
-  void enqueue(Command command);
+  std::uint64_t enqueue(Command command);
   [[nodiscard]] CommandResult execute_now(Command command);
   void step();
   void run(Tick ticks);

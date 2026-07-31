@@ -20,7 +20,8 @@ The repository now has two active production layers and one archived prototype:
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
   Unreal compile these exact same sources, so gameplay rules do not fork between clients. The canonical
   13-mission campaign catalog and selected story mission are authoritative C++ state as well. Its
-  versioned SnapshotV1 API can checkpoint and deterministically restore the portable simulation.
+  versioned SnapshotV1 API can checkpoint and deterministically restore the portable simulation, while
+  ReplayV1 records external inputs and verifies regenerated commands, events, checkpoints, and final state.
 - `src/` is the frozen TypeScript/Three.js prototype retained for design provenance. It is not an active
   client, gameplay authority, parity target, or CI requirement. New gameplay, AI, presentation, and
   testing work belongs in Unreal and `AshenCore`.
@@ -31,9 +32,9 @@ is not destabilized by a cosmetic path change.
 
 The Unreal competitive vertical slice and Story-mode foundation are playable, but neither is being presented as
 a finished game. The menu exposes the full campaign spine and launches **The Bridge of Names** with its own
-briefing, objective, public vow, and deterministic Story identity. Scripted reversals, dialogue, checkpoints,
-player-facing save/load, replay files, cinematics, production terrain and characters, matchmaking, and
-authoritative online PvP remain later milestones.
+briefing, objective, public vow, and deterministic Story identity. Scripted reversals, dialogue, player-facing
+checkpoint/save/load and replay UI, cinematics, production terrain and characters, matchmaking, and authoritative
+online PvP remain later milestones.
 
 ## Unreal client
 
@@ -210,6 +211,18 @@ Run the threshold-free simulation performance probe after building to emit repea
 The probe reports simulation-step, navigation, AI, deterministic spatial-query, visibility, and state-hash
 timings plus an approximate capacity-based memory footprint. It is a developer comparison tool, not a
 machine-specific correctness test.
+
+Record, inspect, or deterministically verify a portable ReplayV1 file with the native replay tool:
+
+```powershell
+.\build\native\native\Debug\ashen_replay.exe record work\match.vowreplay 2400 42
+.\build\native\native\Debug\ashen_replay.exe inspect work\match.vowreplay
+.\build\native\native\Debug\ashen_replay.exe verify work\match.vowreplay
+```
+
+The verifier restores the embedded SnapshotV1 checkpoint, resubmits only recorded external inputs, regenerates
+fog-limited AI decisions and typed events, and rejects command, event, checkpoint, or final-state divergence.
+This is a headless engineering boundary; the Unreal save-game and player-facing replay adapters remain future work.
 
 ## Archived web prototype
 

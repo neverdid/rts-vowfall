@@ -56,8 +56,10 @@ self-play harness records command and AI traces plus periodic hashes and duplica
 runs to detect nondeterminism. `SnapshotV1` is the portable authoritative checkpoint
 format: it round-trips simulation configuration, authoritative state, fog and AI
 memory, queued commands, audit traces, events, stable-ID cursors, and the event digest.
-Entity lookup and spatial cells are derived and rebuilt after load. There is not yet
-an Unreal save-game adapter, replay file, or migration from a prior snapshot schema.
+Entity lookup and spatial cells are derived and rebuilt after load. `ReplayV1` embeds
+that checkpoint, records subsequent external submissions, and verifies regenerated
+AI commands, events, checkpoints, and final state. There is not yet an Unreal
+save-game adapter, player-facing replay flow, or migration from a prior schema.
 
 ## Current deterministic step order
 
@@ -256,10 +258,28 @@ oversized, truncated, trailing, or checksum-invalid data. V1 has no implicit
 best-effort migration.
 
 A restored live AI match is tested to produce the same subsequent commands, events,
-AI state, final hash, and SnapshotV1 bytes as uninterrupted play. A future replay file
-will record accepted and rejected commands with issue/application ticks and content
-version. Replay verification will regenerate events and compare their IDs, types, and
-digest rather than accepting events as authoritative input.
+AI state, final hash, and SnapshotV1 bytes as uninterrupted play.
+
+ReplayV1 is a separate bounded, checksummed little-endian container. Its header repeats
+the schema, content, and deterministic-pipeline compatibility boundary and identifies
+the initial/final ticks and state hashes. Its payload contains:
+
+- the exact initial SnapshotV1 checkpoint;
+- every subsequent external submission with explicit immediate/queued mode, issue and
+  application ticks, sequence, accepted/rejected/pending outcome, and validation code;
+- expected command audit records, including regenerated AI provenance;
+- event evidence as stable event ID, tick, type, and full event hash, never as
+  authoritative state-changing input;
+- checkpoint state hash, command/event counts, event digest, and an external-input
+  cursor that makes same-tick checkpoint placement unambiguous.
+
+Verification restores the checkpoint, resubmits only external inputs at their recorded
+boundaries, lets the normal fog-limited commander regenerate AI work, and compares each
+checkpoint followed by the complete command and event audit suffix and final state.
+`ashen_replay record|inspect|verify` provides the native inspection boundary. ReplayV1
+rejects incompatible definitions and malformed, oversized, truncated, trailing, or
+checksum-invalid data. V1 has no best-effort migration; schema migration and the
+Unreal/player-facing adapters remain explicit follow-up work.
 
 ## Unreal integration boundary
 

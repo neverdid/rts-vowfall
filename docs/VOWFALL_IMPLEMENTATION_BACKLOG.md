@@ -123,18 +123,21 @@ repository modules, not a promise that every listed module changes in one patch.
 
 - **Status:** In progress.
 - **Goal:** Save and restore all authoritative state and verify replay events/hashes.
-- **Complete:** Portable little-endian SnapshotV1, schema/content/pipeline
-  compatibility checks, bounded/checksummed loads, exact checkpoint restore, derived
-  index rebuild, and deterministic AI continuation tests.
-- **Remaining:** Replay container/verifier, explicit future-version migrations,
-  native inspection tooling, and the Unreal save-game adapter.
+- **Complete:** Portable little-endian SnapshotV1 and ReplayV1 containers,
+  schema/content/pipeline compatibility checks, bounded/checksummed loads, exact
+  checkpoint restore, derived index rebuild, external-input recording, regenerated
+  AI/command/event verification, checkpoint hashes, deterministic continuation tests,
+  and a native record/inspect/verify tool.
+- **Remaining:** Explicit future-version migrations, the Unreal save-game adapter,
+  and player-facing checkpoint/replay flows.
 - **Files:** new `Snapshot.*`, `Replay.*`, `Simulation.*`, native tools, Unreal save
   adapter.
 - **Dependencies:** All Now state schemas and stable content digest.
 - **Acceptance:** Restore at a checkpoint produces the same next commands, events,
   AI state, and final hash as uninterrupted play; compatible migrations are explicit.
 - **Tests:** Round trip, corrupted version/content/pipeline/payload, checkpoint
-  continuation (complete); replay verification (remaining).
+  continuation, accepted/rejected/delayed/pending inputs, AI regeneration, and
+  command/event/checkpoint replay divergence (complete).
 - **Risk:** Critical.
 
 ### X2 — Scenario/objective system
