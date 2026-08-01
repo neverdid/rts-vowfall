@@ -207,9 +207,10 @@ bool FAshenCampaignCatalogInUnrealTest::RunTest(const FString &Parameters)
         StoryMatch.primary_mission_objective();
     TestTrue(TEXT("The playable mission exposes a core-owned primary objective"),
              Objective.has_value() &&
-                 Objective->content_id == content_id::BridgeObjective &&
+                 Objective->content_id == content_id::BridgeApproachesObjective &&
                  Objective->status == MissionObjectiveStatus::Active &&
-                 Objective->target_tick == 60 * kTicksPerSecond);
+                 Objective->stage_index == 1 && Objective->stage_count == 2 &&
+                 Objective->target_tick == 0);
     return true;
 }
 

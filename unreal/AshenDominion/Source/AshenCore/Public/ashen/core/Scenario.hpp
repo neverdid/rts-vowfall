@@ -15,7 +15,8 @@ enum class MissionObjectiveTrigger : std::uint8_t {
   None,
   PlayerOneCommandDestroyed,
   PlayerTwoCommandDestroyed,
-  TickReached,
+  PlayerOneControlsAllObjectives,
+  ElapsedTicks,
 };
 
 struct MissionObjectiveCondition {
@@ -29,6 +30,8 @@ struct MissionObjectiveDefinition {
   StableContentId content_id{};
   std::string_view label{};
   bool primary{};
+  bool required{true};
+  std::optional<StableContentId> prerequisite{};
   MissionObjectiveCondition success{};
   MissionObjectiveCondition failure{};
 };
@@ -49,6 +52,10 @@ enum class ScenarioValidationError : std::uint8_t {
   DuplicateObjective,
   MissingObjectiveContent,
   MissingObjectiveLabel,
+  MissingObjectivePrerequisite,
+  CyclicObjectivePrerequisite,
+  OptionalPrimaryObjective,
+  RequiredObjectiveDependsOnOptional,
   InvalidObjectiveCondition,
 };
 

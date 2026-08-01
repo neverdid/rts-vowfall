@@ -1916,8 +1916,10 @@ class SnapshotCodec final {
         !reader.integral(simulation->event_digest_)) {
       return nullptr;
     }
-    simulation->objective_system_.rebuild(simulation->status_,
-                                          simulation->winner_);
+    if (!simulation->objective_system_.rebuild(simulation->events_)) {
+      reader.fail(SnapshotError::InvalidData);
+      return nullptr;
+    }
     if (!validate(*simulation)) {
       reader.fail(SnapshotError::InvalidData);
       return nullptr;
@@ -2209,7 +2211,11 @@ class SnapshotCodec final {
         simulation.control_point_memory_[0].size() !=
             simulation.control_points_.size() ||
         simulation.control_point_memory_[1].size() !=
-            simulation.control_points_.size()) {
+            simulation.control_points_.size() ||
+        !simulation.objective_system_.event_projection_matches(
+            simulation.config_, simulation.events_) ||
+        !simulation.objective_system_.outcome_matches(
+            simulation.config_.mode, simulation.status_, simulation.winner_)) {
       return false;
     }
     if (!stable_ids(

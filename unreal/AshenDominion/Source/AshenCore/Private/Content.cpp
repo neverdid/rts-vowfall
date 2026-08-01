@@ -411,6 +411,11 @@ const ContentRegistry& builtin_content() noexcept {
                   "vowfall.objective.skirmish_victory"),
          std::nullopt,
          0},
+        {metadata(content_id::BridgeApproachesObjective, "bridge_approaches",
+                  "objective.bridge_approaches",
+                  "vowfall.objective.bridge_approaches"),
+         kBridgeOpenVow,
+         0},
     };
     return result;
   }();
