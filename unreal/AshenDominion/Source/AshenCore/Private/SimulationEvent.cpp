@@ -124,6 +124,11 @@ std::uint64_t simulation_event_hash(const SimulationEvent& event) noexcept {
           hash_integral(hash, payload.ability);
           hash_entity(hash, payload.source);
           hash_entity(hash, payload.interrupter);
+        } else if constexpr (
+            std::is_same_v<Payload, MissionObjectiveChangedEvent>) {
+          hash_integral(hash, payload.objective);
+          hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.current));
         }
       },
       event.payload);

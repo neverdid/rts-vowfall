@@ -16,7 +16,9 @@ tie-breaking.
 - player economy, supply, research, construction, and production;
 - A* navigation, movement, formation slot assignment, and unit separation;
 - instant-hit unit and defensive combat;
-- Dread Tide, scalar resolve, control points, fog, observation memory, and victory;
+- Dread Tide, scalar resolve, control points, fog, observation memory, and mission
+  outcomes;
+- validated scenario definitions and deterministic mission-objective state/events;
 - `CommanderAI` scheduling and AI decision traces;
 - state hashing.
 
@@ -48,8 +50,13 @@ slot-based; faction appearance may not.
 ### Data, scenarios, save, and replay
 
 Gameplay definitions are compiled switches in `Catalog.cpp`; campaign definitions are
-a static array in `Campaign.cpp`. `SimulationConfig` embeds the skirmish map size,
-obstacles, starting factions, starting resources, and starting forces.
+a static array in `Campaign.cpp`. `Scenario.cpp` now owns validated stable-ID runtime
+objective definitions for skirmish, PvP, and the playable Bridge of Names mission.
+`ObjectiveSystem` evaluates their success/failure triggers headlessly and emits typed
+transitions; Unreal reads the resulting core view instead of constructing objective
+text from HUD state. `SimulationConfig` still selects the scenario and embeds the
+skirmish map size, obstacles, starting factions, starting resources, and starting
+forces.
 
 The native parity runner can construct a scenario and serialize a JSON result. The
 self-play harness records command and AI traces plus periodic hashes and duplicates
@@ -63,6 +70,13 @@ checkpoint browser, replay playback flow, or migration from a prior schema. The
 current Unreal adapter wraps SnapshotV1 in `USaveGame`, atomically swaps only a
 validated restore, records player submissions, and exports ReplayV1 only after
 in-memory verification succeeds.
+
+Mission-objective runtime status is also a deterministic derived projection: the
+scenario definition plus the authoritative match outcome reconstruct it after a
+SnapshotV1 load. Scenario definitions participate in the content digest, so a save
+from an older scenario revision is rejected as incompatible content rather than read
+under changed objective rules. Multi-stage objectives will require an explicit later
+snapshot schema because intermediate branch state is not generally derivable.
 
 ## Current deterministic step order
 
@@ -81,7 +95,8 @@ The observable Phase 0 order in `Simulation::step()` is:
 10. Resolve defensive-building attacks.
 11. Remove dead entities and adjust supply.
 12. Refresh visibility.
-13. Evaluate victory.
+13. Evaluate scenario objectives and mission outcome (or legacy victory for an
+    unsupported scenario).
 14. Increment the tick.
 15. Refresh observation memory.
 16. Ask enabled commanders to plan and queue ordinary commands.

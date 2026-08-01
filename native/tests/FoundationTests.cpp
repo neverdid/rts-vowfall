@@ -150,6 +150,13 @@ void content_validation_rejects_invalid_definitions() {
   }
   {
     auto registry = builtin_content();
+    registry.objectives.front().capture_radius = -1;
+    CHECK(has_error(
+        validate_content(registry),
+        ContentValidationError::InvalidDeterministicValue));
+  }
+  {
+    auto registry = builtin_content();
     registry.research[0].prerequisite = ResearchId::TemperedOaths;
     registry.research[1].prerequisite = ResearchId::TierTwo;
     CHECK(has_error(

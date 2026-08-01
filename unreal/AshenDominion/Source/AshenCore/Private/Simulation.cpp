@@ -181,6 +181,7 @@ void Simulation::reset(const SimulationConfig& config) {
   next_ai_decision_id_ = 1;
   next_event_id_ = 1;
   event_digest_ = kFnvOffset;
+  objective_system_.reset(config_);
 
   if (!config.seed_starting_forces) {
     return;
@@ -1806,14 +1807,33 @@ void Simulation::remove_dead_entities() {
 }
 
 void Simulation::update_match_status() {
-  if (!command_seen_[0] || !command_seen_[1]) {
-    return;
-  }
   std::array<bool, 2> command_alive{};
   for (const auto& entity : entities_) {
     if (entity.type == EntityType::Command && entity.alive()) {
       command_alive[player_index(entity.owner)] = true;
     }
+  }
+  if (objective_system_.has_scenario()) {
+    for (const auto& transition : objective_system_.evaluate(
+             MissionObjectiveContext{tick_ + 1, command_seen_, command_alive})) {
+      emit_event(MissionObjectiveChangedEvent{
+          transition.content_id, transition.previous, transition.current});
+      if (!transition.primary) {
+        continue;
+      }
+      if (transition.current == MissionObjectiveStatus::Succeeded) {
+        status_ = MatchStatus::Won;
+        winner_ = PlayerId::One;
+      } else if (transition.current == MissionObjectiveStatus::Failed) {
+        status_ = config_.mode == MatchMode::Story ? MatchStatus::Lost
+                                                  : MatchStatus::Won;
+        winner_ = PlayerId::Two;
+      }
+    }
+    return;
+  }
+  if (!command_seen_[0] || !command_seen_[1]) {
+    return;
   }
   if (command_alive[0] == command_alive[1]) {
     return;
@@ -2374,6 +2394,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_integral(hash, next_event_id_);
   hash_integral(hash, event_digest_);
   hash_integral(hash, ruin_tide_);
+  hash_integral(hash, objective_system_.state_hash());
   for (const auto seen : command_seen_) {
     hash_integral(hash, seen);
   }

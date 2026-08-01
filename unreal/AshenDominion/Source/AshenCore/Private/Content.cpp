@@ -406,6 +406,11 @@ const ContentRegistry& builtin_content() noexcept {
                   "objective.bridge_open", "vowfall.objective.bridge_open"),
          kBridgeOpenVow,
          120'000},
+        {metadata(content_id::SkirmishVictoryObjective, "skirmish_victory",
+                  "objective.skirmish_victory",
+                  "vowfall.objective.skirmish_victory"),
+         std::nullopt,
+         0},
     };
     return result;
   }();
@@ -649,7 +654,7 @@ std::vector<ContentValidationIssue> validate_content(
                         definition.metadata.stable_id,
                         definition.related_vow->value});
     }
-    if (definition.capture_radius <= 0) {
+    if (definition.capture_radius < 0) {
       issues.push_back({ContentValidationError::InvalidDeterministicValue,
                         definition.metadata.stable_id, 0});
     }

@@ -86,6 +86,7 @@ enum class EAshenSimulationEventType : uint8
     ProjectileLaunched,
     AbilityStarted,
     AbilityInterrupted,
+    MissionObjectiveChanged,
 };
 
 USTRUCT(BlueprintType)

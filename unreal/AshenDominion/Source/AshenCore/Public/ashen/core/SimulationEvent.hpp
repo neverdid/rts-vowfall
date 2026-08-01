@@ -35,6 +35,14 @@ enum class SimulationEventType : std::uint8_t {
   ProjectileLaunched,
   AbilityStarted,
   AbilityInterrupted,
+  MissionObjectiveChanged,
+};
+
+enum class MissionObjectiveStatus : std::uint8_t {
+  Inactive,
+  Active,
+  Succeeded,
+  Failed,
 };
 
 struct EntitySpawnedEvent {
@@ -211,6 +219,14 @@ struct AbilityInterruptedEvent {
   auto operator<=>(const AbilityInterruptedEvent&) const = default;
 };
 
+struct MissionObjectiveChangedEvent {
+  StableContentId objective{};
+  MissionObjectiveStatus previous{MissionObjectiveStatus::Inactive};
+  MissionObjectiveStatus current{MissionObjectiveStatus::Inactive};
+
+  auto operator<=>(const MissionObjectiveChangedEvent&) const = default;
+};
+
 using SimulationEventPayload =
     std::variant<EntitySpawnedEvent, EntityDestroyedEvent, UnitDamagedEvent,
                  UnitWoundedEvent, UnitKilledEvent, UnitRecoveredEvent,
@@ -221,7 +237,7 @@ using SimulationEventPayload =
                  TransformationCompletedEvent, TestimonyDiscoveredEvent,
                  ObjectiveContestedEvent, ObjectiveCapturedEvent,
                  ProjectileLaunchedEvent, AbilityStartedEvent,
-                 AbilityInterruptedEvent>;
+                 AbilityInterruptedEvent, MissionObjectiveChangedEvent>;
 
 struct SimulationEvent {
   EventId id{};

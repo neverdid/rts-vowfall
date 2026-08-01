@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAshenCoreBootsInUnrealTest, "Ashen.Core.BootsInUnreal",
@@ -200,6 +201,15 @@ bool FAshenCampaignCatalogInUnrealTest::RunTest(const FString &Parameters)
     TestEqual(TEXT("Unreal preserves the selected story mission"),
               static_cast<uint8>(StoryMatch.config().story_mission),
               static_cast<uint8>(StoryMissionId::BridgeOfNames));
+    TestTrue(TEXT("The authoritative scenario catalog validates in Unreal"),
+             validate_scenarios(builtin_scenarios(), builtin_content()).empty());
+    const std::optional<MissionObjectiveView> Objective =
+        StoryMatch.primary_mission_objective();
+    TestTrue(TEXT("The playable mission exposes a core-owned primary objective"),
+             Objective.has_value() &&
+                 Objective->content_id == content_id::BridgeObjective &&
+                 Objective->status == MissionObjectiveStatus::Active &&
+                 Objective->target_tick == 60 * kTicksPerSecond);
     return true;
 }
 

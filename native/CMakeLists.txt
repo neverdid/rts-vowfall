@@ -16,11 +16,13 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/Catalog.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Content.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/CommanderAI.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/ObjectiveSystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/PlayerObservation.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Replay.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/ResolveSystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Simulation.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/SimulationEvent.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/Scenario.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Snapshot.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/SpatialGrid.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/VisibilityGrid.cpp
@@ -104,6 +106,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_replay_tests PRIVATE ashen_core)
   add_test(NAME ashen_replay_tests COMMAND ashen_replay_tests)
 
+  add_executable(ashen_scenario_tests tests/ScenarioTests.cpp)
+  target_link_libraries(ashen_scenario_tests PRIVATE ashen_core)
+  add_test(NAME ashen_scenario_tests COMMAND ashen_scenario_tests)
+
   add_executable(ashen_parity_runner tools/parity_runner.cpp)
   target_link_libraries(ashen_parity_runner PRIVATE ashen_core)
   add_test(NAME ashen_parity_catalog COMMAND ashen_parity_runner --catalog)
@@ -128,6 +134,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
       ashen_foundation_tests
       ashen_snapshot_tests
       ashen_replay_tests
+      ashen_scenario_tests
       ashen_parity_catalog
       ashen_self_play_fixed_suite
       PROPERTIES
