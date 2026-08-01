@@ -1814,21 +1814,30 @@ void Simulation::update_match_status() {
     }
   }
   if (objective_system_.has_scenario()) {
-    for (const auto& transition : objective_system_.evaluate(
-             MissionObjectiveContext{tick_ + 1, command_seen_, command_alive})) {
+    const auto player_one_controlled_objectives =
+        static_cast<std::size_t>(std::ranges::count_if(
+            control_points_, [](const ControlPoint& objective) {
+              return objective.owner == PlayerId::One;
+            }));
+    auto required_failed = false;
+    const auto transitions = objective_system_.evaluate(
+        MissionObjectiveContext{tick_ + 1, command_seen_, command_alive,
+                                control_points_.size(),
+                                player_one_controlled_objectives});
+    for (const auto& transition : transitions) {
       emit_event(MissionObjectiveChangedEvent{
           transition.content_id, transition.previous, transition.current});
-      if (!transition.primary) {
-        continue;
-      }
-      if (transition.current == MissionObjectiveStatus::Succeeded) {
-        status_ = MatchStatus::Won;
-        winner_ = PlayerId::One;
-      } else if (transition.current == MissionObjectiveStatus::Failed) {
-        status_ = config_.mode == MatchMode::Story ? MatchStatus::Lost
-                                                  : MatchStatus::Won;
-        winner_ = PlayerId::Two;
-      }
+      required_failed = required_failed ||
+                        (transition.required &&
+                         transition.current == MissionObjectiveStatus::Failed);
+    }
+    if (required_failed) {
+      status_ = config_.mode == MatchMode::Story ? MatchStatus::Lost
+                                                : MatchStatus::Won;
+      winner_ = PlayerId::Two;
+    } else if (objective_system_.all_required_succeeded()) {
+      status_ = MatchStatus::Won;
+      winner_ = PlayerId::One;
     }
     return;
   }

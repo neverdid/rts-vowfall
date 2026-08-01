@@ -947,7 +947,12 @@ FString UAshenSimulationSubsystem::GetObjectiveText() const
     {
         return {};
     }
-    const FString Label = CoreText(Objective->label);
+    const FString ObjectiveLabel = CoreText(Objective->label);
+    const FString Label = Objective->stage_count > 1
+        ? FString::Printf(TEXT("STAGE %u/%u  //  %s"),
+                          Objective->stage_index, Objective->stage_count,
+                          *ObjectiveLabel)
+        : ObjectiveLabel;
     switch (Objective->status)
     {
     case ashen::core::MissionObjectiveStatus::Active:

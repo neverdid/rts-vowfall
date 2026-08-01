@@ -33,6 +33,7 @@ inline constexpr StableContentId NorthRelicObjective = 12'001;
 inline constexpr StableContentId SouthRelicObjective = 12'002;
 inline constexpr StableContentId BridgeObjective = 12'003;
 inline constexpr StableContentId SkirmishVictoryObjective = 12'004;
+inline constexpr StableContentId BridgeApproachesObjective = 12'005;
 }  // namespace content_id
 
 inline constexpr VowId kBridgeOpenVow{content_id::BridgeOpenVow};

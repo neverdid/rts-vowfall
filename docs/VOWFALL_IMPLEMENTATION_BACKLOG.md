@@ -149,13 +149,14 @@ repository modules, not a promise that every listed module changes in one patch.
   validated authoritative scenario data.
 - **Complete:** Validated stable-ID scenario catalog for skirmish, PvP, and the
   playable Bridge of Names mission; deterministic active/succeeded/failed objective
-  state; typed objective-transition events; objective-driven mission outcomes;
-  state-hash coverage; SnapshotV1 derived-state restore guarded by the scenario
-  content digest; core-owned Unreal HUD presentation; and native success, failure,
+  state; validated prerequisite graphs and required/optional semantics; ordered
+  resolve-then-activate transitions; a two-stage Bridge flow that secures both
+  approaches before holding the crossing; objective-driven mission outcomes;
+  state-hash coverage; event-projected SnapshotV1 restore guarded by the scenario
+  content digest; stage-aware Unreal HUD presentation; and native success, failure,
   event, soft-lock, and checkpoint-continuation fixtures.
-- **Remaining:** Multi-stage and optional objectives, authored triggers for the
-  twelve later campaign missions, refugee-column/bridge-world scripting, and richer
-  objective progress views.
+- **Remaining:** Authored optional objectives, triggers for the twelve later campaign
+  missions, refugee-column/bridge-world actors, and richer non-time progress views.
 - **Files:** new `Scenario.*`, `ObjectiveSystem.*`, `Campaign.*`, bridge mission data.
 - **Dependencies:** Content, events, snapshot.
 - **Acceptance:** Objective changes are headless, event-driven, saveable, and cannot

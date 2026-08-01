@@ -52,11 +52,17 @@ slot-based; faction appearance may not.
 Gameplay definitions are compiled switches in `Catalog.cpp`; campaign definitions are
 a static array in `Campaign.cpp`. `Scenario.cpp` now owns validated stable-ID runtime
 objective definitions for skirmish, PvP, and the playable Bridge of Names mission.
-`ObjectiveSystem` evaluates their success/failure triggers headlessly and emits typed
-transitions; Unreal reads the resulting core view instead of constructing objective
-text from HUD state. `SimulationConfig` still selects the scenario and embeds the
-skirmish map size, obstacles, starting factions, starting resources, and starting
-forces.
+Definitions can form a validated acyclic prerequisite graph and distinguish required,
+optional, and final-primary objectives. `ObjectiveSystem` evaluates their
+success/failure triggers headlessly, resolves active stages in definition order, then
+activates newly unblocked stages in a second definition-order pass. Bridge currently
+requires Player One to secure every map control point before its timed crossing hold
+begins. Required objectives may not depend on optional ones; any required failure
+takes precedence, and victory requires every required objective to succeed. Unreal
+reads the resulting stage-aware core view instead of constructing
+objective text from HUD state. `SimulationConfig` still selects the scenario and
+embeds the skirmish map size, obstacles, starting factions, starting resources, and
+starting forces.
 
 The native parity runner can construct a scenario and serialize a JSON result. The
 self-play harness records command and AI traces plus periodic hashes and duplicates
@@ -71,12 +77,16 @@ current Unreal adapter wraps SnapshotV1 in `USaveGame`, atomically swaps only a
 validated restore, records player submissions, and exports ReplayV1 only after
 in-memory verification succeeds.
 
-Mission-objective runtime status is also a deterministic derived projection: the
-scenario definition plus the authoritative match outcome reconstruct it after a
-SnapshotV1 load. Scenario definitions participate in the content digest, so a save
-from an older scenario revision is rejected as incompatible content rather than read
-under changed objective rules. Multi-stage objectives will require an explicit later
-snapshot schema because intermediate branch state is not generally derivable.
+Mission-objective runtime status and activation-relative deadlines are deterministic
+derived projections of the scenario definition and the persisted ordered
+`MissionObjectiveChanged` history. SnapshotV1 rebuilds that projection and rejects a
+payload when its events do not reproduce the live objective state. The transition
+event is stamped with the pre-increment simulation tick, so its authoritative state
+transition tick is `event.tick + 1`. Scenario definitions participate in the content
+digest, so a save from an older scenario revision is rejected as incompatible content
+rather than read under changed objective rules. A later bounded event history or
+objective progress that changes without a transition will require explicit snapshot
+fields and a new schema.
 
 ## Current deterministic step order
 
