@@ -75,8 +75,10 @@ queries, event order, and tie-breaking are explicit.
   voice, music, or accessibility pass.
 - The complete Compact or Ascendancy roster and final balance.
 - The Elder Concord implementation.
-- Full casualty persistence, supply graph, cohesion simulation, projectiles, facing,
-  cover, charges, bracing, suppression, pursuit, or transformation gameplay.
+- Full casualty persistence, the complete road/cart/hospital/bridge supply network,
+  cohesion simulation, projectiles, facing, cover, charges, bracing, suppression,
+  pursuit, or transformation gameplay. The first Compact structure-node graph and
+  reinforcement consumer are implemented headlessly.
 - A UMG/CommonUI HUD replacement.
 - Named checkpoint selection or replay playback in this pass. Unreal now provides a
   SnapshotV1 quick checkpoint/restore path and verified ReplayV1 export, while a

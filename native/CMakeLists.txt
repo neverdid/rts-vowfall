@@ -25,6 +25,7 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/Scenario.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Snapshot.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/SpatialGrid.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/SupplySystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/VisibilityGrid.cpp
 )
 
@@ -110,6 +111,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_scenario_tests PRIVATE ashen_core)
   add_test(NAME ashen_scenario_tests COMMAND ashen_scenario_tests)
 
+  add_executable(ashen_supply_tests tests/SupplyTests.cpp)
+  target_link_libraries(ashen_supply_tests PRIVATE ashen_core)
+  add_test(NAME ashen_supply_tests COMMAND ashen_supply_tests)
+
   add_executable(ashen_parity_runner tools/parity_runner.cpp)
   target_link_libraries(ashen_parity_runner PRIVATE ashen_core)
   add_test(NAME ashen_parity_catalog COMMAND ashen_parity_runner --catalog)
@@ -135,6 +140,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
       ashen_snapshot_tests
       ashen_replay_tests
       ashen_scenario_tests
+      ashen_supply_tests
       ashen_parity_catalog
       ashen_self_play_fixed_suite
       PROPERTIES

@@ -13,7 +13,8 @@ tie-breaking.
 `Simulation` currently owns:
 
 - command queue ordering, validation, application, and trace provenance;
-- player economy, supply, research, construction, and production;
+- player economy, population cap, research, construction, production, and the first
+  physical Compact Road Ledger allocation;
 - A* navigation, movement, formation slot assignment, and unit separation;
 - instant-hit unit and defensive combat;
 - Dread Tide, scalar resolve, control points, fog, observation memory, and mission
@@ -64,6 +65,14 @@ objective text from HUD state. `SimulationConfig` still selects the scenario and
 embeds the skirmish map size, obstacles, starting factions, starting resources, and
 starting forces.
 
+Compact supply profiles are stable content definitions independent of the generic
+population cap. A command keep is a bounded source, an assembly hall is a consuming
+relay, and a signal bastion is a terminal consumer. `SupplySystem` derives physical
+links through the stable spatial grid, allocates each source independently, and only
+expands relays that actually received capacity. Compact Train capabilities and queued
+production consume the resulting connection state; other factions retain their
+current faction rules.
+
 The native parity runner can construct a scenario and serialize a JSON result. The
 self-play harness records command and AI traces plus periodic hashes and duplicates
 runs to detect nondeterminism. `SnapshotV1` is the portable authoritative checkpoint
@@ -88,6 +97,13 @@ rather than read under changed objective rules. A later bounded event history or
 objective progress that changes without a transition will require explicit snapshot
 fields and a new schema.
 
+Road Ledger node/path state is also derived, but from current entities, stable content,
+and integer positions rather than event history. SnapshotV1 silently rebuilds it after
+the entity vector and spatial grid are restored, validates that live checkpoints match
+the same derivation before writing, and includes the resulting state in the simulation
+hash. This prevents a restore from emitting duplicate connection events while keeping
+the existing payload layout. Supply events remain audit evidence of threshold changes.
+
 ## Current deterministic step order
 
 The observable Phase 0 order in `Simulation::step()` is:
@@ -103,13 +119,15 @@ The observable Phase 0 order in `Simulation::step()` is:
    attacks; then run separation.
 9. Acquire idle-unit targets.
 10. Resolve defensive-building attacks.
-11. Remove dead entities and adjust supply.
-12. Refresh visibility.
-13. Evaluate scenario objectives and mission outcome (or legacy victory for an
+11. Remove dead entities and adjust the legacy population cap.
+12. Rebuild the spatial grid, allocate the Compact Road Ledger, and emit stable-ID
+    connection transitions.
+13. Refresh visibility.
+14. Evaluate scenario objectives and mission outcome (or legacy victory for an
     unsupported scenario).
-14. Increment the tick.
-15. Refresh observation memory.
-16. Ask enabled commanders to plan and queue ordinary commands.
+15. Increment the tick.
+16. Refresh observation memory.
+17. Ask enabled commanders to plan and queue ordinary commands.
 
 This order is authoritative legacy behavior. It is intentionally documented before
 being changed.
@@ -121,23 +139,24 @@ The target simulation pipeline is:
 1. Command validation.
 2. Command application.
 3. Scenario processing.
-4. Economy.
-5. Construction.
-6. Production.
-7. Research and doctrine.
-8. Navigation.
-9. Movement.
-10. Formation and cohesion.
-11. Combat targeting.
-12. Projectile and ability resolution.
-13. Casualty processing.
-14. Resolve.
-15. Territory and objectives.
-16. Visibility and memory.
-17. Vow processing.
-18. Victory and defeat.
-19. Event finalization.
-20. State hashing/checkpoint sampling.
+4. Supply.
+5. Economy.
+6. Construction.
+7. Production.
+8. Research and doctrine.
+9. Navigation.
+10. Movement.
+11. Formation and cohesion.
+12. Combat targeting.
+13. Projectile and ability resolution.
+14. Casualty processing.
+15. Resolve.
+16. Territory and objectives.
+17. Visibility and memory.
+18. Vow processing.
+19. Victory and defeat.
+20. Event finalization.
+21. State hashing/checkpoint sampling.
 
 Each extracted system receives an explicit immutable input view and returns ordered
 updates or events. `Simulation` applies those outputs in the declared phase. A system
@@ -173,8 +192,10 @@ canonical entity span at a documented system boundary.
 - A query visits a deterministic row-major cell rectangle, exact-filters distance,
   then sorts and de-duplicates by `EntityId`.
 - Query order therefore does not depend on insertion history or a hash table.
-- Resolve is the first migrated broad query. Target acquisition and separation remain
-  legacy behavior until dedicated equivalence and load tests exist.
+- Resolve is the first migrated broad query. Road Ledger allocation is the second and
+  rebuilds after movement/casualty processing so route changes are authoritative for
+  the next command boundary. Target acquisition and separation remain legacy behavior
+  until dedicated equivalence and load tests exist.
 - The grid is derived state. Its configuration is hashed when it can affect gameplay;
   rebuilt cell contents are not independently hashed because canonical entities are.
 
@@ -203,8 +224,8 @@ casualty history, battlefield recognition, and Vow effects are later inputs.
 The initial vocabulary includes entity spawn/destruction; unit damage, wound, kill,
 and recovery; formation creation/break; resolve thresholds; supply connection; Vows;
 transformations; testimony; objectives; projectiles; and ability start/interruption.
-Phase 1 emits only events backed by current state transitions plus the minimal Vow
-lifecycle.
+Phase 1 emits only events backed by current state transitions, including Road Ledger
+connection thresholds, plus the minimal Vow lifecycle.
 
 Ordering rules:
 
@@ -241,8 +262,10 @@ research cycles.
 
 Phase 1 registers representative definitions, including the current factions, roster,
 research, powers, an ability/projectile path, formations, an Ascendancy transformation,
-the bridge Vow, AI doctrine/strategy metadata, and map objectives. It does not replace
-every `Catalog.cpp` switch at once.
+the bridge Vow, AI doctrine/strategy metadata, map objectives, and three Compact Road
+Ledger roles with stable references to their structure definitions. It does not
+replace every `Catalog.cpp` switch at once or disguise planned roads, carts, hospitals,
+or bridge edges as completed content.
 
 ## Phase 1 performance evidence
 

@@ -5,6 +5,7 @@
 #include "ashen/core/PlayerObservation.hpp"
 #include "ashen/core/SimulationEvent.hpp"
 #include "ashen/core/SpatialGrid.hpp"
+#include "ashen/core/SupplySystem.hpp"
 #include "ashen/core/Types.hpp"
 #include "ashen/core/VisibilityGrid.hpp"
 
@@ -64,6 +65,12 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] const SpatialGrid& spatial_grid() const noexcept {
     return spatial_grid_;
   }
+  [[nodiscard]] std::span<const SupplyNodeState> supply_nodes() const noexcept {
+    return supply_system_.states();
+  }
+  [[nodiscard]] bool is_supply_connected(EntityId entity) const noexcept {
+    return supply_system_.connected(entity);
+  }
   [[nodiscard]] std::uint64_t event_digest() const noexcept {
     return event_digest_;
   }
@@ -121,6 +128,7 @@ class ASHENCORE_API Simulation final {
   void update_research();
   void update_production();
   void update_control_points();
+  void update_supply();
   void update_resolve();
   void update_orders();
   void update_auto_aggro();
@@ -151,6 +159,8 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] Vec2 nearest_navigable(Vec2 position, std::int32_t radius) const noexcept;
   [[nodiscard]] const Entity* nearest_command(PlayerId owner, Vec2 position) const noexcept;
   [[nodiscard]] std::int32_t queued_supply(PlayerId owner) const noexcept;
+  [[nodiscard]] bool requires_supply_connection(
+      const Entity& entity) const noexcept;
   [[nodiscard]] std::vector<CommandCapability> command_capabilities(PlayerId owner) const;
   [[nodiscard]] std::int32_t resolve_multiplier_basis(const Entity& entity) const noexcept;
   void apply_research_bonuses(Entity& entity, bool preserve_health);
@@ -195,6 +205,7 @@ class ASHENCORE_API Simulation final {
   std::vector<ControlPoint> control_points_{};
   std::vector<VowState> vows_{};
   ObjectiveSystem objective_system_{};
+  SupplySystem supply_system_{};
   SpatialGrid spatial_grid_{};
   std::vector<QueuedCommand> command_queue_{};
   std::vector<CommandTraceEntry> command_trace_{};

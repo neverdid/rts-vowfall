@@ -150,6 +150,7 @@ void Simulation::reset(const SimulationConfig& config) {
   for (auto& grid : visibility_) {
     grid.reset(config_.map_size, config_.visibility_cell_size);
   }
+  supply_system_.reset();
   spatial_grid_.reset(config_.map_size, config_.spatial_cell_size);
   for (auto& memory : resource_memory_) {
     memory.clear();
@@ -280,6 +281,7 @@ void Simulation::step() {
   update_auto_aggro();
   update_defenses();
   remove_dead_entities();
+  update_supply();
   refresh_visibility();
   update_match_status();
   ++tick_;
@@ -350,6 +352,7 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   entity_index_by_id_[entities_.back().id.value] = entities_.size() - 1;
   emit_event(EntitySpawnedEvent{entities_.back().id, owner,
                                 entities_.back().faction, type});
+  update_supply();
   refresh_visibility();
   refresh_observation_memory();
   return entities_.back().id;
@@ -560,6 +563,11 @@ CommandResult Simulation::apply_train(const Command& command) {
   }
   if (producer->under_construction) {
     return failure(CommandError::UnderConstruction, "The production building is not complete.");
+  }
+  if (requires_supply_connection(*producer) &&
+      !supply_system_.connected(producer->id)) {
+    return failure(CommandError::SupplyBlocked,
+                   "The producer is disconnected from the Road Ledger.");
   }
   if (producer->production_queue.size() >= 5) {
     return failure(CommandError::QueueFull, "The production queue is full.");
@@ -1015,6 +1023,10 @@ void Simulation::update_production() {
     if (!building.alive() || building.under_construction || building.production_queue.empty()) {
       continue;
     }
+    if (requires_supply_connection(building) &&
+        !supply_system_.connected(building.id)) {
+      continue;
+    }
     auto& task = building.production_queue.front();
     if (task.remaining_ticks > 0) {
       --task.remaining_ticks;
@@ -1089,6 +1101,18 @@ void Simulation::update_control_points() {
       }
     } else {
       point.income_progress = 0;
+    }
+  }
+}
+
+void Simulation::update_supply() {
+  spatial_grid_.rebuild(entities_);
+  for (const auto transition : supply_system_.evaluate(
+           entities_, spatial_grid_, builtin_content())) {
+    if (transition.connected) {
+      emit_event(SupplyConnectedEvent{transition.entity});
+    } else {
+      emit_event(SupplyDisconnectedEvent{transition.entity});
     }
   }
 }
@@ -2025,7 +2049,10 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
       continue;
     }
     add(CommandType::SetRallyPoint, entity.id);
-    if (entity.production_queue.size() < 5) {
+    const auto producer_supplied =
+        !requires_supply_connection(entity) ||
+        supply_system_.connected(entity.id);
+    if (entity.production_queue.size() < 5 && producer_supplied) {
       for (const auto unit : {EntityType::Worker, EntityType::Vanguard, EntityType::Skirmisher}) {
         const auto definition = entity_definition(state.faction, unit);
         const auto supply_available = state.supply_used + queued_supply(owner) + definition.supply_cost <=
@@ -2071,6 +2098,12 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
 
   std::ranges::sort(result);
   return result;
+}
+
+bool Simulation::requires_supply_connection(
+    const Entity& entity) const noexcept {
+  return find_supply_node_content(builtin_content(), entity.faction,
+                                  entity.type) != nullptr;
 }
 
 const VisibilityGrid& Simulation::visibility(const PlayerId owner) const noexcept {
@@ -2404,6 +2437,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_integral(hash, event_digest_);
   hash_integral(hash, ruin_tide_);
   hash_integral(hash, objective_system_.state_hash());
+  hash_integral(hash, supply_system_.state_hash());
   for (const auto seen : command_seen_) {
     hash_integral(hash, seen);
   }

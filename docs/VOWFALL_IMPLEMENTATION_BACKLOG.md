@@ -166,12 +166,24 @@ repository modules, not a promise that every listed module changes in one patch.
 
 ### X3 — Road Ledger supply graph
 
+- **Status:** Foundation in progress.
 - **Goal:** Implement physical Compact supply connection and allocation.
+- **Complete:** Stable-ID Compact keep/relay/bastion supply profiles; a portable
+  `SupplySystem` over the deterministic spatial grid; shortest-hop, then entity-ID,
+  then source-ID allocation with per-source capacity; connected-relay-only
+  propagation; ordered connection/disconnection events; state-hash coverage; silent
+  SnapshotV1 derivation rebuild; replay verification; and Compact reinforcement
+  legality plus production pause/resume on route cuts.
+- **Remaining:** Explicit road segments, carts, field kitchens, hospitals, evacuation
+  exits, bridge-health edges, construction/retreat/recovery capability consumers,
+  mission-authored routes, and AI route attack/repair planning.
 - **Files:** new `SupplySystem.*`, road/relay/cart/hospital definitions, mission data.
 - **Dependencies:** Scenario, spatial queries, events, snapshot.
 - **Acceptance:** Cutting and restoring a route deterministically changes legal
   reinforcement/recovery/construction/retreat capabilities.
-- **Tests:** Graph tie-breaking, capacity, bridge destruction, reconnect, replay.
+- **Tests:** Capacity and equal-route ties, relay destruction, reconnect, transition
+  order, command legality, production pause/resume, checkpoint continuation, and
+  replay (foundation complete); destructible bridge edge remains with mission data.
 - **Risk:** Critical.
 
 ### X4 — Casualty and recovery identities
