@@ -34,6 +34,9 @@ inline constexpr StableContentId SouthRelicObjective = 12'002;
 inline constexpr StableContentId BridgeObjective = 12'003;
 inline constexpr StableContentId SkirmishVictoryObjective = 12'004;
 inline constexpr StableContentId BridgeApproachesObjective = 12'005;
+inline constexpr StableContentId CompactLedgerKeep = 13'001;
+inline constexpr StableContentId CompactLedgerRelay = 13'002;
+inline constexpr StableContentId CompactLedgerBastion = 13'003;
 }  // namespace content_id
 
 inline constexpr VowId kBridgeOpenVow{content_id::BridgeOpenVow};
@@ -77,6 +80,16 @@ struct StructureContentDefinition {
   std::int32_t cost{};
   std::int64_t build_ticks{};
   CommandCapabilityMask capabilities{};
+};
+
+struct SupplyNodeContentDefinition {
+  DefinitionMetadata metadata{};
+  StableContentId structure{};
+  bool source{};
+  bool relay{};
+  std::int32_t link_range{};
+  std::int32_t capacity{};
+  std::int32_t demand{};
 };
 
 struct AbilityContentDefinition {
@@ -159,6 +172,7 @@ struct ContentRegistry {
   std::vector<FactionContentDefinition> factions{};
   std::vector<UnitContentDefinition> units{};
   std::vector<StructureContentDefinition> structures{};
+  std::vector<SupplyNodeContentDefinition> supply_nodes{};
   std::vector<AbilityContentDefinition> abilities{};
   std::vector<ProjectileContentDefinition> projectiles{};
   std::vector<FormationContentDefinition> formations{};
@@ -185,6 +199,8 @@ enum class ContentValidationError : std::uint8_t {
   InvalidDeterministicValue,
   UnsupportedCommandCapability,
   CyclicResearchPrerequisite,
+  DuplicateSupplyNodeStructure,
+  InvalidSupplyNode,
 };
 
 struct ContentValidationIssue {
@@ -201,6 +217,12 @@ struct ContentValidationIssue {
 [[nodiscard]] ASHENCORE_API const AbilityContentDefinition*
 find_faction_power_ability(const ContentRegistry& registry,
                            FactionId faction) noexcept;
+[[nodiscard]] ASHENCORE_API const StructureContentDefinition*
+find_structure_content(const ContentRegistry& registry, FactionId faction,
+                       EntityType archetype) noexcept;
+[[nodiscard]] ASHENCORE_API const SupplyNodeContentDefinition*
+find_supply_node_content(const ContentRegistry& registry, FactionId faction,
+                         EntityType archetype) noexcept;
 [[nodiscard]] ASHENCORE_API std::string_view faction_presentation_key(
     FactionId faction) noexcept;
 

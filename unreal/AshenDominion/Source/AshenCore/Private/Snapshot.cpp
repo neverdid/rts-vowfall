@@ -1512,6 +1512,16 @@ void write_content_registry(Writer& writer, const ContentRegistry& registry) {
     writer.integral(definition.build_ticks);
     writer.integral(definition.capabilities);
   }
+  writer.count(registry.supply_nodes.size());
+  for (const auto& definition : registry.supply_nodes) {
+    write_metadata(writer, definition.metadata);
+    writer.integral(definition.structure);
+    writer.boolean(definition.source);
+    writer.boolean(definition.relay);
+    writer.integral(definition.link_range);
+    writer.integral(definition.capacity);
+    writer.integral(definition.demand);
+  }
   writer.count(registry.abilities.size());
   for (const auto& definition : registry.abilities) {
     write_metadata(writer, definition.metadata);
@@ -1920,14 +1930,16 @@ class SnapshotCodec final {
       reader.fail(SnapshotError::InvalidData);
       return nullptr;
     }
-    if (!validate(*simulation)) {
-      reader.fail(SnapshotError::InvalidData);
-      return nullptr;
-    }
     simulation->rebuild_entity_index();
     simulation->spatial_grid_.reset(simulation->config_.map_size,
                                     simulation->config_.spatial_cell_size);
     simulation->spatial_grid_.rebuild(simulation->entities_);
+    simulation->supply_system_.rebuild(
+        simulation->entities_, simulation->spatial_grid_, builtin_content());
+    if (!validate(*simulation)) {
+      reader.fail(SnapshotError::InvalidData);
+      return nullptr;
+    }
     return simulation;
   }
 
@@ -2215,7 +2227,10 @@ class SnapshotCodec final {
         !simulation.objective_system_.event_projection_matches(
             simulation.config_, simulation.events_) ||
         !simulation.objective_system_.outcome_matches(
-            simulation.config_.mode, simulation.status_, simulation.winner_)) {
+            simulation.config_.mode, simulation.status_, simulation.winner_) ||
+        !simulation.supply_system_.derivation_matches(
+            simulation.entities_, simulation.spatial_grid_,
+            builtin_content())) {
       return false;
     }
     if (!stable_ids(

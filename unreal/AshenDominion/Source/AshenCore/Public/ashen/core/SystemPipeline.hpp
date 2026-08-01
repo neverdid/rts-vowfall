@@ -12,6 +12,7 @@ enum class SystemPhase : std::uint8_t {
   CommandValidation,
   CommandApplication,
   Scenario,
+  Supply,
   Economy,
   Construction,
   Production,
@@ -38,10 +39,11 @@ struct SystemPhaseDefinition {
   auto operator<=>(const SystemPhaseDefinition&) const = default;
 };
 
-inline constexpr std::array<SystemPhaseDefinition, 20> kTargetSystemPipeline{{
+inline constexpr std::array<SystemPhaseDefinition, 21> kTargetSystemPipeline{{
     {SystemPhase::CommandValidation, "command_validation"},
     {SystemPhase::CommandApplication, "command_application"},
     {SystemPhase::Scenario, "scenario"},
+    {SystemPhase::Supply, "supply"},
     {SystemPhase::Economy, "economy"},
     {SystemPhase::Construction, "construction"},
     {SystemPhase::Production, "production"},

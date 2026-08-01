@@ -60,7 +60,7 @@ void run_test(const std::string_view name, Test&& test) {
 }
 
 void target_system_pipeline_is_complete_and_ordered() {
-  CHECK(kTargetSystemPipeline.size() == 20);
+  CHECK(kTargetSystemPipeline.size() == 21);
   for (std::size_t index = 0; index < kTargetSystemPipeline.size();
        ++index) {
     CHECK(static_cast<std::size_t>(kTargetSystemPipeline[index].phase) ==
@@ -78,6 +78,7 @@ void builtin_content_is_valid_and_repository_backed() {
   CHECK(registry.factions.size() == 3);
   CHECK(registry.units.size() == 9);
   CHECK(registry.structures.size() == 9);
+  CHECK(registry.supply_nodes.size() == 3);
   CHECK(registry.research.size() == kResearchCount);
   CHECK(find_vow_content(registry, kBridgeOpenVow) != nullptr);
   CHECK(find_faction_power_ability(registry, FactionId::Compact) !=

@@ -124,6 +124,15 @@ void validate_metadata(const Definition& definition,
   return find_vow_content(registry, vow) != nullptr;
 }
 
+[[nodiscard]] bool has_structure(const ContentRegistry& registry,
+                                 const StableContentId id) noexcept {
+  return std::ranges::any_of(
+      registry.structures,
+      [id](const StructureContentDefinition& definition) {
+        return definition.metadata.stable_id == id;
+      });
+}
+
 }  // namespace
 
 const ContentRegistry& builtin_content() noexcept {
@@ -227,6 +236,18 @@ const ContentRegistry& builtin_content() noexcept {
         structure(3'203, FactionId::Concord, EntityType::Turret,
                   "concord_turret", "structure.concord.turret",
                   "vowfall.structure.concord.turret", turret_capabilities),
+    };
+    result.supply_nodes = {
+        {metadata(content_id::CompactLedgerKeep, "compact_ledger_keep",
+                  "supply.compact.keep", "vowfall.supply.compact.keep"),
+         3'001, true, true, 420'000, 6, 0},
+        {metadata(content_id::CompactLedgerRelay, "compact_ledger_relay",
+                  "supply.compact.relay", "vowfall.supply.compact.relay"),
+         3'002, false, true, 360'000, 0, 2},
+        {metadata(content_id::CompactLedgerBastion,
+                  "compact_ledger_bastion", "supply.compact.bastion",
+                  "vowfall.supply.compact.bastion"),
+         3'003, false, false, 0, 0, 1},
     };
 
     result.projectiles = {
@@ -435,6 +456,7 @@ std::vector<ContentValidationIssue> validate_content(
   collect(registry.factions);
   collect(registry.units);
   collect(registry.structures);
+  collect(registry.supply_nodes);
   collect(registry.abilities);
   collect(registry.projectiles);
   collect(registry.formations);
@@ -511,6 +533,43 @@ std::vector<ContentValidationIssue> validate_content(
     if ((definition.capabilities & ~structure_capabilities) != 0) {
       issues.push_back({ContentValidationError::UnsupportedCommandCapability,
                         definition.metadata.stable_id, 0});
+    }
+  }
+  std::vector<StableContentId> supplied_structures;
+  for (const auto& definition : registry.supply_nodes) {
+    supplied_structures.push_back(definition.structure);
+    if (!has_structure(registry, definition.structure)) {
+      issues.push_back({ContentValidationError::MissingContentReference,
+                        definition.metadata.stable_id,
+                        definition.structure});
+    }
+    const auto invalid_values =
+        definition.link_range < 0 || definition.capacity < 0 ||
+        definition.demand < 0;
+    const auto invalid_source =
+        definition.source &&
+        (!definition.relay || definition.capacity <= 0 ||
+         definition.demand != 0);
+    const auto invalid_non_source =
+        !definition.source && definition.capacity != 0;
+    const auto invalid_relay =
+        definition.relay ? definition.link_range <= 0
+                         : definition.link_range != 0;
+    const auto invalid_consumer =
+        !definition.source && definition.demand <= 0;
+    if (invalid_values || invalid_source || invalid_non_source ||
+        invalid_relay || invalid_consumer) {
+      issues.push_back({ContentValidationError::InvalidSupplyNode,
+                        definition.metadata.stable_id,
+                        definition.structure});
+    }
+  }
+  std::ranges::sort(supplied_structures);
+  for (std::size_t index = 1; index < supplied_structures.size(); ++index) {
+    if (supplied_structures[index] == supplied_structures[index - 1]) {
+      issues.push_back({ContentValidationError::DuplicateSupplyNodeStructure,
+                        supplied_structures[index],
+                        supplied_structures[index]});
     }
   }
   for (const auto& definition : registry.abilities) {
@@ -714,6 +773,31 @@ const AbilityContentDefinition* find_faction_power_ability(
       std::ranges::find(registry.abilities, std::optional{faction},
                         &AbilityContentDefinition::faction);
   return found == registry.abilities.end() ? nullptr : &*found;
+}
+
+const StructureContentDefinition* find_structure_content(
+    const ContentRegistry& registry, const FactionId faction,
+    const EntityType archetype) noexcept {
+  const auto found = std::ranges::find_if(
+      registry.structures, [&](const StructureContentDefinition& definition) {
+        return definition.faction == faction &&
+               definition.archetype == archetype;
+      });
+  return found == registry.structures.end() ? nullptr : &*found;
+}
+
+const SupplyNodeContentDefinition* find_supply_node_content(
+    const ContentRegistry& registry, const FactionId faction,
+    const EntityType archetype) noexcept {
+  const auto* structure =
+      find_structure_content(registry, faction, archetype);
+  if (structure == nullptr) {
+    return nullptr;
+  }
+  const auto found = std::ranges::find(
+      registry.supply_nodes, structure->metadata.stable_id,
+      &SupplyNodeContentDefinition::structure);
+  return found == registry.supply_nodes.end() ? nullptr : &*found;
 }
 
 std::string_view faction_presentation_key(const FactionId faction) noexcept {

@@ -24,11 +24,21 @@ care, and retreat remain physical obligations.
 
 ### Road Ledger
 
-The future supply graph contains road segments and nodes for command keeps, relay
-posts, carts, field kitchens, medical stations, signal towers, and evacuation exits.
-Connectivity is recalculated in a deterministic phase from stable node and edge IDs.
+The first Road Ledger slice gives Compact command keeps, assembly halls, and signal
+bastions stable supply profiles. Keeps provide bounded capacity, connected assembly
+halls consume capacity and relay the route, and bastions are terminal consumers.
+Connectivity is recalculated through the deterministic spatial grid. Candidate paths
+prefer shortest hop count, then lower consumer entity ID, then lower source entity ID.
+Only a relay that received capacity may propagate the route.
 
-Connected formations may receive:
+Explicit road segments, carts, field kitchens, medical stations, evacuation exits,
+and bridge-health edges remain later authored nodes and edges rather than aliases for
+the current structures.
+
+The current implemented consumer is reinforcement production: a disconnected Compact
+producer cannot accept a Train command, stops advertising that command to AI/UI
+observations, and pauses an existing queue until the route returns. Later connected
+formations may also receive:
 
 - reinforcement and ammunition;
 - recovery and evacuation;
@@ -191,17 +201,21 @@ formation. Resolve is not a global morality score.
 
 ## Supply
 
-Supply is a deterministic graph, not a radius aura. Nodes and edges have stable IDs,
-capacity, condition, faction access, and physical positions. The update phase:
+Supply is a deterministic graph, not a global aura. Node rules have stable content
+IDs, capacity, demand, faction access, and physical positions. The current proximity
+links are derived from transmitting nodes; explicit stable road and bridge edges are
+still planned. The update phase:
 
-1. applies construction/destruction and bridge state;
-2. orders nodes and edges by stable ID;
-3. computes reachable capacity from valid sources;
-4. allocates supply using documented priority and tie-breaking;
-5. emits only connection threshold changes.
+1. applies construction and destruction before the end-of-tick rebuild;
+2. orders eligible nodes and spatial-query results by stable entity ID;
+3. expands only sources and already allocated relays;
+4. allocates per-source capacity by hop count, consumer ID, source ID, and
+   predecessor ID;
+5. emits only connection threshold changes in stable entity-ID order.
 
-Supply affects capabilities such as reinforcement, heavy weapon operation, recovery,
-construction, and retreat assistance. It does not silently rewrite unit identity.
+Supply now affects Compact reinforcement legality and progress. Heavy weapon
+operation, recovery, construction, and retreat assistance remain later consumers. It
+does not silently rewrite unit identity.
 
 ## Vows
 
