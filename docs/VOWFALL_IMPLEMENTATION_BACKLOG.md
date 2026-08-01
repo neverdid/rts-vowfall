@@ -144,8 +144,18 @@ repository modules, not a promise that every listed module changes in one patch.
 
 ### X2 — Scenario/objective system
 
+- **Status:** Foundation in progress.
 - **Goal:** Move mission state and objectives out of `SimulationConfig`/HUD text into
   validated authoritative scenario data.
+- **Complete:** Validated stable-ID scenario catalog for skirmish, PvP, and the
+  playable Bridge of Names mission; deterministic active/succeeded/failed objective
+  state; typed objective-transition events; objective-driven mission outcomes;
+  state-hash coverage; SnapshotV1 derived-state restore guarded by the scenario
+  content digest; core-owned Unreal HUD presentation; and native success, failure,
+  event, soft-lock, and checkpoint-continuation fixtures.
+- **Remaining:** Multi-stage and optional objectives, authored triggers for the
+  twelve later campaign missions, refugee-column/bridge-world scripting, and richer
+  objective progress views.
 - **Files:** new `Scenario.*`, `ObjectiveSystem.*`, `Campaign.*`, bridge mission data.
 - **Dependencies:** Content, events, snapshot.
 - **Acceptance:** Objective changes are headless, event-driven, saveable, and cannot

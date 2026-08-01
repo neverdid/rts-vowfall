@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashen/core/CommanderAI.hpp"
+#include "ashen/core/ObjectiveSystem.hpp"
 #include "ashen/core/PlayerObservation.hpp"
 #include "ashen/core/SimulationEvent.hpp"
 #include "ashen/core/SpatialGrid.hpp"
@@ -51,6 +52,14 @@ class ASHENCORE_API Simulation final {
   }
   [[nodiscard]] const std::vector<VowState>& vows() const noexcept {
     return vows_;
+  }
+  [[nodiscard]] std::span<const MissionObjectiveState> mission_objectives()
+      const noexcept {
+    return objective_system_.states();
+  }
+  [[nodiscard]] std::optional<MissionObjectiveView> primary_mission_objective()
+      const {
+    return objective_system_.primary_view(tick_);
   }
   [[nodiscard]] const SpatialGrid& spatial_grid() const noexcept {
     return spatial_grid_;
@@ -185,6 +194,7 @@ class ASHENCORE_API Simulation final {
   std::vector<ResourceNode> resources_{};
   std::vector<ControlPoint> control_points_{};
   std::vector<VowState> vows_{};
+  ObjectiveSystem objective_system_{};
   SpatialGrid spatial_grid_{};
   std::vector<QueuedCommand> command_queue_{};
   std::vector<CommandTraceEntry> command_trace_{};

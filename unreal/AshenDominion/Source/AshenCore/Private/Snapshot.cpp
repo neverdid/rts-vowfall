@@ -4,6 +4,7 @@
 #include "ashen/core/AIDoctrine.hpp"
 #include "ashen/core/Catalog.hpp"
 #include "ashen/core/Content.hpp"
+#include "ashen/core/Scenario.hpp"
 #include "ashen/core/SystemPipeline.hpp"
 
 #include <algorithm>
@@ -1221,6 +1222,14 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.integral(payload.interrupter.value);
       break;
     }
+    case SimulationEventType::MissionObjectiveChanged: {
+      const auto& payload =
+          std::get<MissionObjectiveChangedEvent>(event.payload);
+      writer.integral(payload.objective);
+      writer.enumeration(payload.previous);
+      writer.enumeration(payload.current);
+      break;
+    }
   }
 }
 
@@ -1228,7 +1237,7 @@ bool read_event(Reader& reader, SimulationEvent& event) {
   SimulationEventType type{};
   if (!reader.integral(event.id.value) ||
       !reader.integral(event.tick) ||
-      !reader.enumeration(type, SimulationEventType::AbilityInterrupted)) {
+      !reader.enumeration(type, SimulationEventType::MissionObjectiveChanged)) {
     return false;
   }
   switch (type) {
@@ -1449,6 +1458,18 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.ability) ||
           !reader.integral(payload.source.value) ||
           !reader.integral(payload.interrupter.value)) {
+        return false;
+      }
+      event.payload = payload;
+      return true;
+    }
+    case SimulationEventType::MissionObjectiveChanged: {
+      MissionObjectiveChangedEvent payload{};
+      if (!reader.integral(payload.objective) ||
+          !reader.enumeration(payload.previous,
+                              MissionObjectiveStatus::Failed) ||
+          !reader.enumeration(payload.current,
+                              MissionObjectiveStatus::Failed)) {
         return false;
       }
       event.payload = payload;
@@ -1895,6 +1916,8 @@ class SnapshotCodec final {
         !reader.integral(simulation->event_digest_)) {
       return nullptr;
     }
+    simulation->objective_system_.rebuild(simulation->status_,
+                                          simulation->winner_);
     if (!validate(*simulation)) {
       reader.fail(SnapshotError::InvalidData);
       return nullptr;
@@ -2272,6 +2295,7 @@ std::uint64_t current_content_digest() {
   writer.integral(kSnapshotSchemaVersion);
   write_content_registry(writer, builtin_content());
   write_gameplay_catalog(writer);
+  writer.integral(scenario_catalog_digest());
   return hash_bytes(writer.bytes());
 }
 

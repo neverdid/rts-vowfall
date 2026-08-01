@@ -21,6 +21,7 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -199,6 +200,8 @@ EAshenSimulationEventType ToSimulationEventType(const ashen::core::SimulationEve
         return EAshenSimulationEventType::AbilityStarted;
     case SimulationEventType::AbilityInterrupted:
         return EAshenSimulationEventType::AbilityInterrupted;
+    case SimulationEventType::MissionObjectiveChanged:
+        return EAshenSimulationEventType::MissionObjectiveChanged;
     }
     return EAshenSimulationEventType::EntitySpawned;
 }
@@ -862,6 +865,12 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
                 View.EntityId = static_cast<int32>(Payload.source.value);
                 View.TargetEntityId = static_cast<int32>(Payload.interrupter.value);
             }
+            else if constexpr (std::is_same_v<PayloadType, MissionObjectiveChangedEvent>)
+            {
+                View.ContentId = static_cast<int32>(Payload.objective);
+                View.PlayerIndex = static_cast<int32>(Payload.previous);
+                View.Amount = static_cast<int32>(Payload.current);
+            }
         }, Event.payload);
     }
     return Views;
@@ -932,18 +941,35 @@ FString UAshenSimulationSubsystem::GetObjectiveText() const
     {
         return {};
     }
-    if (bStoryMode)
+    const std::optional<ashen::core::MissionObjectiveView> Objective =
+        Runtime->Simulation.primary_mission_objective();
+    if (!Objective.has_value())
     {
-        if (const ashen::core::StoryMissionDefinition* Mission =
-                ashen::core::find_story_mission(ActiveStoryMission))
-        {
-            return CoreText(Mission->objective);
-        }
+        return {};
     }
-    const FAshenPlayerView Player = GetPlayerView(0);
-    return FString::Printf(TEXT("Destroy the rival command keep  //  Relics held %d / %d"),
-                           Player.ControlledRelics,
-                           static_cast<int32>(Runtime->Simulation.control_points().size()));
+    const FString Label = CoreText(Objective->label);
+    switch (Objective->status)
+    {
+    case ashen::core::MissionObjectiveStatus::Active:
+        if (Objective->target_tick > Objective->current_tick)
+        {
+            const ashen::core::Tick RemainingTicks =
+                Objective->target_tick - Objective->current_tick;
+            const int64 RemainingSeconds = static_cast<int64>(
+                (RemainingTicks + ashen::core::kTicksPerSecond - 1) /
+                ashen::core::kTicksPerSecond);
+            return FString::Printf(TEXT("%s  //  %llds remaining"),
+                                   *Label, RemainingSeconds);
+        }
+        return Label;
+    case ashen::core::MissionObjectiveStatus::Succeeded:
+        return FString::Printf(TEXT("%s  //  SUCCEEDED"), *Label);
+    case ashen::core::MissionObjectiveStatus::Failed:
+        return FString::Printf(TEXT("%s  //  FAILED"), *Label);
+    case ashen::core::MissionObjectiveStatus::Inactive:
+        return Label;
+    }
+    return Label;
 }
 
 FString UAshenSimulationSubsystem::GetStoryChapterText() const
