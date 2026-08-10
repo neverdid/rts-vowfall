@@ -103,6 +103,12 @@ the entity vector and spatial grid are restored, validates that live checkpoints
 the same derivation before writing, and includes the resulting state in the simulation
 hash. This prevents a restore from emitting duplicate connection events while keeping
 the existing payload layout. Supply events remain audit evidence of threshold changes.
+An unfinished Compact structure is an allocated terminal: it consumes its profile's
+capacity but cannot act as a source or relay. New-site validation projects the next
+monotonic entity ID into a temporary spatial grid and runs the exact allocation solver,
+so placement and runtime connectivity have identical ordering and capacity rules.
+Interrupted sites may be reassigned while disconnected, but construction progress
+waits for a restored route.
 
 ## Current deterministic step order
 
@@ -297,7 +303,8 @@ The fixed, little-endian SnapshotV1 header contains:
 
 - schema and minimum-reader versions;
 - digests of the complete built-in content registry, gameplay/AI catalog, and
-  deterministic pipeline contract, including ticks per second;
+  deterministic pipeline contract, including ticks per second and an explicit
+  authoritative-rules revision;
 - checkpoint tick and state hash;
 - bounded payload size and payload checksum.
 
@@ -307,6 +314,11 @@ authoritative state, and the complete command, AI-decision, and event audit hist
 Loads reject incompatible versions, content, or pipeline definitions and malformed,
 oversized, truncated, trailing, or checksum-invalid data. V1 has no implicit
 best-effort migration.
+
+Route-bound construction changes deterministic command legality and tick progress but
+not the SnapshotV1 payload layout. The authoritative-rules revision therefore changes
+the pipeline digest: checkpoints and replays created before this rule are rejected as
+incompatible rather than interpreted with different construction semantics.
 
 A restored live AI match is tested to produce the same subsequent commands, events,
 AI state, final hash, and SnapshotV1 bytes as uninterrupted play.

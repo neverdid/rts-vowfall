@@ -25,6 +25,8 @@ void hash_integral(std::uint64_t& hash, const Value value) noexcept {
 struct RuntimeNode {
   const Entity* entity{};
   const SupplyNodeContentDefinition* definition{};
+  bool source{};
+  bool relay{};
 };
 
 struct SourceCapacity {
@@ -83,13 +85,17 @@ std::vector<SupplyNodeState> SupplySystem::solve(
   std::vector<RuntimeNode> nodes;
   nodes.reserve(entities.size());
   for (const auto& entity : entities) {
-    if (!entity.alive() || entity.under_construction) {
+    if (!entity.alive()) {
       continue;
     }
     const auto* definition =
         find_supply_node_content(content, entity.faction, entity.type);
     if (definition != nullptr) {
-      nodes.push_back({&entity, definition});
+      // A construction site reserves Ledger capacity but cannot originate or
+      // extend a route until construction completes.
+      nodes.push_back({&entity, definition,
+                       definition->source && !entity.under_construction,
+                       definition->relay && !entity.under_construction});
     }
   }
   std::ranges::sort(nodes, {}, [](const RuntimeNode& node) {
@@ -104,11 +110,11 @@ std::vector<SupplyNodeState> SupplySystem::solve(
   std::vector<SpatialQueryHit> nearby;
 
   for (const auto& node : nodes) {
-    const auto source = node.definition->source ? node.entity->id : EntityId{};
+    const auto source = node.source ? node.entity->id : EntityId{};
     states.push_back({node.entity->id, source, {}, 0,
                       node.definition->demand,
-                      node.definition->source});
-    if (node.definition->source) {
+                      node.source});
+    if (node.source) {
       capacities.push_back({node.entity->id, node.definition->capacity});
     }
   }
@@ -125,7 +131,7 @@ std::vector<SupplyNodeState> SupplySystem::solve(
       const auto* target = find_runtime_node(nodes, hit.id);
       if (target == nullptr ||
           target->entity->owner != transmitter.entity->owner ||
-          target->definition->source) {
+          target->source) {
         continue;
       }
       frontier.push_back(
@@ -135,7 +141,7 @@ std::vector<SupplyNodeState> SupplySystem::solve(
   };
 
   for (const auto& node : nodes) {
-    if (node.definition->source) {
+    if (node.source) {
       enqueue_neighbors(node, node.entity->id, 0);
     }
   }
@@ -171,11 +177,50 @@ std::vector<SupplyNodeState> SupplySystem::solve(
     target_state->predecessor = candidate.predecessor;
     target_state->hops = candidate.hops;
 
-    if (target_node->definition->relay) {
+    if (target_node->relay) {
       enqueue_neighbors(*target_node, candidate.source, candidate.hops);
     }
   }
   return states;
+}
+
+bool SupplySystem::can_connect_construction_site(
+    const EntityId site, const PlayerId owner, const FactionId faction,
+    const EntityType type, const Vec2 position,
+    const std::span<const Entity> entities,
+    const SpatialGrid& spatial_grid,
+    const ContentRegistry& content) const {
+  if (!site || find_supply_node_content(content, faction, type) == nullptr ||
+      std::ranges::any_of(entities, [site](const Entity& entity) {
+        return entity.id == site;
+      })) {
+    return false;
+  }
+
+  std::vector<Entity> projected_entities{entities.begin(), entities.end()};
+  Entity projected_site{};
+  projected_site.id = site;
+  projected_site.owner = owner;
+  projected_site.faction = faction;
+  projected_site.type = type;
+  projected_site.kind = EntityKind::Building;
+  projected_site.position = position;
+  projected_site.hit_points = 1;
+  projected_site.max_hit_points = 1;
+  projected_site.under_construction = true;
+  projected_entities.push_back(std::move(projected_site));
+  std::ranges::sort(projected_entities, {}, &Entity::id);
+
+  SpatialGrid projected_grid;
+  projected_grid.reset(spatial_grid.map_size(), spatial_grid.cell_size());
+  projected_grid.rebuild(projected_entities);
+  const auto projected_states =
+      solve(projected_entities, projected_grid, content);
+  const auto found = std::ranges::lower_bound(
+      projected_states, site.value, {},
+      [](const SupplyNodeState& state) { return state.entity.value; });
+  return found != projected_states.end() && found->entity == site &&
+         found->connected;
 }
 
 std::vector<SupplyTransition> SupplySystem::evaluate(

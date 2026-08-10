@@ -38,6 +38,12 @@ class ASHENCORE_API SupplySystem final {
                const SpatialGrid& spatial_grid,
                const ContentRegistry& content);
 
+  [[nodiscard]] bool can_connect_construction_site(
+      EntityId site, PlayerId owner, FactionId faction, EntityType type,
+      Vec2 position, std::span<const Entity> entities,
+      const SpatialGrid& spatial_grid,
+      const ContentRegistry& content) const;
+
   [[nodiscard]] bool derivation_matches(
       std::span<const Entity> entities, const SpatialGrid& spatial_grid,
       const ContentRegistry& content) const;

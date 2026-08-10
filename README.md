@@ -16,7 +16,8 @@ The repository now has two active production layers and one archived prototype:
   clickable command card, a deployment menu, tactical minimap, an unlocked campaign briefing, and a
   core-owned, fog-constrained, influence-aware commander that can control either player. It also has two
   distinct multi-part faction silhouettes and a procedural dark-medieval battlefield with castles,
-  forests, roads, bridges, a contested island, and shader-driven river water. SnapshotV1 quick
+  forests, roads, bridges, a contested island, and shader-driven river water. Compact reinforcement and
+  construction obey the deterministic Road Ledger route graph. SnapshotV1 quick
   checkpoints can be saved and restored through Unreal, and verified ReplayV1 files can be exported
   from the running match.
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
