@@ -584,7 +584,7 @@ bool UAshenSimulationSubsystem::IssueRetreat(const TArray<int32>& EntityIds)
         Command.entities.push_back(ashen::core::EntityId{static_cast<uint32>(Id)});
     }
     const auto Result = Runtime->ExecuteExternal(std::move(Command));
-    return StoreCommandResult(Result.ok, Result.ok ? TEXT("Retreat route set to the March Keep.")
+    return StoreCommandResult(Result.ok, Result.ok ? TEXT("Retreat route set.")
                                                    : CoreText(Result.reason));
 }
 

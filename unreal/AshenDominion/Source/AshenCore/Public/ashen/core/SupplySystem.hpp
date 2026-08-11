@@ -50,6 +50,9 @@ class ASHENCORE_API SupplySystem final {
   [[nodiscard]] bool has_node(EntityId entity) const noexcept;
   [[nodiscard]] bool connected(EntityId entity) const noexcept;
   [[nodiscard]] const SupplyNodeState* find(EntityId entity) const noexcept;
+  [[nodiscard]] EntityId retreat_anchor(
+      PlayerId owner, Vec2 position, std::span<const Entity> entities,
+      const ContentRegistry& content) const noexcept;
   [[nodiscard]] std::span<const SupplyNodeState> states() const noexcept {
     return states_;
   }

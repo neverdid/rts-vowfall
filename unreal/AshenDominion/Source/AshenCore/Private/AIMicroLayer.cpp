@@ -44,6 +44,9 @@ void add_critical_retreat_candidate(const PlanningContext& context,
   auto lowest_health = 10'000;
   auto lowest_resolve = 100;
   for (const auto* unit : context.army) {
+    if (!context.observation.permits(CommandType::Retreat, unit->id)) {
+      continue;
+    }
     const auto health = health_basis(*unit);
     if (health > context.doctrine.critical_retreat_health_basis_points &&
         unit->resolve > context.doctrine.critical_retreat_resolve) {
@@ -198,6 +201,7 @@ void add_focus_fire_candidates(const PlanningContext& context,
     auto focus = command_for(context.observation.player(), CommandType::Attack);
     focus.entities = entity_ids(context.ready_army);
     focus.target_entity = enemy->id;
+    focus.target = enemy->position;
     auto candidate = CandidateBuilder{AIAction::FocusFire, std::move(focus)};
     const auto resolve_vulnerability =
         std::max(0, 85 - enemy->resolve);

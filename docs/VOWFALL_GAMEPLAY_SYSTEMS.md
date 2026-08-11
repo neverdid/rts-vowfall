@@ -41,14 +41,20 @@ command to AI/UI observations, and pauses an existing queue until the route retu
 A new Compact construction site must fit the current route and source capacity before
 ore is charged. Once accepted, the unfinished site reserves its normal demand but
 cannot relay supply; a cut pauses progress. An orphaned site can still receive a new
-builder without another charge and resumes only when the route returns. Later connected
-formations may also receive:
+builder without another charge and resumes only when the route returns. Compact units
+within the physical range of a connected completed keep or assembly hall
+receive the assisted `Retreat` capability. The closest qualifying transmitter is
+resolved with lower entity ID breaking equal-distance ties, while a target-less order
+keeps the established behavior of withdrawing to the nearest command post. A cut-off
+unit can still receive an ordinary `Move`, but does not receive the Retreat resolve
+recovery or defensive-stance transition. AI discovers this through the same per-unit
+command capabilities as the player. Later connected formations may also receive:
 
 - reinforcement and ammunition;
 - recovery and evacuation;
 - resolve support;
 - construction capacity;
-- controlled retreat routes.
+- richer controlled retreat routes through explicit road and evacuation edges.
 
 Disconnection is a battlefield fact exposed through `SupplyConnected` and
 `SupplyDisconnected` events. It is not a hidden global modifier.
@@ -217,9 +223,11 @@ still planned. The update phase:
    predecessor ID;
 5. emits only connection threshold changes in stable entity-ID order.
 
-Supply now affects Compact reinforcement and construction legality and progress.
-Heavy weapon operation, recovery, and retreat assistance remain later consumers. It
-does not silently rewrite unit identity.
+Supply now affects Compact reinforcement and construction legality/progress plus
+assisted-retreat legality. Retreat support is checked when the authoritative command is
+applied; an accepted withdrawal remains a normal movement order if the graph changes
+afterward. Heavy weapon operation and recovery remain later consumers. Supply does not
+silently rewrite unit identity.
 
 ## Vows
 

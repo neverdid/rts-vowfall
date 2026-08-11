@@ -446,6 +446,9 @@ void add_retreat_candidate(const PlanningContext& context, std::vector<ScoredCom
   std::vector<const Entity*> exposed;
   auto exposed_power = std::int32_t{};
   for (const auto* unit : context.army) {
+    if (!context.observation.permits(CommandType::Retreat, unit->id)) {
+      continue;
+    }
     const auto shelter_radius =
         static_cast<std::int64_t>(context.command_building->radius) + 110'000;
     const auto sheltered = squared_distance(unit->position, context.command_building->position) <=
@@ -638,6 +641,7 @@ void add_engagement_candidates(const PlanningContext& context,
     assault.entities = entity_ids(assault_force);
     if (in_commit_range) {
       assault.target_entity = known_command->id;
+      assault.target = known_command->position;
     } else {
       assault.target = approach.position;
     }

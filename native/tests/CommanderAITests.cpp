@@ -318,7 +318,9 @@ void tactical_layer_retreats_from_visible_superior_force() {
   hold(simulation, PlayerId::Two, {enemy_one, enemy_two, enemy_three});
   simulation.run(30);
 
-  const auto plan = CommanderAI{PlayerId::One}.plan(simulation.observe(PlayerId::One));
+  const auto observation = simulation.observe(PlayerId::One);
+  CHECK(observation.permits(CommandType::Retreat, defender));
+  const auto plan = CommanderAI{PlayerId::One}.plan(observation);
   const auto* tactical = decision_for(plan, AIDecisionLayer::Tactical);
   CHECK(tactical != nullptr);
   CHECK(tactical != nullptr && tactical->selected_action == AIAction::Retreat);
@@ -326,6 +328,38 @@ void tactical_layer_retreats_from_visible_superior_force() {
   CHECK(tactical != nullptr && tactical->command.type == CommandType::Retreat);
   CHECK(tactical != nullptr && tactical->command.target != Vec2{});
   CHECK(tactical != nullptr && valid_score_trace(*tactical));
+  CHECK(tactical != nullptr && simulation.execute_now(tactical->command).ok);
+}
+
+void tactical_layer_does_not_invent_a_disconnected_retreat() {
+  auto simulation = sandbox();
+  static_cast<void>(simulation.spawn_entity(PlayerId::One, EntityType::Command,
+                                            world(180, 400)));
+  const auto defender = simulation.spawn_entity(
+      PlayerId::One, EntityType::Vanguard, world(680, 400));
+  static_cast<void>(simulation.spawn_entity(PlayerId::Two, EntityType::Command,
+                                            world(1'020, 400)));
+  const auto first = simulation.spawn_entity(
+      PlayerId::Two, EntityType::Vanguard, world(840, 340));
+  const auto second = simulation.spawn_entity(
+      PlayerId::Two, EntityType::Vanguard, world(840, 400));
+  const auto third = simulation.spawn_entity(
+      PlayerId::Two, EntityType::Vanguard, world(840, 460));
+  hold(simulation, PlayerId::One, {defender});
+  hold(simulation, PlayerId::Two, {first, second, third});
+  simulation.run(30);
+
+  const auto observation = simulation.observe(PlayerId::One);
+  CHECK(!observation.permits(CommandType::Retreat, defender));
+  const auto plan = CommanderAI{PlayerId::One}.plan(observation);
+  CHECK(std::ranges::none_of(
+      plan.decisions, [](const AIPlannedDecision& decision) {
+        return decision.selected_action == AIAction::Retreat ||
+               std::ranges::any_of(
+                   decision.candidates, [](const AICandidateScore& candidate) {
+                     return candidate.action == AIAction::Retreat;
+                   });
+      }));
 }
 
 void tactical_layer_flanks_away_from_a_defended_side() {
@@ -711,6 +745,8 @@ int main() {
            tactical_layer_stages_reinforcements_before_a_fortified_assault);
   run_test("tactical layer retreats from visible superior force",
            tactical_layer_retreats_from_visible_superior_force);
+  run_test("tactical layer does not invent a disconnected retreat",
+           tactical_layer_does_not_invent_a_disconnected_retreat);
   run_test("tactical layer flanks away from a defended side",
            tactical_layer_flanks_away_from_a_defended_side);
   run_test(
