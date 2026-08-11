@@ -153,6 +153,17 @@ void strategic_layer_scores_the_opening_and_worker_allocation() {
   CHECK(build != plan.decisions.end());
   CHECK(build != plan.decisions.end() && build->winning_reason == AIUtilityReason::RequiredOpening);
   CHECK(build != plan.decisions.end() && build->command.type == CommandType::Build);
+  if (build != plan.decisions.end()) {
+    CHECK(simulation.execute_now(build->command).ok);
+    const auto site = std::ranges::find_if(
+        simulation.entities(), [](const Entity& entity) {
+          return entity.type == EntityType::Barracks &&
+                 entity.owner == PlayerId::One && entity.under_construction;
+        });
+    CHECK(site != simulation.entities().end());
+    CHECK(site != simulation.entities().end() &&
+          simulation.is_supply_connected(site->id));
+  }
 }
 
 void strategic_layer_rebuilds_combat_before_an_exhausted_economy() {

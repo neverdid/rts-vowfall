@@ -685,10 +685,20 @@ CommandResult Simulation::apply_build(const Command& command) {
     return failure(CommandError::PlacementBlocked, "The construction site is blocked.");
   }
 
-  const auto definition = entity_definition(player(command.player).faction, command.building_type);
+  const auto faction = player(command.player).faction;
+  const auto definition = entity_definition(faction, command.building_type);
   auto& owner = mutable_player(command.player);
   if (owner.ore < definition.cost) {
     return failure(CommandError::InsufficientOre, "Not enough ore for that structure.");
+  }
+  if (find_supply_node_content(builtin_content(), faction,
+                               command.building_type) != nullptr &&
+      !supply_system_.can_connect_construction_site(
+          EntityId{next_entity_id_}, command.player, faction,
+          command.building_type, command.target, entities_, spatial_grid_,
+          builtin_content())) {
+    return failure(CommandError::SupplyBlocked,
+                   "The construction site is disconnected from the Road Ledger.");
   }
 
   owner.ore -= definition.cost;
@@ -1291,6 +1301,10 @@ void Simulation::update_build(Entity& entity) {
   }
 
   clear_route(entity.order);
+  if (requires_supply_connection(*building) &&
+      !supply_system_.connected(building->id)) {
+    return;
+  }
   building->construction_ticks = std::min(building->construction_total_ticks,
                                           building->construction_ticks + 1);
   const auto total = std::max<Tick>(1, building->construction_total_ticks);

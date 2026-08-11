@@ -35,9 +35,13 @@ Explicit road segments, carts, field kitchens, medical stations, evacuation exit
 and bridge-health edges remain later authored nodes and edges rather than aliases for
 the current structures.
 
-The current implemented consumer is reinforcement production: a disconnected Compact
-producer cannot accept a Train command, stops advertising that command to AI/UI
-observations, and pauses an existing queue until the route returns. Later connected
+The implemented consumers are reinforcement production and construction. A
+disconnected Compact producer cannot accept a Train command, stops advertising that
+command to AI/UI observations, and pauses an existing queue until the route returns.
+A new Compact construction site must fit the current route and source capacity before
+ore is charged. Once accepted, the unfinished site reserves its normal demand but
+cannot relay supply; a cut pauses progress. An orphaned site can still receive a new
+builder without another charge and resumes only when the route returns. Later connected
 formations may also receive:
 
 - reinforcement and ammunition;
@@ -213,8 +217,8 @@ still planned. The update phase:
    predecessor ID;
 5. emits only connection threshold changes in stable entity-ID order.
 
-Supply now affects Compact reinforcement legality and progress. Heavy weapon
-operation, recovery, construction, and retreat assistance remain later consumers. It
+Supply now affects Compact reinforcement and construction legality and progress.
+Heavy weapon operation, recovery, and retreat assistance remain later consumers. It
 does not silently rewrite unit identity.
 
 ## Vows

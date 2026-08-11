@@ -39,7 +39,8 @@ void run_test(const std::string_view name, Test&& test) {
 [[nodiscard]] Entity supply_entity(const std::uint32_t id,
                                    const EntityType type,
                                    const Vec2 position,
-                                   const PlayerId owner = PlayerId::One) {
+                                   const PlayerId owner = PlayerId::One,
+                                   const bool under_construction = false) {
   Entity entity{};
   entity.id = EntityId{id};
   entity.owner = owner;
@@ -49,6 +50,7 @@ void run_test(const std::string_view name, Test&& test) {
   entity.position = position;
   entity.hit_points = 1;
   entity.max_hit_points = 1;
+  entity.under_construction = under_construction;
   return entity;
 }
 
@@ -166,6 +168,29 @@ void capacity_and_equal_route_ties_are_stable() {
   CHECK(capacity.connected(EntityId{3}));
   CHECK(!capacity.connected(EntityId{4}));
 
+  std::vector<Entity> projected_nodes{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Turret, world(200, 100)),
+  };
+  auto projected_grid = grid_for(projected_nodes);
+  SupplySystem projected;
+  static_cast<void>(
+      projected.evaluate(projected_nodes, projected_grid, content));
+  CHECK(projected.can_connect_construction_site(
+      EntityId{3}, PlayerId::One, FactionId::Compact,
+      EntityType::Turret, world(200, 100), projected_nodes,
+      projected_grid, content));
+  projected_nodes.push_back(
+      supply_entity(3, EntityType::Turret, world(200, 100)));
+  projected_grid = grid_for(projected_nodes);
+  projected.rebuild(projected_nodes, projected_grid, content);
+  const auto before_projection = projected.state_hash();
+  CHECK(!projected.can_connect_construction_site(
+      EntityId{4}, PlayerId::One, FactionId::Compact,
+      EntityType::Turret, world(200, 100), projected_nodes,
+      projected_grid, content));
+  CHECK(projected.state_hash() == before_projection);
+
   std::vector<Entity> tied_nodes{
       supply_entity(1, EntityType::Command, world(100, 100)),
       supply_entity(2, EntityType::Command, world(300, 100)),
@@ -180,6 +205,28 @@ void capacity_and_equal_route_ties_are_stable() {
   CHECK(consumer != nullptr && consumer->source == EntityId{1});
   CHECK(consumer != nullptr && consumer->predecessor == EntityId{1});
   CHECK(consumer != nullptr && consumer->hops == 1);
+}
+
+void construction_sites_consume_but_do_not_relay_supply() {
+  std::vector<Entity> entities{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Barracks, world(500, 100),
+                    PlayerId::One, true),
+      supply_entity(3, EntityType::Turret, world(840, 100)),
+  };
+  auto grid = grid_for(entities);
+  SupplySystem supply;
+  static_cast<void>(supply.evaluate(entities, grid, builtin_content()));
+  CHECK(supply.connected(EntityId{2}));
+  CHECK(!supply.connected(EntityId{3}));
+
+  entities[1].under_construction = false;
+  grid = grid_for(entities);
+  CHECK(supply.evaluate(entities, grid, builtin_content()) ==
+        std::vector<SupplyTransition>({{EntityId{3}, true}}));
+  CHECK(supply.connected(EntityId{3}));
+  CHECK(supply.find(EntityId{3}) != nullptr &&
+        supply.find(EntityId{3})->predecessor == EntityId{2});
 }
 
 void relay_cut_and_reconnect_change_the_graph_deterministically() {
@@ -295,6 +342,96 @@ void reinforcement_legality_and_progress_follow_the_route() {
         resumed->production_queue.front().remaining_ticks + 1 == remaining);
 }
 
+void construction_legality_and_progress_follow_the_route() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto worker = simulation.spawn_entity(
+      PlayerId::One, EntityType::Worker, world(770, 100));
+  const auto opening_ore = simulation.player(PlayerId::One).ore;
+  const auto opening_entities = simulation.entities().size();
+  const auto build = Command{.player = PlayerId::One,
+                             .type = CommandType::Build,
+                             .entities = {worker},
+                             .target = world(840, 100),
+                             .building_type = EntityType::Turret};
+
+  const auto disconnected = simulation.execute_now(build);
+  CHECK(!disconnected.ok);
+  CHECK(disconnected.error == CommandError::SupplyBlocked);
+  CHECK(simulation.player(PlayerId::One).ore == opening_ore);
+  CHECK(simulation.entities().size() == opening_entities);
+
+  const auto relay = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  CHECK(simulation.execute_now(build).ok);
+  CHECK(simulation.player(PlayerId::One).ore ==
+        opening_ore -
+            entity_definition(FactionId::Compact, EntityType::Turret).cost);
+  const auto site = std::ranges::find_if(
+      simulation.entities(), [](const Entity& entity) {
+        return entity.type == EntityType::Turret && entity.under_construction;
+      });
+  CHECK(site != simulation.entities().end());
+  const auto site_id =
+      site == simulation.entities().end() ? EntityId{} : site->id;
+  CHECK(simulation.is_supply_connected(site_id));
+  CHECK(has_supply_event(simulation, SimulationEventType::SupplyConnected,
+                         site_id));
+
+  for (std::int32_t index = 0; index < 8; ++index) {
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret,
+        world(540 + index, 100 + index)));
+  }
+  const auto deadline = simulation.tick() + 180;
+  while (simulation.find_entity(relay) != nullptr &&
+         simulation.tick() < deadline) {
+    simulation.step();
+  }
+  CHECK(simulation.find_entity(relay) == nullptr);
+  CHECK(!simulation.is_supply_connected(site_id));
+  CHECK(has_supply_event(simulation, SimulationEventType::SupplyDisconnected,
+                         site_id));
+  const auto* cut_site = simulation.find_entity(site_id);
+  CHECK(cut_site != nullptr && cut_site->under_construction);
+  const auto paused_ticks =
+      cut_site == nullptr ? Tick{} : cut_site->construction_ticks;
+  simulation.run(20);
+  CHECK(simulation.find_entity(site_id) != nullptr &&
+        simulation.find_entity(site_id)->construction_ticks == paused_ticks);
+
+  CHECK(simulation.execute_now(Command{.player = PlayerId::One,
+                                       .type = CommandType::Stop,
+                                       .entities = {worker}})
+            .ok);
+  CHECK(simulation.observe(PlayerId::One).permits(
+      CommandType::Build, worker, EntityType::Turret));
+  const auto ore_before_resume = simulation.player(PlayerId::One).ore;
+  CHECK(simulation.execute_now(
+            Command{.player = PlayerId::One,
+                    .type = CommandType::Build,
+                    .entities = {worker},
+                    .target_entity = site_id,
+                    .building_type = EntityType::Turret})
+            .ok);
+  CHECK(simulation.player(PlayerId::One).ore == ore_before_resume);
+  simulation.step();
+  CHECK(simulation.find_entity(site_id) != nullptr &&
+        simulation.find_entity(site_id)->construction_ticks == paused_ticks);
+
+  const auto replacement = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  CHECK(simulation.is_supply_connected(replacement));
+  CHECK(simulation.is_supply_connected(site_id));
+  simulation.step();
+  CHECK(simulation.find_entity(site_id) != nullptr &&
+        simulation.find_entity(site_id)->construction_ticks ==
+            paused_ticks + 1);
+}
+
 void checkpoint_rebuilds_supply_without_duplicate_transitions() {
   LedgerFixture fixture;
   CHECK(fixture.simulation.is_supply_connected(fixture.consumer));
@@ -315,6 +452,46 @@ void checkpoint_rebuilds_supply_without_duplicate_transitions() {
   loaded.simulation->step();
   CHECK(loaded.simulation->state_hash() == fixture.simulation.state_hash());
   CHECK(loaded.simulation->events() == fixture.simulation.events());
+}
+
+void checkpoint_rebuilds_an_active_construction_route() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto worker = simulation.spawn_entity(
+      PlayerId::One, EntityType::Worker, world(330, 100));
+  CHECK(simulation.execute_now(
+            Command{.player = PlayerId::One,
+                    .type = CommandType::Build,
+                    .entities = {worker},
+                    .target = world(400, 100),
+                    .building_type = EntityType::Barracks})
+            .ok);
+  simulation.run(24);
+  const auto site = std::ranges::find_if(
+      simulation.entities(), [](const Entity& entity) {
+        return entity.type == EntityType::Barracks &&
+               entity.under_construction;
+      });
+  CHECK(site != simulation.entities().end());
+  const auto site_id =
+      site == simulation.entities().end() ? EntityId{} : site->id;
+  CHECK(simulation.is_supply_connected(site_id));
+
+  auto loaded = load_snapshot_v1(save_snapshot_v1(simulation));
+  CHECK(loaded);
+  CHECK(loaded.simulation != nullptr);
+  if (loaded.simulation == nullptr) {
+    return;
+  }
+  CHECK(loaded.simulation->is_supply_connected(site_id));
+  CHECK(loaded.simulation->state_hash() == simulation.state_hash());
+  simulation.run(40);
+  loaded.simulation->run(40);
+  CHECK(loaded.simulation->state_hash() == simulation.state_hash());
+  CHECK(loaded.simulation->events() == simulation.events());
 }
 
 void replay_verifies_ledger_gated_reinforcement() {
@@ -341,6 +518,54 @@ void replay_verifies_ledger_gated_reinforcement() {
             fixture.simulation.state_hash());
 }
 
+void replay_verifies_route_bound_construction() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto relay = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  const auto worker = simulation.spawn_entity(
+      PlayerId::One, EntityType::Worker, world(770, 100));
+  for (std::int32_t index = 0; index < 8; ++index) {
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret,
+        world(540 + index, 100 + index)));
+  }
+
+  ReplayRecorder recorder{simulation};
+  CHECK(recorder.execute_now(
+            simulation,
+            Command{.player = PlayerId::One,
+                    .type = CommandType::Build,
+                    .entities = {worker},
+                    .target = world(840, 100),
+                    .building_type = EntityType::Turret})
+            .ok);
+  const auto site = std::ranges::find_if(
+      simulation.entities(), [](const Entity& entity) {
+        return entity.type == EntityType::Turret &&
+               entity.owner == PlayerId::One && entity.under_construction;
+      });
+  CHECK(site != simulation.entities().end());
+  const auto site_id =
+      site == simulation.entities().end() ? EntityId{} : site->id;
+  simulation.run(60);
+  recorder.capture_checkpoint(simulation);
+  simulation.run(100);
+  CHECK(simulation.find_entity(relay) == nullptr);
+  CHECK(simulation.find_entity(site_id) != nullptr &&
+        simulation.find_entity(site_id)->under_construction);
+  CHECK(!simulation.is_supply_connected(site_id));
+  const auto replay = recorder.finish(simulation);
+  const auto verification = verify_replay_v1(save_replay_v1(replay));
+  CHECK(verification);
+  CHECK(verification.simulation != nullptr);
+  CHECK(verification.simulation != nullptr &&
+        verification.simulation->state_hash() == simulation.state_hash());
+}
+
 }  // namespace
 
 int main() {
@@ -348,13 +573,21 @@ int main() {
            supply_content_is_stable_and_validated);
   run_test("capacity and equal-route ties are stable",
            capacity_and_equal_route_ties_are_stable);
+  run_test("construction sites consume but do not relay supply",
+           construction_sites_consume_but_do_not_relay_supply);
   run_test("relay cut and reconnect change the graph deterministically",
            relay_cut_and_reconnect_change_the_graph_deterministically);
   run_test("reinforcement legality and progress follow the route",
            reinforcement_legality_and_progress_follow_the_route);
+  run_test("construction legality and progress follow the route",
+           construction_legality_and_progress_follow_the_route);
   run_test("checkpoint rebuilds supply without duplicate transitions",
            checkpoint_rebuilds_supply_without_duplicate_transitions);
+  run_test("checkpoint rebuilds an active construction route",
+           checkpoint_rebuilds_an_active_construction_route);
   run_test("replay verifies ledger-gated reinforcement",
            replay_verifies_ledger_gated_reinforcement);
+  run_test("replay verifies route-bound construction",
+           replay_verifies_route_bound_construction);
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

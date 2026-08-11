@@ -8,6 +8,11 @@
 
 namespace ashen::core {
 
+// Increment whenever authoritative deterministic rules change without a
+// Snapshot schema or content-catalog change. This revision prevents older
+// checkpoints and replays from being interpreted under new simulation rules.
+inline constexpr std::uint32_t kDeterministicRulesRevision = 2;
+
 enum class SystemPhase : std::uint8_t {
   CommandValidation,
   CommandApplication,

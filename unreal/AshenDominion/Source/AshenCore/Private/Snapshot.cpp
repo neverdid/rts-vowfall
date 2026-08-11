@@ -2324,6 +2324,7 @@ std::uint64_t current_pipeline_digest() {
   Writer writer;
   writer.integral(kSnapshotSchemaVersion);
   writer.integral(kTicksPerSecond);
+  writer.integral(kDeterministicRulesRevision);
   writer.count(kTargetSystemPipeline.size());
   for (const auto& phase : kTargetSystemPipeline) {
     writer.enumeration(phase.phase);
