@@ -499,9 +499,17 @@ CommandResult Simulation::apply_move(const Command& command) {
 
 CommandResult Simulation::apply_attack(const Command& command) {
   const auto* target = find_entity(command.target_entity);
-  if (target == nullptr || !target->alive() || target->owner == command.player ||
-      !is_entity_visible_to(*target, command.player)) {
+  if (target != nullptr && target->owner == command.player) {
     return failure(CommandError::InvalidTarget, "No visible enemy target.");
+  }
+  if (target == nullptr || !target->alive() ||
+      !is_entity_visible_to(*target, command.player)) {
+    if (command.target == Vec2{}) {
+      return failure(CommandError::InvalidTarget, "No visible enemy target.");
+    }
+    // A delayed order keeps no live target authority. The supplied position is
+    // observation-safe and degrades deterministically to an ordinary attack-move.
+    return apply_attack_move(command);
   }
   if (const auto validation = validate_units(*this, command); !validation) {
     return validation;
@@ -825,11 +833,31 @@ CommandResult Simulation::apply_retreat(const Command& command) {
   if (const auto validation = validate_units(*this, command); !validation) {
     return validation;
   }
-  const auto* command_structure = nearest_command(command.player, find_entity(command.entities.front())->position);
-  if (command_structure == nullptr && command.target == Vec2{}) {
-    return failure(CommandError::InvalidTarget, "No retreat route is available.");
-  }
   const auto ids = sorted_unique_ids(command.entities);
+  const auto compact_assistance =
+      player(command.player).faction == FactionId::Compact;
+  if (compact_assistance) {
+    for (const auto id : ids) {
+      const auto* entity = find_entity(id);
+      const auto anchor = entity == nullptr
+                              ? EntityId{}
+                              : supply_system_.retreat_anchor(
+                                    command.player, entity->position, entities_,
+                                    builtin_content());
+      if (!anchor) {
+        return failure(
+            CommandError::SupplyBlocked,
+            "A selected war band is outside the Road Ledger retreat network.");
+      }
+    }
+  }
+
+  const auto* command_structure = nearest_command(
+      command.player, find_entity(ids.front())->position);
+  if (command_structure == nullptr && command.target == Vec2{}) {
+    return failure(CommandError::InvalidTarget,
+                   "No retreat route is available.");
+  }
   auto destination = command.target;
   if (destination == Vec2{}) {
     destination = command_structure->position;
@@ -2042,7 +2070,12 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
       if (has_visible_enemy) {
         add(CommandType::Attack, entity.id);
       }
-      if (has_command) {
+      const auto retreat_available =
+          state.faction != FactionId::Compact
+              ? has_command
+              : static_cast<bool>(supply_system_.retreat_anchor(
+                    owner, entity.position, entities_, builtin_content()));
+      if (retreat_available) {
         add(CommandType::Retreat, entity.id);
       }
       if (entity.type == EntityType::Worker) {

@@ -177,17 +177,22 @@ repository modules, not a promise that every listed module changes in one patch.
   the same allocation solver to validate a proposed site before charging ore;
   unfinished sites reserve capacity without relaying it, pause when cut off, resume
   when reconnected, and can be reassigned while disconnected without paying twice.
+  Connected completed sources and relays also expose assisted Retreat to Compact
+  units inside their physical link range; cutting the route removes that specialized
+  command from player/AI observations while ordinary Move remains legal, and restoring
+  the route restores it.
 - **Remaining:** Explicit road segments, carts, field kitchens, hospitals, evacuation
-  exits, bridge-health edges, retreat/recovery capability consumers, mission-authored
-  routes, and AI route attack/repair planning.
+  exits, bridge-health edges, recovery capability consumers, mission-authored routes,
+  and AI route attack/repair planning.
 - **Files:** new `SupplySystem.*`, road/relay/cart/hospital definitions, mission data.
 - **Dependencies:** Scenario, spatial queries, events, snapshot.
 - **Acceptance:** Cutting and restoring a route deterministically changes legal
   reinforcement/recovery/construction/retreat capabilities.
 - **Tests:** Capacity and equal-route ties, relay destruction, reconnect, transition
   order, reinforcement and construction command legality, production/construction
-  pause/resume, orphan reassignment, fair AI construction, checkpoint continuation,
-  and replay (foundation complete); destructible bridge edge remains with mission data.
+  pause/resume, orphan reassignment, assisted-retreat cut/reconnect and anchor ties,
+  fair AI construction/retreat, checkpoint continuation, and replay (foundation
+  complete); destructible bridge edge remains with mission data.
 - **Risk:** Critical.
 
 ### X4 — Casualty and recovery identities

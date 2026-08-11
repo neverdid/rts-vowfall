@@ -229,6 +229,37 @@ void construction_sites_consume_but_do_not_relay_supply() {
         supply.find(EntityId{3})->predecessor == EntityId{2});
 }
 
+void retreat_anchors_use_connected_transmitters_and_stable_ties() {
+  std::vector<Entity> tied_entities{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Command, world(300, 100)),
+  };
+  auto tied_grid = grid_for(tied_entities);
+  SupplySystem tied;
+  tied.rebuild(tied_entities, tied_grid, builtin_content());
+  CHECK(tied.retreat_anchor(PlayerId::One, world(200, 100),
+                            tied_entities, builtin_content()) == EntityId{1});
+
+  std::vector<Entity> routed_entities{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Barracks, world(500, 100)),
+      supply_entity(3, EntityType::Barracks, world(500, 200),
+                    PlayerId::One, true),
+  };
+  auto routed_grid = grid_for(routed_entities);
+  SupplySystem routed;
+  routed.rebuild(routed_entities, routed_grid, builtin_content());
+  CHECK(routed.retreat_anchor(PlayerId::One, world(840, 100),
+                              routed_entities, builtin_content()) ==
+        EntityId{2});
+
+  routed_entities.erase(routed_entities.begin() + 1);
+  routed_grid = grid_for(routed_entities);
+  routed.rebuild(routed_entities, routed_grid, builtin_content());
+  CHECK(!routed.retreat_anchor(PlayerId::One, world(840, 100),
+                               routed_entities, builtin_content()));
+}
+
 void relay_cut_and_reconnect_change_the_graph_deterministically() {
   std::vector<Entity> entities{
       supply_entity(1, EntityType::Command, world(100, 100)),
@@ -432,6 +463,108 @@ void construction_legality_and_progress_follow_the_route() {
             paused_ticks + 1);
 }
 
+void retreat_legality_and_default_destination_follow_the_route() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto relay = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  const auto unit = simulation.spawn_entity(
+      PlayerId::One, EntityType::Vanguard, world(840, 100));
+  CHECK(simulation.observe(PlayerId::One).permits(CommandType::Retreat,
+                                                   unit));
+  CHECK(simulation.execute_now(Command{.player = PlayerId::One,
+                                       .type = CommandType::Retreat,
+                                       .entities = {unit}})
+            .ok);
+  CHECK(simulation.find_entity(unit) != nullptr &&
+        simulation.find_entity(unit)->order.type == OrderType::Move);
+  CHECK(simulation.find_entity(unit) != nullptr &&
+        simulation.find_entity(unit)->order.target == world(100, 100));
+  CHECK(simulation.execute_now(Command{.player = PlayerId::One,
+                                       .type = CommandType::Stop,
+                                       .entities = {unit}})
+            .ok);
+
+  for (std::int32_t index = 0; index < 8; ++index) {
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret,
+        world(540 + index, 100 + index)));
+  }
+  const auto deadline = simulation.tick() + 180;
+  while (simulation.find_entity(relay) != nullptr &&
+         simulation.tick() < deadline) {
+    simulation.step();
+  }
+  CHECK(simulation.find_entity(relay) == nullptr);
+  CHECK(!simulation.observe(PlayerId::One).permits(CommandType::Retreat,
+                                                    unit));
+  const auto rejected = simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::Retreat,
+              .entities = {unit}});
+  CHECK(!rejected.ok);
+  CHECK(rejected.error == CommandError::SupplyBlocked);
+
+  auto loaded = load_snapshot_v1(save_snapshot_v1(simulation));
+  CHECK(loaded);
+  CHECK(loaded.simulation != nullptr);
+  if (loaded.simulation == nullptr) {
+    return;
+  }
+  CHECK(!loaded.simulation->observe(PlayerId::One).permits(
+      CommandType::Retreat, unit));
+  const auto loaded_rejection = loaded.simulation->execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::Retreat,
+              .entities = {unit}});
+  const auto original_rejection = simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::Retreat,
+              .entities = {unit}});
+  CHECK(loaded_rejection.error == CommandError::SupplyBlocked);
+  CHECK(original_rejection.error == loaded_rejection.error);
+
+  const auto original_replacement = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  const auto loaded_replacement = loaded.simulation->spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  CHECK(original_replacement == loaded_replacement);
+  CHECK(simulation.observe(PlayerId::One).permits(CommandType::Retreat,
+                                                   unit));
+  CHECK(loaded.simulation->observe(PlayerId::One).permits(
+      CommandType::Retreat, unit));
+  const auto restored_command = Command{.player = PlayerId::One,
+                                        .type = CommandType::Retreat,
+                                        .entities = {unit}};
+  CHECK(simulation.execute_now(restored_command).ok);
+  CHECK(loaded.simulation->execute_now(restored_command).ok);
+  CHECK(loaded.simulation->state_hash() == simulation.state_hash());
+  CHECK(loaded.simulation->events() == simulation.events());
+}
+
+void non_compact_retreat_behavior_is_unchanged() {
+  auto config = ledger_config();
+  config.player_one_faction = FactionId::Ascendancy;
+  Simulation simulation{config};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto unit = simulation.spawn_entity(
+      PlayerId::One, EntityType::Vanguard, world(840, 100));
+  CHECK(simulation.observe(PlayerId::One).permits(CommandType::Retreat,
+                                                   unit));
+  CHECK(simulation.execute_now(Command{.player = PlayerId::One,
+                                       .type = CommandType::Retreat,
+                                       .entities = {unit}})
+            .ok);
+  CHECK(simulation.find_entity(unit) != nullptr &&
+        simulation.find_entity(unit)->order.target == world(100, 100));
+}
+
 void checkpoint_rebuilds_supply_without_duplicate_transitions() {
   LedgerFixture fixture;
   CHECK(fixture.simulation.is_supply_connected(fixture.consumer));
@@ -566,6 +699,45 @@ void replay_verifies_route_bound_construction() {
         verification.simulation->state_hash() == simulation.state_hash());
 }
 
+void replay_verifies_retreat_rejection_after_a_route_cut() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto relay = simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  const auto unit = simulation.spawn_entity(
+      PlayerId::One, EntityType::Vanguard, world(840, 100));
+  for (std::int32_t index = 0; index < 8; ++index) {
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret,
+        world(540 + index, 100 + index)));
+  }
+
+  ReplayRecorder recorder{simulation};
+  const auto deadline = simulation.tick() + 180;
+  while (simulation.find_entity(relay) != nullptr &&
+         simulation.tick() < deadline) {
+    simulation.step();
+  }
+  CHECK(simulation.find_entity(relay) == nullptr);
+  const auto rejected = recorder.execute_now(
+      simulation,
+      Command{.player = PlayerId::One,
+              .type = CommandType::Retreat,
+              .entities = {unit}});
+  CHECK(!rejected.ok);
+  CHECK(rejected.error == CommandError::SupplyBlocked);
+  recorder.capture_checkpoint(simulation);
+  const auto replay = recorder.finish(simulation);
+  const auto verification = verify_replay_v1(save_replay_v1(replay));
+  CHECK(verification);
+  CHECK(verification.simulation != nullptr);
+  CHECK(verification.simulation != nullptr &&
+        verification.simulation->state_hash() == simulation.state_hash());
+}
+
 }  // namespace
 
 int main() {
@@ -575,12 +747,18 @@ int main() {
            capacity_and_equal_route_ties_are_stable);
   run_test("construction sites consume but do not relay supply",
            construction_sites_consume_but_do_not_relay_supply);
+  run_test("retreat anchors use connected transmitters and stable ties",
+           retreat_anchors_use_connected_transmitters_and_stable_ties);
   run_test("relay cut and reconnect change the graph deterministically",
            relay_cut_and_reconnect_change_the_graph_deterministically);
   run_test("reinforcement legality and progress follow the route",
            reinforcement_legality_and_progress_follow_the_route);
   run_test("construction legality and progress follow the route",
            construction_legality_and_progress_follow_the_route);
+  run_test("retreat legality and default destination follow the route",
+           retreat_legality_and_default_destination_follow_the_route);
+  run_test("non-Compact retreat behavior is unchanged",
+           non_compact_retreat_behavior_is_unchanged);
   run_test("checkpoint rebuilds supply without duplicate transitions",
            checkpoint_rebuilds_supply_without_duplicate_transitions);
   run_test("checkpoint rebuilds an active construction route",
@@ -589,5 +767,7 @@ int main() {
            replay_verifies_ledger_gated_reinforcement);
   run_test("replay verifies route-bound construction",
            replay_verifies_route_bound_construction);
+  run_test("replay verifies retreat rejection after a route cut",
+           replay_verifies_retreat_rejection_after_a_route_cut);
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

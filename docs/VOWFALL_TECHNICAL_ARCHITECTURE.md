@@ -110,6 +110,23 @@ so placement and runtime connectivity have identical ordering and capacity rules
 Interrupted sites may be reassigned while disconnected, but construction progress
 waits for a restored route.
 
+Assisted retreat is another read-only projection of that graph. For each Compact unit,
+`SupplySystem` considers only connected, completed source/relay entities whose
+content-defined link range covers the unit. The closest transmitter wins and stable
+entity ID breaks equal-distance ties. `Simulation::command_capabilities` exposes
+`Retreat` only for supported units, and both AI retreat layers filter through that
+fog-safe observation before constructing a command. Command application repeats the
+authoritative check. The selected anchor authorizes the assistance but does not replace
+the established target-less destination at the nearest command post. This adds no
+persisted state: an accepted retreat becomes the existing Move order, while later graph
+cuts affect new commands rather than rewriting an order already in flight.
+
+AI attack commands carry the target position from the same fog-limited observation that
+selected the entity. If fair command latency makes that entity disappear or leave
+vision, authoritative application discards the stale entity reference and degrades the
+order to `AttackMove` at that observed position. Direct attacks without a position still
+reject invalid or hidden targets, and no current hidden position is consulted.
+
 ## Current deterministic step order
 
 The observable Phase 0 order in `Simulation::step()` is:
@@ -315,10 +332,11 @@ Loads reject incompatible versions, content, or pipeline definitions and malform
 oversized, truncated, trailing, or checksum-invalid data. V1 has no implicit
 best-effort migration.
 
-Route-bound construction changes deterministic command legality and tick progress but
-not the SnapshotV1 payload layout. The authoritative-rules revision therefore changes
-the pipeline digest: checkpoints and replays created before this rule are rejected as
-incompatible rather than interpreted with different construction semantics.
+Route-bound construction and assisted retreat change deterministic command legality
+and tick behavior but not the SnapshotV1 payload layout. The authoritative-rules
+revision therefore changes the pipeline digest: checkpoints and replays created before
+these rules are rejected as incompatible rather than interpreted with different
+construction or retreat semantics.
 
 A restored live AI match is tested to produce the same subsequent commands, events,
 AI state, final hash, and SnapshotV1 bytes as uninterrupted play.

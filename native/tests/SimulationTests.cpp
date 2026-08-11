@@ -738,6 +738,40 @@ void hidden_targets_cannot_be_commanded_or_pursued() {
   CHECK(simulation.visible_enemy_ids(PlayerId::One).empty());
 }
 
+void delayed_attacks_fall_back_to_the_observed_position() {
+  auto simulation = sandbox();
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'200, 700)));
+  const auto attacker = simulation.spawn_entity(
+      PlayerId::One, EntityType::Worker, world(300, 400));
+  const auto target_position = world(500, 400);
+  const auto target = simulation.spawn_entity(
+      PlayerId::Two, EntityType::Worker, target_position);
+  for (std::int32_t index = 0; index < 6; ++index) {
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::One, EntityType::Turret,
+        Vec2{target_position.x + world(150 + index, 0).x,
+             target_position.y + world(index, 0).x}));
+  }
+  simulation.enqueue(Command{.execute_tick = 60,
+                             .player = PlayerId::One,
+                             .type = CommandType::Attack,
+                             .entities = {attacker},
+                             .target = target_position,
+                             .target_entity = target});
+  simulation.run(61);
+
+  CHECK(simulation.find_entity(target) == nullptr);
+  const auto* advancing = simulation.find_entity(attacker);
+  CHECK(advancing != nullptr && advancing->order.type == OrderType::AttackMove);
+  CHECK(!simulation.command_trace().empty() &&
+        simulation.command_trace().back().accepted);
+  CHECK(!simulation.command_trace().empty() &&
+        simulation.command_trace().back().command.target == target_position);
+}
+
 void autonomous_orders_ignore_enemies_outside_current_vision() {
   SimulationConfig config{};
   config.seed_starting_forces = false;
@@ -1002,6 +1036,8 @@ int main() {
   run_test("production obeys cost, supply, and build time", production_obeys_cost_supply_and_build_time);
   run_test("factions keep meaningful asymmetry", factions_keep_meaningful_asymmetry);
   run_test("command destruction ends the match", command_destruction_ends_the_match);
+  run_test("delayed attacks fall back to the observed position",
+           delayed_attacks_fall_back_to_the_observed_position);
   run_test("queued commands replay to the same hash", queued_commands_replay_to_the_same_hash);
   run_test("same-tick commands have stable sequence order", same_tick_commands_have_stable_sequence_order);
   run_test("state hash covers queued command payloads", state_hash_covers_queued_command_payloads);

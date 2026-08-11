@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <ranges>
 #include <tuple>
 #include <utility>
@@ -53,6 +54,21 @@ struct Candidate {
       [](const RuntimeNode& node) { return node.entity->id.value; });
   return found != nodes.end() && found->entity->id == entity ? &*found
                                                              : nullptr;
+}
+
+[[nodiscard]] const Entity* find_entity(
+    const std::span<const Entity> entities, const EntityId entity) noexcept {
+  const auto found = std::ranges::lower_bound(
+      entities, entity.value, {},
+      [](const Entity& candidate) { return candidate.id.value; });
+  return found != entities.end() && found->id == entity ? &*found : nullptr;
+}
+
+[[nodiscard]] std::uint64_t squared_distance(const Vec2 left,
+                                             const Vec2 right) noexcept {
+  const auto dx = static_cast<std::int64_t>(right.x) - left.x;
+  const auto dy = static_cast<std::int64_t>(right.y) - left.y;
+  return static_cast<std::uint64_t>(dx * dx + dy * dy);
 }
 
 [[nodiscard]] SupplyNodeState* find_state(
@@ -285,6 +301,41 @@ bool SupplySystem::has_node(const EntityId entity) const noexcept {
 bool SupplySystem::connected(const EntityId entity) const noexcept {
   const auto* state = find(entity);
   return state != nullptr && state->connected;
+}
+
+EntityId SupplySystem::retreat_anchor(
+    const PlayerId owner, const Vec2 position,
+    const std::span<const Entity> entities,
+    const ContentRegistry& content) const noexcept {
+  auto best = EntityId{};
+  auto best_distance = std::numeric_limits<std::uint64_t>::max();
+  for (const auto& state : states_) {
+    if (!state.connected) {
+      continue;
+    }
+    const auto* entity = find_entity(entities, state.entity);
+    if (entity == nullptr || !entity->alive() || entity->owner != owner ||
+        entity->under_construction) {
+      continue;
+    }
+    const auto* definition =
+        find_supply_node_content(content, entity->faction, entity->type);
+    if (definition == nullptr ||
+        (!definition->source && !definition->relay)) {
+      continue;
+    }
+    const auto distance = squared_distance(position, entity->position);
+    const auto range = static_cast<std::int64_t>(definition->link_range);
+    if (distance > static_cast<std::uint64_t>(range * range)) {
+      continue;
+    }
+    if (distance < best_distance ||
+        (distance == best_distance && entity->id < best)) {
+      best = entity->id;
+      best_distance = distance;
+    }
+  }
+  return best;
 }
 
 std::uint64_t SupplySystem::state_hash() const noexcept {
