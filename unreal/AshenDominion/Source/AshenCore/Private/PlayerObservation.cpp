@@ -44,6 +44,8 @@ void hash_order(std::uint64_t& hash, const Order& order) noexcept {
 
 void hash_owned_entity(std::uint64_t& hash, const Entity& entity) noexcept {
   hash_integral(hash, entity.id.value);
+  hash_integral(hash, entity.identity.value);
+  hash_integral(hash, static_cast<std::uint8_t>(entity.casualty_state));
   hash_integral(hash, static_cast<std::uint8_t>(entity.owner));
   hash_integral(hash, static_cast<std::uint8_t>(entity.faction));
   hash_integral(hash, static_cast<std::uint8_t>(entity.type));

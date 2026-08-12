@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ashen/core/CasualtySystem.hpp"
 #include "ashen/core/CommanderAI.hpp"
 #include "ashen/core/ObjectiveSystem.hpp"
 #include "ashen/core/PlayerObservation.hpp"
@@ -53,6 +54,16 @@ class ASHENCORE_API Simulation final {
   }
   [[nodiscard]] const std::vector<VowState>& vows() const noexcept {
     return vows_;
+  }
+  [[nodiscard]] std::span<const CasualtyRecord> casualties() const noexcept {
+    return casualty_system_.records();
+  }
+  [[nodiscard]] std::span<const CasualtyTransition> casualty_history() const noexcept {
+    return casualty_system_.transitions();
+  }
+  [[nodiscard]] const CasualtyRecord* find_casualty(
+      UnitIdentityId identity) const noexcept {
+    return casualty_system_.find(identity);
   }
   [[nodiscard]] std::span<const MissionObjectiveState> mission_objectives()
       const noexcept {
@@ -205,6 +216,7 @@ class ASHENCORE_API Simulation final {
   std::vector<ControlPoint> control_points_{};
   std::vector<VowState> vows_{};
   ObjectiveSystem objective_system_{};
+  CasualtySystem casualty_system_{};
   SupplySystem supply_system_{};
   SpatialGrid spatial_grid_{};
   std::vector<QueuedCommand> command_queue_{};
@@ -213,6 +225,7 @@ class ASHENCORE_API Simulation final {
   std::vector<SimulationEvent> events_{};
   std::int32_t ruin_tide_{4};
   std::uint32_t next_entity_id_{1};
+  std::uint32_t next_unit_identity_id_{1};
   std::uint32_t next_resource_id_{1};
   std::uint32_t next_control_point_id_{1};
   std::uint64_t next_sequence_{1};

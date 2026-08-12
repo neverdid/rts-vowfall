@@ -50,21 +50,32 @@ std::uint64_t simulation_event_hash(const SimulationEvent& event) noexcept {
           hash_integral(hash, static_cast<std::uint8_t>(payload.owner));
           hash_integral(hash, static_cast<std::uint8_t>(payload.faction));
           hash_integral(hash, static_cast<std::uint8_t>(payload.archetype));
+          hash_integral(hash, payload.identity.value);
         } else if constexpr (std::is_same_v<Payload, UnitDamagedEvent>) {
           hash_entity(hash, payload.source);
           hash_entity(hash, payload.target);
           hash_integral(hash, payload.amount);
           hash_integral(hash, payload.remaining_hit_points);
+          hash_integral(hash, payload.identity.value);
         } else if constexpr (std::is_same_v<Payload, UnitWoundedEvent>) {
           hash_entity(hash, payload.entity);
           hash_entity(hash, payload.source);
           hash_integral(hash, payload.remaining_hit_points);
+          hash_integral(hash, payload.identity.value);
+          hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.current));
         } else if constexpr (std::is_same_v<Payload, UnitKilledEvent>) {
           hash_entity(hash, payload.entity);
           hash_entity(hash, payload.killer);
+          hash_integral(hash, payload.identity.value);
+          hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.current));
         } else if constexpr (std::is_same_v<Payload, UnitRecoveredEvent>) {
           hash_entity(hash, payload.entity);
           hash_entity(hash, payload.recovery_source);
+          hash_integral(hash, payload.identity.value);
+          hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.current));
         } else if constexpr (std::is_same_v<Payload, FormationCreatedEvent>) {
           hash_integral(hash, payload.formation.value);
           hash_integral(hash, static_cast<std::uint8_t>(payload.owner));

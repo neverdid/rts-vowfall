@@ -134,6 +134,11 @@ EAshenVisibility ToVisibility(const ashen::core::VisibilityState Visibility)
     return static_cast<EAshenVisibility>(Visibility);
 }
 
+EAshenCasualtyState ToCasualtyState(const ashen::core::CasualtyState State)
+{
+    return static_cast<EAshenCasualtyState>(State);
+}
+
 EAshenFaction ToFaction(const ashen::core::FactionId Faction)
 {
     using ashen::core::FactionId;
@@ -656,6 +661,11 @@ FAshenEntityView UAshenSimulationSubsystem::GetEntityView(const int32 EntityId) 
         return View;
     }
     View.EntityId = EntityId;
+    if (Entity->owner == ashen::core::PlayerId::One)
+    {
+        View.UnitIdentityId = static_cast<int32>(Entity->identity.value);
+        View.CasualtyState = ToCasualtyState(Entity->casualty_state);
+    }
     View.Faction = ToFaction(Entity->faction);
     View.Archetype = ToArchetype(Entity->type);
     View.Label = CoreText(ashen::core::entity_definition(Entity->faction, Entity->type).label);
@@ -764,6 +774,7 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
                           std::is_same_v<PayloadType, EntityDestroyedEvent>)
             {
                 View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
                 View.PlayerIndex = static_cast<int32>(Payload.owner);
                 View.Faction = ToFaction(Payload.faction);
                 View.ContentId = static_cast<int32>(Payload.archetype);
@@ -773,22 +784,32 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
                 View.EntityId = static_cast<int32>(Payload.source.value);
                 View.TargetEntityId = static_cast<int32>(Payload.target.value);
                 View.Amount = Payload.amount;
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
             }
             else if constexpr (std::is_same_v<PayloadType, UnitWoundedEvent>)
             {
                 View.EntityId = static_cast<int32>(Payload.entity.value);
                 View.TargetEntityId = static_cast<int32>(Payload.source.value);
                 View.Amount = Payload.remaining_hit_points;
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.PreviousCasualtyState = ToCasualtyState(Payload.previous);
+                View.CasualtyState = ToCasualtyState(Payload.current);
             }
             else if constexpr (std::is_same_v<PayloadType, UnitKilledEvent>)
             {
                 View.EntityId = static_cast<int32>(Payload.killer.value);
                 View.TargetEntityId = static_cast<int32>(Payload.entity.value);
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.PreviousCasualtyState = ToCasualtyState(Payload.previous);
+                View.CasualtyState = ToCasualtyState(Payload.current);
             }
             else if constexpr (std::is_same_v<PayloadType, UnitRecoveredEvent>)
             {
                 View.EntityId = static_cast<int32>(Payload.entity.value);
                 View.TargetEntityId = static_cast<int32>(Payload.recovery_source.value);
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.PreviousCasualtyState = ToCasualtyState(Payload.previous);
+                View.CasualtyState = ToCasualtyState(Payload.current);
             }
             else if constexpr (std::is_same_v<PayloadType, FormationCreatedEvent>)
             {

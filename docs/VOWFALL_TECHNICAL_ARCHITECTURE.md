@@ -20,12 +20,15 @@ tie-breaking.
 - Dread Tide, scalar resolve, control points, fog, observation memory, and mission
   outcomes;
 - validated scenario definitions and deterministic mission-objective state/events;
+- stable unit identities plus retained, ordered casualty records and transition history;
 - `CommanderAI` scheduling and AI decision traces;
 - state hashing.
 
-Entities are aggregate values in `std::vector<Entity>`. IDs are monotonic. Lookup by ID
-is a linear scan; deletion compacts the vector. Resource and control-point lookup is
-also linear, but those collections are currently small.
+Entities are aggregate values in `std::vector<Entity>`. `EntityId` values are monotonic
+runtime handles. Units additionally receive monotonic `UnitIdentityId` values that
+survive entity removal; buildings intentionally use identity zero. Entity lookup uses
+a derived direct index while deletion compacts the canonical vector. Resource and
+control-point lookup is still linear, but those collections are currently small.
 
 ### AI boundary
 
@@ -86,6 +89,15 @@ current Unreal adapter wraps SnapshotV1 in `USaveGame`, atomically swaps only a
 validated restore, records player submissions, and exports ReplayV1 only after
 in-memory verification succeeds.
 
+Casualty state is persisted rather than derived. SnapshotV1 writes live entity
+identity/state, the identity-ordered casualty ledger, append-only transitions, and the
+next unit-identity cursor. Restore validates live-unit membership, legal foundation
+transitions, event projection, stable ordering, and the retained dead record before
+accepting the checkpoint. These payload additions advance the deterministic rules
+revision to 4; older SnapshotV1 and ReplayV1 files are rejected by the pipeline digest
+before payload decoding. A future long-lived save migration must introduce an explicit
+new schema instead of weakening that compatibility gate.
+
 Mission-objective runtime status and activation-relative deadlines are deterministic
 derived projections of the scenario definition and the persisted ordered
 `MissionObjectiveChanged` history. SnapshotV1 rebuilds that projection and rejects a
@@ -139,10 +151,12 @@ The observable Phase 0 order in `Simulation::step()` is:
 6. Update control-point capture and income.
 7. Recompute resolve.
 8. Execute orders, including movement, gathering, construction, and instant-hit unit
-   attacks; then run separation.
+   attacks; unit damage may append wound/death casualty transitions; then run
+   separation.
 9. Acquire idle-unit targets.
-10. Resolve defensive-building attacks.
-11. Remove dead entities and adjust the legacy population cap.
+10. Resolve defensive-building attacks, including ordered casualty transitions.
+11. Remove dead entities, retain their casualty records, and adjust the legacy
+    population cap.
 12. Rebuild the spatial grid, allocate the Compact Road Ledger, and emit stable-ID
     connection transitions.
 13. Refresh visibility.
@@ -204,6 +218,21 @@ index maps `EntityId::value` to the current vector slot:
 - The side index is derived and is not hashed.
 - Raw `Entity*` values are valid only until a simulation operation that can spawn,
   destroy, reset, or otherwise reallocate canonical storage.
+
+`UnitIdentityId` is a separate persistent domain:
+
+- only `EntityKind::Unit` receives a nonzero identity;
+- identities are assigned in unit-spawn order and are never reused;
+- the live `Entity` carries its identity and current casualty state so owned
+  `PlayerObservation` values can expose them without another mutable lookup;
+- `ObservedEnemy` deliberately omits both fields, preserving the fog-limited AI
+  boundary;
+- `CasualtySystem` is the transition authority. Its record remains after the live
+  entity is erased, and its transition vector follows authoritative combat/event
+  order;
+- the current foundation drives only `Active -> Wounded`, `Active -> Dead`, and
+  `Wounded -> Dead`. The full enum reserves incapacitated, recoverable, recovered,
+  and missing states without claiming their gameplay rules exist.
 
 ## Spatial queries
 

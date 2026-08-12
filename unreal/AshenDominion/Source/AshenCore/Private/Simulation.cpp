@@ -150,6 +150,7 @@ void Simulation::reset(const SimulationConfig& config) {
   for (auto& grid : visibility_) {
     grid.reset(config_.map_size, config_.visibility_cell_size);
   }
+  casualty_system_.reset();
   supply_system_.reset();
   spatial_grid_.reset(config_.map_size, config_.spatial_cell_size);
   for (auto& memory : resource_memory_) {
@@ -176,6 +177,7 @@ void Simulation::reset(const SimulationConfig& config) {
   events_.clear();
   ruin_tide_ = 4;
   next_entity_id_ = 1;
+  next_unit_identity_id_ = 1;
   next_resource_id_ = 1;
   next_control_point_id_ = 1;
   next_sequence_ = 1;
@@ -304,6 +306,9 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   entity.faction = player(owner).faction;
   entity.type = type;
   entity.kind = definition.kind;
+  if (entity.kind == EntityKind::Unit) {
+    entity.identity = UnitIdentityId{next_unit_identity_id_++};
+  }
   entity.position = position;
   entity.radius = definition.radius;
   entity.hit_points = definition.hit_points;
@@ -334,6 +339,13 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
     entity.hit_points = std::max(1, entity.max_hit_points * 24 / 100);
   }
 
+  if (entity.kind == EntityKind::Unit &&
+      !casualty_system_.register_unit(entity, tick_)) {
+    --next_entity_id_;
+    --next_unit_identity_id_;
+    return {};
+  }
+
   auto& owner_state = mutable_player(owner);
   owner_state.supply_used += definition.supply_cost;
   if (!under_construction) {
@@ -351,7 +363,8 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   }
   entity_index_by_id_[entities_.back().id.value] = entities_.size() - 1;
   emit_event(EntitySpawnedEvent{entities_.back().id, owner,
-                                entities_.back().faction, type});
+                                entities_.back().faction, type,
+                                entities_.back().identity});
   update_supply();
   refresh_visibility();
   refresh_observation_memory();
@@ -1844,14 +1857,23 @@ void Simulation::apply_damage(Entity& target, const EntityId source,
     return;
   }
   emit_event(UnitDamagedEvent{source, target.id, amount,
-                              std::max(0, target.hit_points)});
+                              std::max(0, target.hit_points),
+                              target.identity});
   const auto wound_threshold = std::max(1, target.max_hit_points / 2);
   if (previous_hit_points > wound_threshold && target.hit_points > 0 &&
       target.hit_points <= wound_threshold) {
-    emit_event(UnitWoundedEvent{target.id, source, target.hit_points});
+    if (casualty_system_.mark_wounded(target, source, tick_)) {
+      emit_event(UnitWoundedEvent{target.id, source, target.hit_points,
+                                  target.identity, CasualtyState::Active,
+                                  CasualtyState::Wounded});
+    }
   }
   if (target.hit_points <= 0) {
-    emit_event(UnitKilledEvent{target.id, source});
+    const auto previous_state = target.casualty_state;
+    if (casualty_system_.mark_dead(target, source, tick_)) {
+      emit_event(UnitKilledEvent{target.id, source, target.identity,
+                                 previous_state, CasualtyState::Dead});
+    }
   }
 }
 
@@ -1861,7 +1883,7 @@ void Simulation::remove_dead_entities() {
       continue;
     }
     emit_event(EntityDestroyedEvent{entity.id, entity.owner, entity.faction,
-                                    entity.type});
+                                    entity.type, entity.identity});
     auto& owner = mutable_player(entity.owner);
     owner.supply_used = std::max(0, owner.supply_used - entity.supply_cost);
     if (!entity.under_construction) {
@@ -2476,6 +2498,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_integral(hash, static_cast<std::uint8_t>(status_));
   hash_integral(hash, winner_.has_value() ? static_cast<std::uint8_t>(*winner_) + 1U : 0U);
   hash_integral(hash, next_entity_id_);
+  hash_integral(hash, next_unit_identity_id_);
   hash_integral(hash, next_resource_id_);
   hash_integral(hash, next_control_point_id_);
   hash_integral(hash, next_sequence_);
@@ -2484,6 +2507,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
   hash_integral(hash, event_digest_);
   hash_integral(hash, ruin_tide_);
   hash_integral(hash, objective_system_.state_hash());
+  hash_integral(hash, casualty_system_.state_hash());
   hash_integral(hash, supply_system_.state_hash());
   for (const auto seen : command_seen_) {
     hash_integral(hash, seen);
@@ -2556,6 +2580,8 @@ std::uint64_t Simulation::state_hash() const noexcept {
 
   for (const auto& entity : entities_) {
     hash_integral(hash, entity.id.value);
+    hash_integral(hash, entity.identity.value);
+    hash_integral(hash, static_cast<std::uint8_t>(entity.casualty_state));
     hash_integral(hash, static_cast<std::uint8_t>(entity.owner));
     hash_integral(hash, static_cast<std::uint8_t>(entity.faction));
     hash_integral(hash, static_cast<std::uint8_t>(entity.type));

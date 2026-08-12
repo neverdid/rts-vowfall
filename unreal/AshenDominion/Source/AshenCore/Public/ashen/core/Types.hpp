@@ -26,6 +26,13 @@ struct EntityId {
   auto operator<=>(const EntityId&) const = default;
 };
 
+struct UnitIdentityId {
+  std::uint32_t value{};
+
+  [[nodiscard]] constexpr explicit operator bool() const noexcept { return value != 0; }
+  auto operator<=>(const UnitIdentityId&) const = default;
+};
+
 struct ResourceId {
   std::uint32_t value{};
 
@@ -105,6 +112,15 @@ enum class VisibilityState : std::uint8_t { Hidden, Explored, Visible };
 enum class EntityKind : std::uint8_t { Unit, Building };
 enum class EntityType : std::uint8_t { Worker, Vanguard, Skirmisher, Command, Barracks, Turret };
 enum class ArmorClass : std::uint8_t { Laborer, Armored, Light, Structure };
+enum class CasualtyState : std::uint8_t {
+  Active,
+  Wounded,
+  Incapacitated,
+  Recoverable,
+  Recovered,
+  Missing,
+  Dead,
+};
 enum class ResearchId : std::uint8_t {
   TierTwo,
   TemperedOaths,
@@ -249,6 +265,8 @@ struct ResearchTask {
 
 struct Entity {
   EntityId id{};
+  UnitIdentityId identity{};
+  CasualtyState casualty_state{CasualtyState::Active};
   PlayerId owner{PlayerId::One};
   FactionId faction{FactionId::Compact};
   EntityType type{EntityType::Worker};

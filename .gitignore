@@ -15,6 +15,7 @@ artifacts/
 
 # Native C++ build output
 build
+build-mingw
 !unreal/AshenDominion/Build/
 !unreal/AshenDominion/Build/WorldArt/
 !unreal/AshenDominion/Build/WorldArt/*.py

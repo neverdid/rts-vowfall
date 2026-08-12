@@ -70,8 +70,17 @@ campaign identity, formation identity, experience, injuries, relevant memories, 
 last known location. Recovery moves identity; it does not spawn an unrelated
 replacement.
 
-Phase 1 supports damage, wound, kill, destruction, and recovery event types but does
-not yet retain individual casualty records.
+The X4 foundation assigns every unit a stable `UnitIdentityId`, retains an
+identity-ordered `CasualtyRecord` after its live entity is removed, and appends ordered
+transition history for `Active -> Wounded`, `Active -> Dead`, and `Wounded -> Dead`.
+Wound and kill events carry the persistent identity plus previous/current state, and
+SnapshotV1/ReplayV1 preserve and verify the ledger. Owned observations carry live
+identity/state; sanitized enemy observations do not.
+
+`Incapacitated`, `Recoverable`, `Recovered`, and `Missing` remain reserved vocabulary.
+There is no recovery eligibility, evacuation route, hospital capacity, re-embodiment,
+or identity transfer yet. `UnitRecovered` remains reserved and is not emitted by the
+current simulation.
 
 ### Production roles
 

@@ -406,6 +406,8 @@ bool read_player_state(Reader& reader, PlayerState& player) {
 
 void write_entity(Writer& writer, const Entity& entity) {
   writer.integral(entity.id.value);
+  writer.integral(entity.identity.value);
+  writer.enumeration(entity.casualty_state);
   writer.enumeration(entity.owner);
   writer.enumeration(entity.faction);
   writer.enumeration(entity.type);
@@ -450,6 +452,8 @@ void write_entity(Writer& writer, const Entity& entity) {
 
 bool read_entity(Reader& reader, Entity& entity) {
   if (!reader.integral(entity.id.value) ||
+      !reader.integral(entity.identity.value) ||
+      !reader.enumeration(entity.casualty_state, CasualtyState::Dead) ||
       !reader.enumeration(entity.owner, PlayerId::Two) ||
       !reader.enumeration(entity.faction, FactionId::Concord) ||
       !reader.enumeration(entity.type, EntityType::Turret) ||
@@ -506,6 +510,58 @@ bool read_entity(Reader& reader, Entity& entity) {
          reader.boolean(entity.under_construction) &&
          reader.integral(entity.construction_ticks) &&
          reader.integral(entity.construction_total_ticks);
+}
+
+void write_casualty_record(Writer& writer, const CasualtyRecord& record) {
+  writer.integral(record.identity.value);
+  writer.integral(record.last_entity.value);
+  writer.enumeration(record.owner);
+  writer.enumeration(record.faction);
+  writer.enumeration(record.archetype);
+  writer.integral(record.formation.value);
+  writer.enumeration(record.state);
+  writer.integral(record.experience);
+  writer.integral(record.injuries);
+  write_vec2(writer, record.last_transition_position);
+  writer.integral(record.state_since);
+  writer.integral(record.last_source.value);
+}
+
+bool read_casualty_record(Reader& reader, CasualtyRecord& record) {
+  return reader.integral(record.identity.value) &&
+         reader.integral(record.last_entity.value) &&
+         reader.enumeration(record.owner, PlayerId::Two) &&
+         reader.enumeration(record.faction, FactionId::Concord) &&
+         reader.enumeration(record.archetype, EntityType::Turret) &&
+         reader.integral(record.formation.value) &&
+         reader.enumeration(record.state, CasualtyState::Dead) &&
+         reader.integral(record.experience) &&
+         reader.integral(record.injuries) &&
+         read_vec2(reader, record.last_transition_position) &&
+         reader.integral(record.state_since) &&
+         reader.integral(record.last_source.value);
+}
+
+void write_casualty_transition(Writer& writer,
+                               const CasualtyTransition& transition) {
+  writer.integral(transition.identity.value);
+  writer.integral(transition.entity.value);
+  writer.enumeration(transition.previous);
+  writer.enumeration(transition.current);
+  writer.integral(transition.tick);
+  writer.integral(transition.source.value);
+  write_vec2(writer, transition.position);
+}
+
+bool read_casualty_transition(Reader& reader,
+                              CasualtyTransition& transition) {
+  return reader.integral(transition.identity.value) &&
+         reader.integral(transition.entity.value) &&
+         reader.enumeration(transition.previous, CasualtyState::Dead) &&
+         reader.enumeration(transition.current, CasualtyState::Dead) &&
+         reader.integral(transition.tick) &&
+         reader.integral(transition.source.value) &&
+         read_vec2(reader, transition.position);
 }
 
 void write_resource(Writer& writer, const ResourceNode& resource) {
@@ -1068,6 +1124,7 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.enumeration(payload.owner);
       writer.enumeration(payload.faction);
       writer.enumeration(payload.archetype);
+      writer.integral(payload.identity.value);
       break;
     }
     case SimulationEventType::EntityDestroyed: {
@@ -1076,6 +1133,7 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.enumeration(payload.owner);
       writer.enumeration(payload.faction);
       writer.enumeration(payload.archetype);
+      writer.integral(payload.identity.value);
       break;
     }
     case SimulationEventType::UnitDamaged: {
@@ -1084,6 +1142,7 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.integral(payload.target.value);
       writer.integral(payload.amount);
       writer.integral(payload.remaining_hit_points);
+      writer.integral(payload.identity.value);
       break;
     }
     case SimulationEventType::UnitWounded: {
@@ -1091,18 +1150,27 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.integral(payload.entity.value);
       writer.integral(payload.source.value);
       writer.integral(payload.remaining_hit_points);
+      writer.integral(payload.identity.value);
+      writer.enumeration(payload.previous);
+      writer.enumeration(payload.current);
       break;
     }
     case SimulationEventType::UnitKilled: {
       const auto& payload = std::get<UnitKilledEvent>(event.payload);
       writer.integral(payload.entity.value);
       writer.integral(payload.killer.value);
+      writer.integral(payload.identity.value);
+      writer.enumeration(payload.previous);
+      writer.enumeration(payload.current);
       break;
     }
     case SimulationEventType::UnitRecovered: {
       const auto& payload = std::get<UnitRecoveredEvent>(event.payload);
       writer.integral(payload.entity.value);
       writer.integral(payload.recovery_source.value);
+      writer.integral(payload.identity.value);
+      writer.enumeration(payload.previous);
+      writer.enumeration(payload.current);
       break;
     }
     case SimulationEventType::FormationCreated: {
@@ -1246,7 +1314,8 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.entity.value) ||
           !reader.enumeration(payload.owner, PlayerId::Two) ||
           !reader.enumeration(payload.faction, FactionId::Concord) ||
-          !reader.enumeration(payload.archetype, EntityType::Turret)) {
+          !reader.enumeration(payload.archetype, EntityType::Turret) ||
+          !reader.integral(payload.identity.value)) {
         return false;
       }
       event.payload = payload;
@@ -1257,7 +1326,8 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.entity.value) ||
           !reader.enumeration(payload.owner, PlayerId::Two) ||
           !reader.enumeration(payload.faction, FactionId::Concord) ||
-          !reader.enumeration(payload.archetype, EntityType::Turret)) {
+          !reader.enumeration(payload.archetype, EntityType::Turret) ||
+          !reader.integral(payload.identity.value)) {
         return false;
       }
       event.payload = payload;
@@ -1268,7 +1338,8 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.source.value) ||
           !reader.integral(payload.target.value) ||
           !reader.integral(payload.amount) ||
-          !reader.integral(payload.remaining_hit_points)) {
+          !reader.integral(payload.remaining_hit_points) ||
+          !reader.integral(payload.identity.value)) {
         return false;
       }
       event.payload = payload;
@@ -1278,7 +1349,10 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       UnitWoundedEvent payload{};
       if (!reader.integral(payload.entity.value) ||
           !reader.integral(payload.source.value) ||
-          !reader.integral(payload.remaining_hit_points)) {
+          !reader.integral(payload.remaining_hit_points) ||
+          !reader.integral(payload.identity.value) ||
+          !reader.enumeration(payload.previous, CasualtyState::Dead) ||
+          !reader.enumeration(payload.current, CasualtyState::Dead)) {
         return false;
       }
       event.payload = payload;
@@ -1287,7 +1361,10 @@ bool read_event(Reader& reader, SimulationEvent& event) {
     case SimulationEventType::UnitKilled: {
       UnitKilledEvent payload{};
       if (!reader.integral(payload.entity.value) ||
-          !reader.integral(payload.killer.value)) {
+          !reader.integral(payload.killer.value) ||
+          !reader.integral(payload.identity.value) ||
+          !reader.enumeration(payload.previous, CasualtyState::Dead) ||
+          !reader.enumeration(payload.current, CasualtyState::Dead)) {
         return false;
       }
       event.payload = payload;
@@ -1296,7 +1373,10 @@ bool read_event(Reader& reader, SimulationEvent& event) {
     case SimulationEventType::UnitRecovered: {
       UnitRecoveredEvent payload{};
       if (!reader.integral(payload.entity.value) ||
-          !reader.integral(payload.recovery_source.value)) {
+          !reader.integral(payload.recovery_source.value) ||
+          !reader.integral(payload.identity.value) ||
+          !reader.enumeration(payload.previous, CasualtyState::Dead) ||
+          !reader.enumeration(payload.current, CasualtyState::Dead)) {
         return false;
       }
       event.payload = payload;
@@ -1774,6 +1854,14 @@ class SnapshotCodec final {
     for (const auto& entity : simulation.entities_) {
       write_entity(writer, entity);
     }
+    writer.count(simulation.casualty_system_.records_.size());
+    for (const auto& record : simulation.casualty_system_.records_) {
+      write_casualty_record(writer, record);
+    }
+    writer.count(simulation.casualty_system_.transitions_.size());
+    for (const auto& transition : simulation.casualty_system_.transitions_) {
+      write_casualty_transition(writer, transition);
+    }
     writer.count(simulation.resources_.size());
     for (const auto& resource : simulation.resources_) {
       write_resource(writer, resource);
@@ -1808,6 +1896,7 @@ class SnapshotCodec final {
     }
     writer.integral(simulation.ruin_tide_);
     writer.integral(simulation.next_entity_id_);
+    writer.integral(simulation.next_unit_identity_id_);
     writer.integral(simulation.next_resource_id_);
     writer.integral(simulation.next_control_point_id_);
     writer.integral(simulation.next_sequence_);
@@ -1891,6 +1980,10 @@ class SnapshotCodec final {
       }
     }
     if (!read_vector(reader, simulation->entities_, read_entity) ||
+        !read_vector(reader, simulation->casualty_system_.records_,
+                     read_casualty_record) ||
+        !read_vector(reader, simulation->casualty_system_.transitions_,
+                     read_casualty_transition) ||
         !read_vector(reader, simulation->resources_, read_resource) ||
         !read_vector(reader, simulation->control_points_,
                      read_control_point) ||
@@ -1918,6 +2011,7 @@ class SnapshotCodec final {
         !read_vector(reader, simulation->events_, read_event) ||
         !reader.integral(simulation->ruin_tide_) ||
         !reader.integral(simulation->next_entity_id_) ||
+        !reader.integral(simulation->next_unit_identity_id_) ||
         !reader.integral(simulation->next_resource_id_) ||
         !reader.integral(simulation->next_control_point_id_) ||
         !reader.integral(simulation->next_sequence_) ||
@@ -2187,6 +2281,85 @@ class SnapshotCodec final {
                       columns, rows, cell_count);
   }
 
+  static bool casualty_event_projection_matches(
+      const Simulation& simulation) noexcept {
+    std::size_t transition_index{};
+    for (const auto& event : simulation.events_) {
+      const auto type = event_type(event);
+      if (type == SimulationEventType::EntitySpawned) {
+        const auto& payload = std::get<EntitySpawnedEvent>(event.payload);
+        if (is_building(payload.archetype)) {
+          if (payload.identity) {
+            return false;
+          }
+          continue;
+        }
+        const auto* record = simulation.casualty_system_.find(payload.identity);
+        if (record == nullptr || record->last_entity != payload.entity ||
+            record->owner != payload.owner || record->faction != payload.faction ||
+            record->archetype != payload.archetype ||
+            (record->state == CasualtyState::Active &&
+             record->state_since != event.tick)) {
+          return false;
+        }
+      } else if (type == SimulationEventType::EntityDestroyed) {
+        const auto& payload = std::get<EntityDestroyedEvent>(event.payload);
+        if (is_building(payload.archetype)) {
+          if (payload.identity) {
+            return false;
+          }
+          continue;
+        }
+        const auto* record = simulation.casualty_system_.find(payload.identity);
+        if (record == nullptr || record->last_entity != payload.entity ||
+            record->owner != payload.owner || record->faction != payload.faction ||
+            record->archetype != payload.archetype ||
+            record->state != CasualtyState::Dead) {
+          return false;
+        }
+      } else if (type == SimulationEventType::UnitDamaged) {
+        const auto& payload = std::get<UnitDamagedEvent>(event.payload);
+        const auto* record = simulation.casualty_system_.find(payload.identity);
+        if (record == nullptr || record->last_entity != payload.target) {
+          return false;
+        }
+      } else if (type == SimulationEventType::UnitWounded) {
+        const auto& payload = std::get<UnitWoundedEvent>(event.payload);
+        if (transition_index >= simulation.casualty_system_.transitions_.size()) {
+          return false;
+        }
+        const auto& transition =
+            simulation.casualty_system_.transitions_[transition_index++];
+        if (transition.identity != payload.identity ||
+            transition.entity != payload.entity ||
+            transition.source != payload.source || transition.tick != event.tick ||
+            transition.previous != payload.previous ||
+            transition.current != payload.current ||
+            payload.current != CasualtyState::Wounded) {
+          return false;
+        }
+      } else if (type == SimulationEventType::UnitKilled) {
+        const auto& payload = std::get<UnitKilledEvent>(event.payload);
+        if (transition_index >= simulation.casualty_system_.transitions_.size()) {
+          return false;
+        }
+        const auto& transition =
+            simulation.casualty_system_.transitions_[transition_index++];
+        if (transition.identity != payload.identity ||
+            transition.entity != payload.entity ||
+            transition.source != payload.killer || transition.tick != event.tick ||
+            transition.previous != payload.previous ||
+            transition.current != payload.current ||
+            payload.current != CasualtyState::Dead) {
+          return false;
+        }
+      } else if (type == SimulationEventType::UnitRecovered) {
+        return false;
+      }
+    }
+    return transition_index == simulation.casualty_system_.transitions_.size();
+  }
+
   template <typename Value, typename IdProjection>
   static bool stable_ids(const std::vector<Value>& values,
                          const std::uint64_t next_id,
@@ -2228,9 +2401,13 @@ class SnapshotCodec final {
             simulation.config_, simulation.events_) ||
         !simulation.objective_system_.outcome_matches(
             simulation.config_.mode, simulation.status_, simulation.winner_) ||
+        !casualty_event_projection_matches(simulation) ||
         !simulation.supply_system_.derivation_matches(
             simulation.entities_, simulation.spatial_grid_,
-            builtin_content())) {
+            builtin_content()) ||
+        !simulation.casualty_system_.derivation_matches(
+            simulation.entities_, simulation.next_unit_identity_id_,
+            simulation.tick_)) {
       return false;
     }
     if (!stable_ids(
