@@ -65,6 +65,10 @@ class ASHENCORE_API Simulation final {
       UnitIdentityId identity) const noexcept {
     return casualty_system_.find(identity);
   }
+  [[nodiscard]] bool is_casualty_recoverable(
+      UnitIdentityId identity) const noexcept {
+    return casualty_system_.is_recoverable(identity, tick_);
+  }
   [[nodiscard]] std::span<const MissionObjectiveState> mission_objectives()
       const noexcept {
     return objective_system_.states();
@@ -144,6 +148,7 @@ class ASHENCORE_API Simulation final {
   void update_orders();
   void update_auto_aggro();
   void update_defenses();
+  void update_casualties();
   void update_commanders();
   void update_gather(Entity& entity);
   void update_build(Entity& entity);
@@ -154,6 +159,7 @@ class ASHENCORE_API Simulation final {
   void refresh_observation_memory();
   void resolve_unit_separation();
   void apply_damage(Entity& target, EntityId source, std::int32_t amount);
+  void emit_casualty_transition(const CasualtyTransition& transition);
   void remove_dead_entities();
   void update_match_status();
   void set_order(Entity& entity, Order order, bool queue);

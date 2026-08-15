@@ -10,6 +10,9 @@ namespace ashen::core {
 
 class SnapshotCodec;
 
+inline constexpr Tick kCasualtyStabilizationTicks = 40;
+inline constexpr Tick kBaseRecoveryWindowTicks = 400;
+
 struct CasualtyRecord {
   UnitIdentityId identity{};
   EntityId last_entity{};
@@ -22,6 +25,7 @@ struct CasualtyRecord {
   std::uint32_t injuries{};
   Vec2 last_transition_position{};
   Tick state_since{};
+  Tick state_deadline{};
   EntityId last_source{};
 
   auto operator<=>(const CasualtyRecord&) const = default;
@@ -33,6 +37,7 @@ struct CasualtyTransition {
   CasualtyState previous{CasualtyState::Active};
   CasualtyState current{CasualtyState::Active};
   Tick tick{};
+  Tick state_deadline{};
   EntityId source{};
   Vec2 position{};
 
@@ -44,9 +49,14 @@ class ASHENCORE_API CasualtySystem final {
   void reset() noexcept;
   [[nodiscard]] bool register_unit(const Entity& entity, Tick tick);
   [[nodiscard]] bool mark_wounded(Entity& entity, EntityId source, Tick tick);
+  [[nodiscard]] bool mark_incapacitated(Entity& entity, EntityId source,
+                                        Tick tick);
   [[nodiscard]] bool mark_dead(Entity& entity, EntityId source, Tick tick);
+  void advance(Tick tick);
 
   [[nodiscard]] const CasualtyRecord* find(UnitIdentityId identity) const noexcept;
+  [[nodiscard]] bool is_recoverable(UnitIdentityId identity,
+                                    Tick tick) const noexcept;
   [[nodiscard]] std::span<const CasualtyRecord> records() const noexcept {
     return records_;
   }
@@ -64,6 +74,8 @@ class ASHENCORE_API CasualtySystem final {
   [[nodiscard]] CasualtyRecord* find_mutable(UnitIdentityId identity) noexcept;
   [[nodiscard]] bool transition(Entity& entity, CasualtyState current,
                                 EntityId source, Tick tick);
+  void transition(CasualtyRecord& record, CasualtyState current, Tick tick,
+                  Tick state_deadline);
 
   std::vector<CasualtyRecord> records_{};
   std::vector<CasualtyTransition> transitions_{};

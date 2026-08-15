@@ -140,6 +140,17 @@ std::uint64_t simulation_event_hash(const SimulationEvent& event) noexcept {
           hash_integral(hash, payload.objective);
           hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
           hash_integral(hash, static_cast<std::uint8_t>(payload.current));
+        } else if constexpr (
+            std::is_same_v<Payload, CasualtyStateChangedEvent>) {
+          hash_integral(hash, payload.identity.value);
+          hash_entity(hash, payload.entity);
+          hash_integral(hash, static_cast<std::uint8_t>(payload.owner));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.previous));
+          hash_integral(hash, static_cast<std::uint8_t>(payload.current));
+          hash_integral(hash, payload.state_deadline);
+          hash_entity(hash, payload.source);
+          hash_integral(hash, payload.position.x);
+          hash_integral(hash, payload.position.y);
         }
       },
       event.payload);

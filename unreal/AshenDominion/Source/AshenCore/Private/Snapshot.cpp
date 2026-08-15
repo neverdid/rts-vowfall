@@ -524,6 +524,7 @@ void write_casualty_record(Writer& writer, const CasualtyRecord& record) {
   writer.integral(record.injuries);
   write_vec2(writer, record.last_transition_position);
   writer.integral(record.state_since);
+  writer.integral(record.state_deadline);
   writer.integral(record.last_source.value);
 }
 
@@ -539,6 +540,7 @@ bool read_casualty_record(Reader& reader, CasualtyRecord& record) {
          reader.integral(record.injuries) &&
          read_vec2(reader, record.last_transition_position) &&
          reader.integral(record.state_since) &&
+         reader.integral(record.state_deadline) &&
          reader.integral(record.last_source.value);
 }
 
@@ -549,6 +551,7 @@ void write_casualty_transition(Writer& writer,
   writer.enumeration(transition.previous);
   writer.enumeration(transition.current);
   writer.integral(transition.tick);
+  writer.integral(transition.state_deadline);
   writer.integral(transition.source.value);
   write_vec2(writer, transition.position);
 }
@@ -560,6 +563,7 @@ bool read_casualty_transition(Reader& reader,
          reader.enumeration(transition.previous, CasualtyState::Dead) &&
          reader.enumeration(transition.current, CasualtyState::Dead) &&
          reader.integral(transition.tick) &&
+         reader.integral(transition.state_deadline) &&
          reader.integral(transition.source.value) &&
          read_vec2(reader, transition.position);
 }
@@ -1298,6 +1302,19 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       writer.enumeration(payload.current);
       break;
     }
+    case SimulationEventType::CasualtyStateChanged: {
+      const auto& payload =
+          std::get<CasualtyStateChangedEvent>(event.payload);
+      writer.integral(payload.identity.value);
+      writer.integral(payload.entity.value);
+      writer.enumeration(payload.owner);
+      writer.enumeration(payload.previous);
+      writer.enumeration(payload.current);
+      writer.integral(payload.state_deadline);
+      writer.integral(payload.source.value);
+      write_vec2(writer, payload.position);
+      break;
+    }
   }
 }
 
@@ -1305,7 +1322,7 @@ bool read_event(Reader& reader, SimulationEvent& event) {
   SimulationEventType type{};
   if (!reader.integral(event.id.value) ||
       !reader.integral(event.tick) ||
-      !reader.enumeration(type, SimulationEventType::MissionObjectiveChanged)) {
+      !reader.enumeration(type, SimulationEventType::CasualtyStateChanged)) {
     return false;
   }
   switch (type) {
@@ -1550,6 +1567,21 @@ bool read_event(Reader& reader, SimulationEvent& event) {
                               MissionObjectiveStatus::Failed) ||
           !reader.enumeration(payload.current,
                               MissionObjectiveStatus::Failed)) {
+        return false;
+      }
+      event.payload = payload;
+      return true;
+    }
+    case SimulationEventType::CasualtyStateChanged: {
+      CasualtyStateChangedEvent payload{};
+      if (!reader.integral(payload.identity.value) ||
+          !reader.integral(payload.entity.value) ||
+          !reader.enumeration(payload.owner, PlayerId::Two) ||
+          !reader.enumeration(payload.previous, CasualtyState::Dead) ||
+          !reader.enumeration(payload.current, CasualtyState::Dead) ||
+          !reader.integral(payload.state_deadline) ||
+          !reader.integral(payload.source.value) ||
+          !read_vec2(reader, payload.position)) {
         return false;
       }
       event.payload = payload;
@@ -2314,7 +2346,10 @@ class SnapshotCodec final {
         if (record == nullptr || record->last_entity != payload.entity ||
             record->owner != payload.owner || record->faction != payload.faction ||
             record->archetype != payload.archetype ||
-            record->state != CasualtyState::Dead) {
+            (record->state != CasualtyState::Incapacitated &&
+             record->state != CasualtyState::Recoverable &&
+             record->state != CasualtyState::Missing &&
+             record->state != CasualtyState::Dead)) {
           return false;
         }
       } else if (type == SimulationEventType::UnitDamaged) {
@@ -2335,6 +2370,7 @@ class SnapshotCodec final {
             transition.source != payload.source || transition.tick != event.tick ||
             transition.previous != payload.previous ||
             transition.current != payload.current ||
+            transition.state_deadline != 0 ||
             payload.current != CasualtyState::Wounded) {
           return false;
         }
@@ -2350,11 +2386,33 @@ class SnapshotCodec final {
             transition.source != payload.killer || transition.tick != event.tick ||
             transition.previous != payload.previous ||
             transition.current != payload.current ||
+            transition.state_deadline != 0 ||
             payload.current != CasualtyState::Dead) {
           return false;
         }
       } else if (type == SimulationEventType::UnitRecovered) {
         return false;
+      } else if (type == SimulationEventType::CasualtyStateChanged) {
+        const auto& payload =
+            std::get<CasualtyStateChangedEvent>(event.payload);
+        if (transition_index >= simulation.casualty_system_.transitions_.size()) {
+          return false;
+        }
+        const auto& transition =
+            simulation.casualty_system_.transitions_[transition_index++];
+        const auto* record = simulation.casualty_system_.find(payload.identity);
+        if (record == nullptr || record->owner != payload.owner ||
+            transition.identity != payload.identity ||
+            transition.entity != payload.entity ||
+            transition.source != payload.source || transition.tick != event.tick ||
+            transition.previous != payload.previous ||
+            transition.current != payload.current ||
+            transition.state_deadline != payload.state_deadline ||
+            transition.position != payload.position ||
+            (payload.current != CasualtyState::Incapacitated &&
+             payload.current != CasualtyState::Recoverable)) {
+          return false;
+        }
       }
     }
     return transition_index == simulation.casualty_system_.transitions_.size();

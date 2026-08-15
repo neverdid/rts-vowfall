@@ -36,6 +36,7 @@ enum class SimulationEventType : std::uint8_t {
   AbilityStarted,
   AbilityInterrupted,
   MissionObjectiveChanged,
+  CasualtyStateChanged,
 };
 
 enum class MissionObjectiveStatus : std::uint8_t {
@@ -239,6 +240,19 @@ struct MissionObjectiveChangedEvent {
   auto operator<=>(const MissionObjectiveChangedEvent&) const = default;
 };
 
+struct CasualtyStateChangedEvent {
+  UnitIdentityId identity{};
+  EntityId entity{};
+  PlayerId owner{PlayerId::One};
+  CasualtyState previous{CasualtyState::Active};
+  CasualtyState current{CasualtyState::Incapacitated};
+  Tick state_deadline{};
+  EntityId source{};
+  Vec2 position{};
+
+  auto operator<=>(const CasualtyStateChangedEvent&) const = default;
+};
+
 using SimulationEventPayload =
     std::variant<EntitySpawnedEvent, EntityDestroyedEvent, UnitDamagedEvent,
                  UnitWoundedEvent, UnitKilledEvent, UnitRecoveredEvent,
@@ -249,7 +263,8 @@ using SimulationEventPayload =
                  TransformationCompletedEvent, TestimonyDiscoveredEvent,
                  ObjectiveContestedEvent, ObjectiveCapturedEvent,
                  ProjectileLaunchedEvent, AbilityStartedEvent,
-                 AbilityInterruptedEvent, MissionObjectiveChangedEvent>;
+                 AbilityInterruptedEvent, MissionObjectiveChangedEvent,
+                 CasualtyStateChangedEvent>;
 
 struct SimulationEvent {
   EventId id{};

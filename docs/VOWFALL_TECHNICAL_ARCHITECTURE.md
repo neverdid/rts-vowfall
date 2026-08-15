@@ -90,13 +90,14 @@ validated restore, records player submissions, and exports ReplayV1 only after
 in-memory verification succeeds.
 
 Casualty state is persisted rather than derived. SnapshotV1 writes live entity
-identity/state, the identity-ordered casualty ledger, append-only transitions, and the
-next unit-identity cursor. Restore validates live-unit membership, legal foundation
-transitions, event projection, stable ordering, and the retained dead record before
-accepting the checkpoint. These payload additions advance the deterministic rules
-revision to 4; older SnapshotV1 and ReplayV1 files are rejected by the pipeline digest
-before payload decoding. A future long-lived save migration must introduce an explicit
-new schema instead of weakening that compatibility gate.
+identity/state, the identity-ordered casualty ledger, state deadlines, append-only
+transitions, and the next unit-identity cursor. Restore validates live-unit
+membership, legal transitions and deadline formulas, event projection, stable
+ordering, and retained non-live records before accepting the checkpoint. These
+payload additions advance the deterministic rules revision to 5; older SnapshotV1
+and ReplayV1 files are rejected by the pipeline digest before payload decoding. A
+future long-lived save migration must introduce an explicit new schema instead of
+weakening that compatibility gate.
 
 Mission-objective runtime status and activation-relative deadlines are deterministic
 derived projections of the scenario definition and the persisted ordered
@@ -151,20 +152,22 @@ The observable Phase 0 order in `Simulation::step()` is:
 6. Update control-point capture and income.
 7. Recompute resolve.
 8. Execute orders, including movement, gathering, construction, and instant-hit unit
-   attacks; unit damage may append wound/death casualty transitions; then run
+   attacks; unit damage may append wound/incapacitation casualty transitions; then run
    separation.
 9. Acquire idle-unit targets.
 10. Resolve defensive-building attacks, including ordered casualty transitions.
-11. Remove dead entities, retain their casualty records, and adjust the legacy
+11. Advance due stabilization/recovery deadlines in unit-identity order and emit
+    recoverability or terminal-death events.
+12. Remove non-live combat entities, retain their casualty records, and adjust the legacy
     population cap.
-12. Rebuild the spatial grid, allocate the Compact Road Ledger, and emit stable-ID
+13. Rebuild the spatial grid, allocate the Compact Road Ledger, and emit stable-ID
     connection transitions.
-13. Refresh visibility.
-14. Evaluate scenario objectives and mission outcome (or legacy victory for an
+14. Refresh visibility.
+15. Evaluate scenario objectives and mission outcome (or legacy victory for an
     unsupported scenario).
-15. Increment the tick.
-16. Refresh observation memory.
-17. Ask enabled commanders to plan and queue ordinary commands.
+16. Increment the tick.
+17. Refresh observation memory.
+18. Ask enabled commanders to plan and queue ordinary commands.
 
 This order is authoritative legacy behavior. It is intentionally documented before
 being changed.
@@ -230,9 +233,12 @@ index maps `EntityId::value` to the current vector slot:
 - `CasualtySystem` is the transition authority. Its record remains after the live
   entity is erased, and its transition vector follows authoritative combat/event
   order;
-- the current foundation drives only `Active -> Wounded`, `Active -> Dead`, and
-  `Wounded -> Dead`. The full enum reserves incapacitated, recoverable, recovered,
-  and missing states without claiming their gameplay rules exist.
+- lethal damage drives `Active/Wounded -> Incapacitated`; a fixed deadline advances
+  `Incapacitated -> Recoverable`, then a second deadline advances
+  `Recoverable -> Dead`. Deadline ties follow identity order;
+- recoverability is a read-only authoritative query over state and the current tick.
+  `Recovered` and `Missing` remain reserved until evacuation, hospital, and
+  re-embodiment rules exist.
 
 ## Spatial queries
 

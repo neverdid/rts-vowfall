@@ -207,6 +207,8 @@ EAshenSimulationEventType ToSimulationEventType(const ashen::core::SimulationEve
         return EAshenSimulationEventType::AbilityInterrupted;
     case SimulationEventType::MissionObjectiveChanged:
         return EAshenSimulationEventType::MissionObjectiveChanged;
+    case SimulationEventType::CasualtyStateChanged:
+        return EAshenSimulationEventType::CasualtyStateChanged;
     }
     return EAshenSimulationEventType::EntitySpawned;
 }
@@ -766,7 +768,7 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
         View.EventId = static_cast<int64>(Event.id.value);
         View.Tick = static_cast<int64>(Event.tick);
         View.Type = ToSimulationEventType(ashen::core::event_type(Event));
-        std::visit([&View](const auto& Payload)
+        std::visit([this, &View](const auto& Payload)
         {
             using PayloadType = std::decay_t<decltype(Payload)>;
             using namespace ashen::core;
@@ -891,6 +893,17 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
                 View.ContentId = static_cast<int32>(Payload.objective);
                 View.PlayerIndex = static_cast<int32>(Payload.previous);
                 View.Amount = static_cast<int32>(Payload.current);
+            }
+            else if constexpr (std::is_same_v<PayloadType, CasualtyStateChangedEvent>)
+            {
+                View.EntityId = static_cast<int32>(Payload.entity.value);
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.PlayerIndex = static_cast<int32>(Payload.owner);
+                View.TargetEntityId = static_cast<int32>(Payload.source.value);
+                View.PreviousCasualtyState = ToCasualtyState(Payload.previous);
+                View.CasualtyState = ToCasualtyState(Payload.current);
+                View.StateDeadlineTick = static_cast<int64>(Payload.state_deadline);
+                View.Position = ToWorldPosition(Payload.position.x, Payload.position.y);
             }
         }, Event.payload);
     }

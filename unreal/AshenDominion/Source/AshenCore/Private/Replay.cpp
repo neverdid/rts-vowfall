@@ -338,7 +338,7 @@ void write_event_audit(Writer& writer, const ReplayEventAudit& event) {
 bool read_event_audit(Reader& reader, ReplayEventAudit& event) {
   return reader.integral(event.id.value) && reader.integral(event.tick) &&
          reader.enumeration(event.type,
-                            SimulationEventType::MissionObjectiveChanged) &&
+                            SimulationEventType::CasualtyStateChanged) &&
          reader.integral(event.hash);
 }
 
@@ -536,7 +536,7 @@ template <typename Enum>
     if (event.id.value != next_event_id ||
         event.tick < replay.header.initial_tick ||
         event.tick > replay.header.final_tick ||
-        !valid_enum(event.type, SimulationEventType::MissionObjectiveChanged)) {
+        !valid_enum(event.type, SimulationEventType::CasualtyStateChanged)) {
       return ReplayError::InvalidData;
     }
     ++next_event_id;
