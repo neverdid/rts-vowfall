@@ -70,17 +70,22 @@ campaign identity, formation identity, experience, injuries, relevant memories, 
 last known location. Recovery moves identity; it does not spawn an unrelated
 replacement.
 
-The X4 foundation assigns every unit a stable `UnitIdentityId`, retains an
-identity-ordered `CasualtyRecord` after its live entity is removed, and appends ordered
-transition history for `Active -> Wounded`, `Active -> Dead`, and `Wounded -> Dead`.
-Wound and kill events carry the persistent identity plus previous/current state, and
-SnapshotV1/ReplayV1 preserve and verify the ledger. Owned observations carry live
-identity/state; sanitized enemy observations do not.
+The X4 foundation assigns every unit a stable `UnitIdentityId` and retains its
+identity-ordered `CasualtyRecord` after the combat entity is removed. Lethal damage
+transitions a unit to `Incapacitated`. After a fixed 40-tick (two-second)
+stabilization delay it becomes `Recoverable` for a base 400-tick (twenty-second)
+window; expiry transitions it to `Dead`. Equal deadlines are processed by identity.
+Eligibility is true only while the state is `Recoverable` and the authoritative tick
+is strictly before the stored deadline.
 
-`Incapacitated`, `Recoverable`, `Recovered`, and `Missing` remain reserved vocabulary.
-There is no recovery eligibility, evacuation route, hospital capacity, re-embodiment,
-or identity transfer yet. `UnitRecovered` remains reserved and is not emitted by the
-current simulation.
+The ordered event stream exposes nonterminal casualty state changes, while
+`UnitKilled` is emitted only on terminal expiry. SnapshotV1/ReplayV1 preserve and
+verify records, deadlines, transitions, and their event projection. Owned
+observations carry live identity/state; sanitized enemy observations do not.
+
+`Recovered` and `Missing` remain reserved vocabulary. There is no evacuation route,
+hospital capacity, recovery command, re-embodiment, or identity transfer yet.
+`UnitRecovered` remains reserved and is not emitted by the current simulation.
 
 ### Production roles
 

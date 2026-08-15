@@ -78,10 +78,10 @@ queries, event order, and tie-breaking are explicit.
 - Full casualty recovery, the complete road/cart/hospital/bridge supply network,
   cohesion simulation, projectiles, facing, cover, charges, bracing, suppression,
   pursuit, or transformation gameplay. Stable unit identity and retained
-  Active/Wounded/Dead history now exist, but incapacitation, evacuation, hospital,
-  missing, and recovery rules do not. The first Compact structure-node graph and
-  reinforcement, construction, and assisted-retreat consumers are implemented
-  headlessly.
+  wound/incapacitation/recoverability/death history and fixed recovery-window
+  eligibility now exist, but evacuation, hospitals, missing outcomes, actual recovery,
+  and re-embodiment do not. The first Compact structure-node graph and reinforcement,
+  construction, and assisted-retreat consumers are implemented headlessly.
 - A UMG/CommonUI HUD replacement.
 - Named checkpoint selection or replay playback in this pass. Unreal now provides a
   SnapshotV1 quick checkpoint/restore path and verified ReplayV1 export, while a

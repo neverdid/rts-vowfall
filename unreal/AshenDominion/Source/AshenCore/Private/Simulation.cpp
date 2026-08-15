@@ -282,6 +282,7 @@ void Simulation::step() {
   update_orders();
   update_auto_aggro();
   update_defenses();
+  update_casualties();
   remove_dead_entities();
   update_supply();
   refresh_visibility();
@@ -1869,12 +1870,37 @@ void Simulation::apply_damage(Entity& target, const EntityId source,
     }
   }
   if (target.hit_points <= 0) {
-    const auto previous_state = target.casualty_state;
-    if (casualty_system_.mark_dead(target, source, tick_)) {
-      emit_event(UnitKilledEvent{target.id, source, target.identity,
-                                 previous_state, CasualtyState::Dead});
+    if (casualty_system_.mark_incapacitated(target, source, tick_)) {
+      emit_casualty_transition(casualty_system_.transitions().back());
     }
   }
+}
+
+void Simulation::update_casualties() {
+  const auto first_transition = casualty_system_.transitions().size();
+  casualty_system_.advance(tick_);
+  const auto transitions = casualty_system_.transitions();
+  for (std::size_t index = first_transition; index < transitions.size(); ++index) {
+    emit_casualty_transition(transitions[index]);
+  }
+}
+
+void Simulation::emit_casualty_transition(
+    const CasualtyTransition& transition) {
+  const auto* record = casualty_system_.find(transition.identity);
+  if (record == nullptr) {
+    return;
+  }
+  if (transition.current == CasualtyState::Dead) {
+    emit_event(UnitKilledEvent{transition.entity, transition.source,
+                               transition.identity, transition.previous,
+                               transition.current});
+    return;
+  }
+  emit_event(CasualtyStateChangedEvent{
+      transition.identity, transition.entity, record->owner,
+      transition.previous, transition.current, transition.state_deadline,
+      transition.source, transition.position});
 }
 
 void Simulation::remove_dead_entities() {

@@ -99,6 +99,7 @@ enum class EAshenSimulationEventType : uint8
     AbilityStarted,
     AbilityInterrupted,
     MissionObjectiveChanged,
+    CasualtyStateChanged,
 };
 
 USTRUCT(BlueprintType)
@@ -266,6 +267,9 @@ struct FAshenSimulationEventView
     int64 Tick = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int64 StateDeadlineTick = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     EAshenSimulationEventType Type = EAshenSimulationEventType::EntitySpawned;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
@@ -288,6 +292,9 @@ struct FAshenSimulationEventView
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     int32 Amount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    FVector Position = FVector::ZeroVector;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     EAshenCasualtyState PreviousCasualtyState = EAshenCasualtyState::Active;

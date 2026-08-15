@@ -297,8 +297,8 @@ void events_are_ordered_emitted_and_replayable() {
             .entities = {second_attacker},
             .target_entity = second_victim})
             .ok);
-  first.run(400);
-  second.run(400);
+  first.run(900);
+  second.run(900);
 
   CHECK(first.events() == second.events());
   CHECK(first.event_digest() == second.event_digest());
@@ -314,10 +314,20 @@ void events_are_ordered_emitted_and_replayable() {
       first.events(), [](const SimulationEvent& event) {
         return event_type(event) == SimulationEventType::EntityDestroyed;
       });
+  const auto incapacitated = std::ranges::find_if(
+      first.events(), [](const SimulationEvent& event) {
+        return event_type(event) ==
+                   SimulationEventType::CasualtyStateChanged &&
+               std::get<CasualtyStateChangedEvent>(event.payload).current ==
+                   CasualtyState::Incapacitated;
+      });
   CHECK(killed != first.events().end());
   CHECK(destroyed != first.events().end());
+  CHECK(incapacitated != first.events().end());
   CHECK(killed != first.events().end() &&
-        destroyed != first.events().end() && killed->id < destroyed->id);
+        destroyed != first.events().end() &&
+        incapacitated != first.events().end() &&
+        incapacitated->id < destroyed->id && destroyed->id < killed->id);
   const auto before_read = first.state_hash();
   static_cast<void>(first.events().size());
   CHECK(first.state_hash() == before_read);

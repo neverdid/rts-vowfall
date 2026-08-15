@@ -201,23 +201,25 @@ repository modules, not a promise that every listed module changes in one patch.
 - **Goal:** Retain wounded/incapacitated/recoverable/missing/dead state and history.
 - **Complete:** Separate monotonic `UnitIdentityId` values for units; identity/state on
   live owned observations but not sanitized enemy observations; identity-ordered
-  `CasualtyRecord` storage; append-only `Active -> Wounded`, `Active -> Dead`, and
-  `Wounded -> Dead` transitions; retained dead records; identity/state-enriched spawn,
-  damage, wound, kill, destruction, and reserved recovery payloads; Unreal view/event
-  plumbing; full state/event hash coverage; SnapshotV1 restore validation; ReplayV1
-  verification; and focused ordering, persistence, observation, snapshot, and replay
-  fixtures.
-- **Remaining:** Incapacitation and recoverability rules, missing outcomes, evacuation
-  routing, hospital capacity, recovery/re-embodiment, formation/experience/memory
-  mutation, Road Ledger recovery eligibility, and replacement of the Compact generic
-  heal with `No One Left Uncounted`.
+  `CasualtyRecord` storage; append-only wound, incapacitation, recoverability, and
+  terminal-death transitions; retained records after the combat entity is removed;
+  fixed 40-tick stabilization and 400-tick base recovery deadlines; boundary-safe
+  recovery eligibility; identity-ordered simultaneous deadline processing;
+  identity/state-enriched events and Unreal views; full state/event hash coverage;
+  SnapshotV1 restore validation; ReplayV1 verification; and focused ordering,
+  persistence, boundary, observation, snapshot, and replay fixtures.
+- **Remaining:** Missing outcomes, evacuation routing, hospital capacity, actual
+  recovery/re-embodiment, formation/experience/memory mutation, Road Ledger recovery
+  eligibility, and replacement of the Compact generic heal with
+  `No One Left Uncounted`.
 - **Files:** new `CasualtySystem.*`, identity/history definitions, hospital/evacuation.
 - **Dependencies:** Combat resolution, supply, snapshot, events.
 - **Acceptance:** Recovery preserves identity, formation, experience, injuries, and
   memory; `No One Left Uncounted` modifies eligibility rather than generic health.
-- **Tests:** Foundation spawn, wound, death, stable ordering, retained identity,
-  observation boundary, restore, and replay complete; every later state transition,
-  route loss, hospital capacity, and recovery identity transfer remain.
+- **Tests:** Foundation spawn, wound, incapacitation, timed recoverability/expiry,
+  deadline boundaries, stable identity ordering, retained identity, observation
+  boundary, restore, and replay complete; route loss, hospital capacity, missing, and
+  recovery identity transfer remain.
 - **Risk:** Critical.
 
 ### X5 — Persistent formations and cohesion
