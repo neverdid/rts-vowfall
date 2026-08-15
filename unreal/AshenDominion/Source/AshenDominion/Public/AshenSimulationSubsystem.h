@@ -87,6 +87,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Ashen|Events")
     TArray<FAshenSimulationEventView> GetSimulationEventsSince(int64 LastEventId) const;
 
+    UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
+    bool IsCasualtyRecoverable(int32 UnitIdentityId) const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
+    int32 GetCasualtyRecoveryAnchorId(int32 UnitIdentityId) const;
+
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     TArray<FAshenResearchView> GetResearchViews(int32 ProducerId) const;
 

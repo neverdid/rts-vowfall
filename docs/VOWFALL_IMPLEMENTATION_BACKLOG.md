@@ -180,10 +180,12 @@ repository modules, not a promise that every listed module changes in one patch.
   Connected completed sources and relays also expose assisted Retreat to Compact
   units inside their physical link range; cutting the route removes that specialized
   command from player/AI observations while ordinary Move remains legal, and restoring
-  the route restores it.
+  the route restores it. The same stable distance/ID anchor query now gates Compact
+  casualty recovery access at the retained casualty position; route cuts and
+  reconnects remove and restore eligibility without changing the casualty deadline.
 - **Remaining:** Explicit road segments, carts, field kitchens, hospitals, evacuation
-  exits, bridge-health edges, recovery capability consumers, mission-authored routes,
-  and AI route attack/repair planning.
+  exits, bridge-health edges, the actual recovery command/capacity consumer,
+  mission-authored routes, and AI route attack/repair planning.
 - **Files:** new `SupplySystem.*`, road/relay/cart/hospital definitions, mission data.
 - **Dependencies:** Scenario, spatial queries, events, snapshot.
 - **Acceptance:** Cutting and restoring a route deterministically changes legal
@@ -205,21 +207,22 @@ repository modules, not a promise that every listed module changes in one patch.
   terminal-death transitions; retained records after the combat entity is removed;
   fixed 40-tick stabilization and 400-tick base recovery deadlines; boundary-safe
   recovery eligibility; identity-ordered simultaneous deadline processing;
-  identity/state-enriched events and Unreal views; full state/event hash coverage;
+  Compact Road Ledger recovery-access gating with stable anchor ties and live
+  cut/reconnect behavior; identity/state-enriched events and Unreal views; full
+  state/event hash coverage;
   SnapshotV1 restore validation; ReplayV1 verification; and focused ordering,
   persistence, boundary, observation, snapshot, and replay fixtures.
 - **Remaining:** Missing outcomes, evacuation routing, hospital capacity, actual
-  recovery/re-embodiment, formation/experience/memory mutation, Road Ledger recovery
-  eligibility, and replacement of the Compact generic heal with
-  `No One Left Uncounted`.
+  recovery/re-embodiment, formation/experience/memory mutation, and replacement of
+  the Compact generic heal with `No One Left Uncounted`.
 - **Files:** new `CasualtySystem.*`, identity/history definitions, hospital/evacuation.
 - **Dependencies:** Combat resolution, supply, snapshot, events.
 - **Acceptance:** Recovery preserves identity, formation, experience, injuries, and
   memory; `No One Left Uncounted` modifies eligibility rather than generic health.
 - **Tests:** Foundation spawn, wound, incapacitation, timed recoverability/expiry,
   deadline boundaries, stable identity ordering, retained identity, observation
-  boundary, restore, and replay complete; route loss, hospital capacity, missing, and
-  recovery identity transfer remain.
+  boundary, Road Ledger distance/anchor ties, cut/reconnect eligibility, restore, and
+  replay complete; hospital capacity, missing, and recovery identity transfer remain.
 - **Risk:** Critical.
 
 ### X5 — Persistent formations and cohesion
