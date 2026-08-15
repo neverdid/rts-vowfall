@@ -13,6 +13,7 @@ add_library(ashen_core STATIC
   ${ASHEN_CORE_MODULE_DIR}/Private/AIStrategicLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/AITacticalLayer.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Campaign.cpp
+  ${ASHEN_CORE_MODULE_DIR}/Private/CasualtySystem.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Catalog.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/Content.cpp
   ${ASHEN_CORE_MODULE_DIR}/Private/CommanderAI.cpp
@@ -115,6 +116,10 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
   target_link_libraries(ashen_supply_tests PRIVATE ashen_core)
   add_test(NAME ashen_supply_tests COMMAND ashen_supply_tests)
 
+  add_executable(ashen_casualty_tests tests/CasualtyTests.cpp)
+  target_link_libraries(ashen_casualty_tests PRIVATE ashen_core)
+  add_test(NAME ashen_casualty_tests COMMAND ashen_casualty_tests)
+
   add_executable(ashen_parity_runner tools/parity_runner.cpp)
   target_link_libraries(ashen_parity_runner PRIVATE ashen_core)
   add_test(NAME ashen_parity_catalog COMMAND ashen_parity_runner --catalog)
@@ -141,6 +146,7 @@ if(ASHEN_BUILD_TESTS AND BUILD_TESTING)
       ashen_replay_tests
       ashen_scenario_tests
       ashen_supply_tests
+      ashen_casualty_tests
       ashen_parity_catalog
       ashen_self_play_fixed_suite
       PROPERTIES

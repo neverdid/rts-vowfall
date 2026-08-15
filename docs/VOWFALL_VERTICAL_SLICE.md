@@ -75,9 +75,11 @@ queries, event order, and tie-breaking are explicit.
   voice, music, or accessibility pass.
 - The complete Compact or Ascendancy roster and final balance.
 - The Elder Concord implementation.
-- Full casualty persistence, the complete road/cart/hospital/bridge supply network,
+- Full casualty recovery, the complete road/cart/hospital/bridge supply network,
   cohesion simulation, projectiles, facing, cover, charges, bracing, suppression,
-  pursuit, or transformation gameplay. The first Compact structure-node graph and
+  pursuit, or transformation gameplay. Stable unit identity and retained
+  Active/Wounded/Dead history now exist, but incapacitation, evacuation, hospital,
+  missing, and recovery rules do not. The first Compact structure-node graph and
   reinforcement, construction, and assisted-retreat consumers are implemented
   headlessly.
 - A UMG/CommonUI HUD replacement.
@@ -96,8 +98,8 @@ queries, event order, and tie-breaking are explicit.
 | Authority | `AshenCore::Simulation`, commands, state hash | Preserve and split behind explicit deterministic boundaries |
 | Factions | `PlayerState::faction`, faction-aware `Catalog.cpp` | Carry faction through every entity and presentation lookup |
 | Content | Compiled switches in `Catalog.cpp` and `Campaign.cpp` | Stable IDs, versions, reference validation, localization and presentation keys |
-| Events | Command and AI traces only | Typed authoritative gameplay event stream |
-| Entities | Ordered `std::vector<Entity>`, monotonic IDs | Indexed lookup independent from ordered iteration |
+| Events | Typed ordered gameplay events with casualty identity/state payloads | Extend the same stream to later transitions |
+| Entities | Ordered `std::vector<Entity>`, indexed runtime IDs, persistent unit identity ledger | Preserve identity through recovery/re-embodiment |
 | Space | Visibility grid plus broad entity scans | Deterministic uniform spatial query service |
 | Resolve | Per-tick scalar recomputation | Threshold state now; persistent memory later |
 | Vows | `StoryMissionDefinition::public_vow` text | Authoritative lifecycle, commands, events, save/replay contract |

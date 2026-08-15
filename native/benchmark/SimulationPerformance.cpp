@@ -137,6 +137,10 @@ struct Measurement {
           sizeof(AIDecisionRecord) +
       static_cast<std::uint64_t>(simulation.events().capacity()) *
           sizeof(SimulationEvent) +
+      static_cast<std::uint64_t>(simulation.casualties().size()) *
+          sizeof(CasualtyRecord) +
+      static_cast<std::uint64_t>(simulation.casualty_history().size()) *
+          sizeof(CasualtyTransition) +
       simulation.spatial_grid().approximate_memory_bytes();
 
   return {population,        step_us,       navigation_us, ai_us,

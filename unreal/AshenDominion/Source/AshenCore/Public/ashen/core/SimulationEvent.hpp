@@ -50,6 +50,7 @@ struct EntitySpawnedEvent {
   PlayerId owner{PlayerId::One};
   FactionId faction{FactionId::Compact};
   EntityType archetype{EntityType::Worker};
+  UnitIdentityId identity{};
 
   auto operator<=>(const EntitySpawnedEvent&) const = default;
 };
@@ -59,6 +60,7 @@ struct EntityDestroyedEvent {
   PlayerId owner{PlayerId::One};
   FactionId faction{FactionId::Compact};
   EntityType archetype{EntityType::Worker};
+  UnitIdentityId identity{};
 
   auto operator<=>(const EntityDestroyedEvent&) const = default;
 };
@@ -68,6 +70,7 @@ struct UnitDamagedEvent {
   EntityId target{};
   std::int32_t amount{};
   std::int32_t remaining_hit_points{};
+  UnitIdentityId identity{};
 
   auto operator<=>(const UnitDamagedEvent&) const = default;
 };
@@ -76,6 +79,9 @@ struct UnitWoundedEvent {
   EntityId entity{};
   EntityId source{};
   std::int32_t remaining_hit_points{};
+  UnitIdentityId identity{};
+  CasualtyState previous{CasualtyState::Active};
+  CasualtyState current{CasualtyState::Wounded};
 
   auto operator<=>(const UnitWoundedEvent&) const = default;
 };
@@ -83,6 +89,9 @@ struct UnitWoundedEvent {
 struct UnitKilledEvent {
   EntityId entity{};
   EntityId killer{};
+  UnitIdentityId identity{};
+  CasualtyState previous{CasualtyState::Active};
+  CasualtyState current{CasualtyState::Dead};
 
   auto operator<=>(const UnitKilledEvent&) const = default;
 };
@@ -90,6 +99,9 @@ struct UnitKilledEvent {
 struct UnitRecoveredEvent {
   EntityId entity{};
   EntityId recovery_source{};
+  UnitIdentityId identity{};
+  CasualtyState previous{CasualtyState::Recoverable};
+  CasualtyState current{CasualtyState::Recovered};
 
   auto operator<=>(const UnitRecoveredEvent&) const = default;
 };

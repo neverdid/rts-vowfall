@@ -44,6 +44,18 @@ enum class EAshenStance : uint8
 };
 
 UENUM(BlueprintType)
+enum class EAshenCasualtyState : uint8
+{
+    Active,
+    Wounded,
+    Incapacitated,
+    Recoverable,
+    Recovered,
+    Missing,
+    Dead,
+};
+
+UENUM(BlueprintType)
 enum class EAshenVisibility : uint8
 {
     Hidden,
@@ -152,6 +164,12 @@ struct FAshenEntityView
     int32 EntityId = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 UnitIdentityId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenCasualtyState CasualtyState = EAshenCasualtyState::Active;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     EAshenFaction Faction = EAshenFaction::None;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
@@ -254,6 +272,9 @@ struct FAshenSimulationEventView
     int32 EntityId = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 UnitIdentityId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     int32 TargetEntityId = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
@@ -267,4 +288,10 @@ struct FAshenSimulationEventView
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     int32 Amount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenCasualtyState PreviousCasualtyState = EAshenCasualtyState::Active;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    EAshenCasualtyState CasualtyState = EAshenCasualtyState::Active;
 };
