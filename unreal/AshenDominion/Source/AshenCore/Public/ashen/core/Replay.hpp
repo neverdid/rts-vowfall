@@ -12,8 +12,8 @@
 
 namespace ashen::core {
 
-inline constexpr std::uint32_t kReplaySchemaVersion = 2;
-inline constexpr std::uint32_t kReplayMinimumReaderVersion = 2;
+inline constexpr std::uint32_t kReplaySchemaVersion = 3;
+inline constexpr std::uint32_t kReplayMinimumReaderVersion = 3;
 
 enum class ReplaySubmission : std::uint8_t { ExecuteNow, Enqueue };
 

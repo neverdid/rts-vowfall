@@ -75,20 +75,21 @@ queries, event order, and tie-breaking are explicit.
   voice, music, or accessibility pass.
 - The complete Compact or Ascendancy roster and final balance.
 - The Elder Concord implementation.
-- Full casualty recovery, the complete road/cart/hospital/bridge supply network,
+- Full casualty recovery and the complete road/cart/bridge supply network,
   cohesion simulation, projectiles, facing, cover, charges, bracing, suppression,
   pursuit, or transformation gameplay. Stable unit identity and retained
   wound/incapacitation/recoverability/death history and fixed recovery-window
   eligibility now exist, including Compact Road Ledger access gating. An authoritative
   recovery command now re-embodies the same identity at partial health under a new
   runtime entity ID, with owned player/AI capabilities, population pressure, Unreal
-  input, snapshot, and replay coverage. Authored evacuation, hospitals, capacity, and
-  missing outcomes do not yet exist.
+  input, snapshot, and replay coverage. A buildable Compact Field Hospital now adds
+  bounded treatment/waiting capacity, supply-cut pause/resume, deadline-safe admission,
+  and destruction interruption. Authored evacuation and missing outcomes do not yet exist.
   The first Compact structure-node graph and reinforcement, construction,
   assisted-retreat, and recovery-access consumers are implemented headlessly.
 - A UMG/CommonUI HUD replacement.
 - Named checkpoint selection or replay playback in this pass. Unreal now provides a
-  SnapshotV2 quick checkpoint/restore path and verified ReplayV2 export, while a
+  SnapshotV3 quick checkpoint/restore path and verified ReplayV3 export, while a
   browser and playback controls remain later production UI.
 - Multiplayer, matchmaking, networking expansion, seasonal systems, cosmetics,
   procedural campaign growth, machine-learning AI, or mod support.
@@ -109,7 +110,7 @@ queries, event order, and tie-breaking are explicit.
 | Vows | `StoryMissionDefinition::public_vow` text | Authoritative lifecycle, commands, events, save/replay contract |
 | AI | Fog-limited `PlayerObservation` and `CommanderAI` | Persistent strategic state derived only from observations |
 | Unreal | Fixed-step subsystem, actor proxies, Canvas HUD | Faction/content/event plumbing; later view models and UMG |
-| Replay | SnapshotV2 restore, Unreal quick-save adapter, ReplayV2 external-input recording, verification, and export | Named checkpoint browser and replay playback later |
+| Replay | SnapshotV3 restore, Unreal quick-save adapter, ReplayV3 external-input recording, verification, and export | Named checkpoint browser and replay playback later |
 
 ## Phase 1 acceptance criteria
 
@@ -144,7 +145,7 @@ Phase 1 is accepted when:
 - Reordering the current `Simulation::step()` would change combat, resolve, capture,
   fog, and AI perception simultaneously. Phase 1 therefore extracts incrementally and
   records legacy ordering until each transition has equivalence tests.
-- SnapshotV2 versions the state/hash compatibility boundary and rejects incompatible
+- SnapshotV3 versions the state/hash compatibility boundary and rejects incompatible
   content or pipeline definitions. Unreal quick saves use that boundary directly;
   future schema changes still require explicit migrations for long-lived saves.
 - The actor layer previously used owner index for faction silhouettes and minimap

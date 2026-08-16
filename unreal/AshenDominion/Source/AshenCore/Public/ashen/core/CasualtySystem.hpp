@@ -40,6 +40,9 @@ struct CasualtyTransition {
   Tick state_deadline{};
   EntityId source{};
   Vec2 position{};
+  // Zero means the transition tick. Non-zero values encode admission_tick + 1
+  // so a tick-zero hospital admission remains representable.
+  Tick eligibility_tick{};
 
   auto operator<=>(const CasualtyTransition&) const = default;
 };
@@ -51,9 +54,14 @@ class ASHENCORE_API CasualtySystem final {
   [[nodiscard]] bool mark_wounded(Entity& entity, EntityId source, Tick tick);
   [[nodiscard]] bool mark_incapacitated(Entity& entity, EntityId source,
                                         Tick tick);
-  [[nodiscard]] bool recover(Entity& entity, EntityId source, Tick tick);
+  [[nodiscard]] bool recover(Entity& entity, EntityId source, Tick tick,
+                             Tick eligibility_tick);
+  [[nodiscard]] bool recover(Entity& entity, EntityId source, Tick tick) {
+    return recover(entity, source, tick, tick);
+  }
   [[nodiscard]] bool mark_dead(Entity& entity, EntityId source, Tick tick);
-  void advance(Tick tick);
+  void advance(Tick tick,
+               std::span<const UnitIdentityId> protected_casualties = {});
 
   [[nodiscard]] const CasualtyRecord* find(UnitIdentityId identity) const noexcept;
   [[nodiscard]] bool is_recoverable(UnitIdentityId identity,

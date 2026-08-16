@@ -55,6 +55,9 @@ public:
     bool IssueBuild(int32 WorkerId, EAshenEntityArchetype Building, const FVector& WorldTarget);
 
     UFUNCTION(BlueprintPure, Category = "Ashen|Commands")
+    bool CanIssueBuild(int32 WorkerId, EAshenEntityArchetype Building) const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Commands")
     bool CanPlaceBuilding(EAshenEntityArchetype Building, const FVector& WorldTarget) const;
 
     UFUNCTION(BlueprintCallable, Category = "Ashen|Commands")
@@ -71,6 +74,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Ashen|Commands")
     bool IssueRecoverCasualty(int32 UnitIdentityId);
+
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Commands")
+    bool IssueRecoverCasualtyAtFacility(int32 UnitIdentityId, int32 FacilityId);
 
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     FAshenPlayerView GetPlayerView(int32 PlayerIndex) const;
@@ -95,6 +101,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
     bool CanIssueCasualtyRecovery(int32 UnitIdentityId) const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
+    bool CanIssueCasualtyRecoveryAtFacility(int32 UnitIdentityId, int32 FacilityId) const;
 
     UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
     int32 GetCasualtyRecoveryAnchorId(int32 UnitIdentityId) const;

@@ -24,14 +24,15 @@ care, and retreat remain physical obligations.
 
 ### Road Ledger
 
-The first Road Ledger slice gives Compact command keeps, assembly halls, and signal
-bastions stable supply profiles. Keeps provide bounded capacity, connected assembly
-halls consume capacity and relay the route, and bastions are terminal consumers.
+The first Road Ledger slice gives Compact command keeps, assembly halls, signal
+bastions, and Field Hospitals stable supply profiles. Keeps provide bounded capacity,
+connected assembly halls consume capacity and relay the route, and bastions and
+hospitals are terminal consumers.
 Connectivity is recalculated through the deterministic spatial grid. Candidate paths
 prefer shortest hop count, then lower consumer entity ID, then lower source entity ID.
 Only a relay that received capacity may propagate the route.
 
-Explicit road segments, carts, field kitchens, medical stations, evacuation exits,
+Explicit road segments, carts, field kitchens, additional medical stations, evacuation exits,
 and bridge-health edges remain later authored nodes and edges rather than aliases for
 the current structures.
 
@@ -50,17 +51,20 @@ unit can still receive an ordinary `Move`, but does not receive the Retreat reso
 recovery or defensive-stance transition. AI discovers this through the same per-unit
 command capabilities as the player.
 
-The same physical access query now gates Compact casualty recovery eligibility.
-During the base recovery window, a Compact casualty must remain within the link range
-of a connected completed keep or assembly hall at its retained transition position.
-The closest transmitter wins, with lower entity ID breaking equal-distance ties.
-Unfinished relays and terminal bastions cannot provide care access. A route cut removes
-eligibility without pausing or extending the casualty deadline; reconnecting before
-expiry restores it. Other factions retain the base window without a Road Ledger gate.
-An accepted `RecoverCasualty` command uses that same current-tick authority check and
-the retained `UnitIdentityId`; it never targets the removed runtime entity handle.
-The command is exposed to both player and AI through an owned-only casualty capability.
-It also reserves the unit's normal population cost against live and queued supply.
+Compact casualty recovery now uses a buildable Field Hospital. During the base recovery
+window, a casualty must be within a completed, connected, owned hospital's 300,000-unit
+intake radius and that facility must have queue capacity. The closest hospital wins,
+with lower entity ID breaking equal-distance ties, unless the command explicitly names
+a facility. The command addresses the retained `UnitIdentityId`, never the removed
+runtime entity handle, and player and AI discover the same owned-only, facility-specific
+capability without enemy casualty leakage.
+
+Admission reserves the unit's normal population cost and protects the casualty from its
+original deadline. A hospital treats two casualties concurrently for 120 ticks and may
+hold four more in a stable waiting queue. Supply disconnection pauses treatment but does
+not reorder or discard the queue. Destruction emits `CasualtyCareInterrupted`, releases
+the reservations, and resumes the original casualty deadline. Other factions retain
+their immediate base recovery rule for now.
 
 Later connected formations may also receive:
 
@@ -95,22 +99,22 @@ Road Ledger care access described above. The timer remains owned by `CasualtySys
 the network query is a derived `Simulation` rule and cannot mutate or freeze it.
 
 The ordered event stream exposes nonterminal casualty state changes, while
-`UnitKilled` is emitted only on terminal expiry. SnapshotV1/ReplayV1 preserve and
+`UnitKilled` is emitted only on terminal expiry. SnapshotV3/ReplayV3 preserve and
 verify records, deadlines, transitions, and their event projection. Owned
 observations carry live identity/state; sanitized enemy observations do not.
 
 `Recovered` is now authoritative. Recovery creates a new monotonic runtime `EntityId`
 with the same persistent identity, owner, faction, archetype, injuries, formation,
 experience, and retained record. The body returns at 50% current researched maximum
-health. Compact units emerge beside the selected Road Ledger anchor; other factions
+health. Compact units emerge beside the treating Field Hospital; other factions
 return at the retained casualty position, with deterministic terrain correction in
 both cases. The event order is `EntitySpawned`, `CasualtyStateChanged`, then
 `UnitRecovered`. A recovered unit can be wounded or incapacitated again without
 forking its identity. There is no ore charge in this foundation rule.
 
-`Missing` remains reserved vocabulary. Authored evacuation routes, hospital capacity,
-care queues, failure outcomes, and the `No One Left Uncounted` eligibility modifier
-remain later work.
+`Missing` remains reserved vocabulary. Authored evacuation routes, formation and
+experience mutation, richer failure outcomes, and the `No One Left Uncounted`
+eligibility modifier remain later work.
 
 ### Production roles
 

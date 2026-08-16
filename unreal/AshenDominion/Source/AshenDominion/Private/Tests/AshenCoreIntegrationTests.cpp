@@ -41,6 +41,17 @@ bool FAshenCoreBootsInUnrealTest::RunTest(const FString &Parameters)
     TestEqual(TEXT("Default match seeds ten entities"), static_cast<int32>(First.entities().size()), 10);
     TestEqual(TEXT("Default match seeds seven resource fields"), static_cast<int32>(First.resources().size()), 7);
     TestEqual(TEXT("Default match seeds two contestable relics"), static_cast<int32>(First.control_points().size()), 2);
+    const auto* HospitalCare = ashen::core::find_care_facility_content(
+        ashen::core::builtin_content(), ashen::core::FactionId::Compact,
+        ashen::core::EntityType::Hospital);
+    TestNotNull(TEXT("Unreal sees the Compact Field Hospital care definition"), HospitalCare);
+    if (HospitalCare != nullptr)
+    {
+        TestEqual(TEXT("Field Hospital exposes two treatment slots"),
+                  HospitalCare->treatment_slots, 2);
+        TestEqual(TEXT("Field Hospital exposes four waiting places"),
+                  HospitalCare->waiting_capacity, 4);
+    }
 
     First.run(240);
     Second.run(240);
@@ -95,7 +106,7 @@ bool FAshenCheckpointSaveAdapterTest::RunTest(const FString& Parameters)
         const std::span<const std::uint8_t> Bytes{
             Loaded->SnapshotBytes.GetData(), static_cast<size_t>(Loaded->SnapshotBytes.Num())};
         ashen::core::SnapshotLoadResult Restored = ashen::core::load_snapshot_v1(Bytes);
-        TestTrue(TEXT("SnapshotV1 accepts the Unreal-persisted payload"), static_cast<bool>(Restored));
+        TestTrue(TEXT("SnapshotV3 accepts the Unreal-persisted payload"), static_cast<bool>(Restored));
         if (Restored)
         {
             TestTrue(TEXT("Unreal save round trip preserves the authoritative state hash"),

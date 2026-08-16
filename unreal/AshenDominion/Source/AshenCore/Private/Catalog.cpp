@@ -23,6 +23,10 @@ namespace {
     case EntityType::Turret:
       return {type, EntityKind::Building, "Signal Bastion", 120, 220, 260, 27'000, 0, 172'000, 13, 16, 270'000,
               ArmorClass::Structure, ArmorClass::Light, true, 5, 18, 34, 0, 0};
+    case EntityType::Hospital:
+      return {type, EntityKind::Building, "Field Hospital", 145, 260, 360,
+              34'000, 0, 0, 0, 0, 260'000, ArmorClass::Structure,
+              ArmorClass::Laborer, false, 0, 4, 28, 0, 0};
   }
   return {};
 }
@@ -94,6 +98,8 @@ void apply_ascendancy_overrides(EntityDefinition& definition) noexcept {
       definition.terror = 24;
       definition.ward = 4;
       break;
+    case EntityType::Hospital:
+      break;
   }
 }
 
@@ -162,6 +168,8 @@ void apply_concord_overrides(EntityDefinition& definition) noexcept {
       definition.damage = 16;
       definition.attack_cooldown_ticks = 20;
       definition.ward = 46;
+      break;
+    case EntityType::Hospital:
       break;
   }
 }
@@ -239,7 +247,8 @@ bool is_unit(const EntityType type) noexcept {
 }
 
 bool is_building(const EntityType type) noexcept {
-  return type == EntityType::Command || type == EntityType::Barracks || type == EntityType::Turret;
+  return type == EntityType::Command || type == EntityType::Barracks ||
+         type == EntityType::Turret || type == EntityType::Hospital;
 }
 
 std::string_view to_string(const FactionId faction) noexcept {

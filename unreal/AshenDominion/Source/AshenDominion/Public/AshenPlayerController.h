@@ -16,6 +16,7 @@ enum class EAshenCommandMode : uint8
     RallyPoint,
     BuildBarracks,
     BuildTurret,
+    BuildHospital,
 };
 
 enum class EAshenFrontEndPage : uint8

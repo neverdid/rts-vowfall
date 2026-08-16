@@ -37,6 +37,9 @@ enum class SimulationEventType : std::uint8_t {
   AbilityInterrupted,
   MissionObjectiveChanged,
   CasualtyStateChanged,
+  CasualtyCareQueued,
+  CasualtyTreatmentStarted,
+  CasualtyCareInterrupted,
 };
 
 enum class MissionObjectiveStatus : std::uint8_t {
@@ -253,6 +256,29 @@ struct CasualtyStateChangedEvent {
   auto operator<=>(const CasualtyStateChangedEvent&) const = default;
 };
 
+struct CasualtyCareQueuedEvent {
+  UnitIdentityId identity{};
+  EntityId facility{};
+  std::uint32_t queue_position{};
+
+  auto operator<=>(const CasualtyCareQueuedEvent&) const = default;
+};
+
+struct CasualtyTreatmentStartedEvent {
+  UnitIdentityId identity{};
+  EntityId facility{};
+  Tick treatment_ticks{};
+
+  auto operator<=>(const CasualtyTreatmentStartedEvent&) const = default;
+};
+
+struct CasualtyCareInterruptedEvent {
+  UnitIdentityId identity{};
+  EntityId facility{};
+
+  auto operator<=>(const CasualtyCareInterruptedEvent&) const = default;
+};
+
 using SimulationEventPayload =
     std::variant<EntitySpawnedEvent, EntityDestroyedEvent, UnitDamagedEvent,
                  UnitWoundedEvent, UnitKilledEvent, UnitRecoveredEvent,
@@ -264,7 +290,9 @@ using SimulationEventPayload =
                  ObjectiveContestedEvent, ObjectiveCapturedEvent,
                  ProjectileLaunchedEvent, AbilityStartedEvent,
                  AbilityInterruptedEvent, MissionObjectiveChangedEvent,
-                 CasualtyStateChangedEvent>;
+                 CasualtyStateChangedEvent, CasualtyCareQueuedEvent,
+                 CasualtyTreatmentStartedEvent,
+                 CasualtyCareInterruptedEvent>;
 
 struct SimulationEvent {
   EventId id{};

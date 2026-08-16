@@ -17,15 +17,16 @@ The repository now has two active production layers and one archived prototype:
   core-owned, fog-constrained, influence-aware commander that can control either player. It also has two
   distinct multi-part faction silhouettes and a procedural dark-medieval battlefield with castles,
   forests, roads, bridges, a contested island, and shader-driven river water. Compact reinforcement and
-  construction plus its specialized assisted-retreat command obey the deterministic Road Ledger route
-  graph. SnapshotV1 quick
-  checkpoints can be saved and restored through Unreal, and verified ReplayV1 files can be exported
+  construction, its specialized assisted-retreat command, and its buildable Field Hospital obey the
+  deterministic Road Ledger route graph. Hospitals admit persistent casualties into a bounded,
+  supply-sensitive treatment queue. SnapshotV3 quick
+  checkpoints can be saved and restored through Unreal, and verified ReplayV3 files can be exported
   from the running match.
 - `unreal/AshenDominion/Source/AshenCore/` is the portable C++20 authoritative simulation. CMake and
   Unreal compile these exact same sources, so gameplay rules do not fork between clients. The canonical
   13-mission campaign catalog and selected story mission are authoritative C++ state as well. Its
-  versioned SnapshotV1 API can checkpoint and deterministically restore the portable simulation, while
-  ReplayV1 records external inputs and verifies regenerated commands, events, checkpoints, and final state.
+  versioned SnapshotV3 API can checkpoint and deterministically restore the portable simulation, while
+  ReplayV3 records external inputs and verifies regenerated commands, events, checkpoints, and final state.
 - `src/` is the frozen TypeScript/Three.js prototype retained for design provenance. It is not an active
   client, gameplay authority, parity target, or CI requirement. New gameplay, AI, presentation, and
   testing work belongs in Unreal and `AshenCore`.
@@ -63,7 +64,8 @@ Current controls:
 - Mouse wheel: smooth zoom
 - A then left mouse: attack-move; P then left mouse: patrol; R then left mouse: set a rally point
 - S: stop; H: hold position; Shift while issuing an order: append it to the unit's command queue
-- B or T with one worker selected, then left mouse: place an Assembly Hall or Signal Bastion
+- B, T, or M with one Compact worker selected, then left mouse: place an Assembly Hall,
+  Signal Bastion, or Field Hospital
 - X: retreat to the command keep; Z, C, or V: aggressive, defensive, or stand-ground stance
 - Ctrl+0-9: assign a control group; 0-9: recall it; press the same group twice to center the camera
 - Q and E: train the primary or secondary unit from a selected producer
@@ -217,7 +219,7 @@ The probe reports simulation-step, navigation, AI, deterministic spatial-query, 
 timings plus an approximate capacity-based memory footprint. It is a developer comparison tool, not a
 machine-specific correctness test.
 
-Record, inspect, or deterministically verify a portable ReplayV1 file with the native replay tool:
+Record, inspect, or deterministically verify a portable ReplayV3 file with the native replay tool:
 
 ```powershell
 .\build\native\native\Debug\ashen_replay.exe record work\match.vowreplay 2400 42
@@ -225,10 +227,10 @@ Record, inspect, or deterministically verify a portable ReplayV1 file with the n
 .\build\native\native\Debug\ashen_replay.exe verify work\match.vowreplay
 ```
 
-The verifier restores the embedded SnapshotV1 checkpoint, resubmits only recorded external inputs, regenerates
+The verifier restores the embedded SnapshotV3 checkpoint, resubmits only recorded external inputs, regenerates
 fog-limited AI decisions and typed events, and rejects command, event, checkpoint, or final-state divergence.
-Unreal stores the same SnapshotV1 bytes inside its quick-save adapter and refuses incompatible or corrupt saves.
-Its F6 export records player submissions, regenerates AI and events during verification, and writes the ReplayV1
+Unreal stores the same SnapshotV3 bytes inside its quick-save adapter and refuses incompatible or corrupt saves.
+Its F6 export records player submissions, regenerates AI and events during verification, and writes the ReplayV3
 file only after that verification passes. Named checkpoint browsing and replay playback remain future UI work.
 
 ## Archived web prototype

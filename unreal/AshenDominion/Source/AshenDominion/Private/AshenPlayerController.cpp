@@ -157,6 +157,11 @@ bool AAshenPlayerController::InputKey(const FInputKeyEventArgs& Params)
             BeginBuild(EAshenEntityArchetype::Turret);
             return true;
         }
+        if (!bFrontEndVisible && Params.Key == EKeys::M)
+        {
+            BeginBuild(EAshenEntityArchetype::Hospital);
+            return true;
+        }
         if (!bFrontEndVisible && Params.Key == EKeys::Y)
         {
             ResearchTier();
@@ -299,6 +304,8 @@ FString AAshenPlayerController::GetCommandModeLabel() const
         return TEXT("ASSEMBLY HALL  //  CHOOSE A CLEAR CONSTRUCTION SITE");
     case EAshenCommandMode::BuildTurret:
         return TEXT("SIGNAL BASTION  //  CHOOSE A CLEAR CONSTRUCTION SITE");
+    case EAshenCommandMode::BuildHospital:
+        return TEXT("FIELD HOSPITAL  //  CHOOSE A CONNECTED CONSTRUCTION SITE");
     case EAshenCommandMode::None:
         return {};
     }
@@ -399,7 +406,7 @@ FString AAshenPlayerController::GetCommandButtonLabel(const int32 Slot) const
     const EAshenEntityArchetype Archetype = PrimarySelectedArchetype();
     if (Archetype == EAshenEntityArchetype::Worker)
     {
-        const TCHAR* Labels[] = {TEXT("ASSEMBLY HALL"), TEXT("SIGNAL BASTION"), TEXT(""), TEXT("ADVANCE"),
+        const TCHAR* Labels[] = {TEXT("ASSEMBLY HALL"), TEXT("SIGNAL BASTION"), TEXT("FIELD HOSPITAL"), TEXT("ADVANCE"),
                                  TEXT("STOP"), TEXT("HOLD"), TEXT("RETREAT"), TEXT("DEFENSIVE"),
                                  TEXT("OATH POWER")};
         return Slot >= 0 && Slot < 9 ? Labels[Slot] : TEXT("");
@@ -437,7 +444,7 @@ FString AAshenPlayerController::GetCommandButtonHotkey(const int32 Slot) const
     const EAshenEntityArchetype Archetype = PrimarySelectedArchetype();
     if (Archetype == EAshenEntityArchetype::Worker)
     {
-        const TCHAR* Keys[] = {TEXT("B"), TEXT("T"), TEXT(""), TEXT("A"), TEXT("S"), TEXT("H"),
+        const TCHAR* Keys[] = {TEXT("B"), TEXT("T"), TEXT("M"), TEXT("A"), TEXT("S"), TEXT("H"),
                                TEXT("X"), TEXT("C"), TEXT("F")};
         return Slot >= 0 && Slot < 9 ? Keys[Slot] : TEXT("");
     }
@@ -498,13 +505,30 @@ bool AAshenPlayerController::IsCommandButtonEnabled(const int32 Slot) const
     {
         return Sim->GetPlayerView(0).TechTier >= 2;
     }
+    if (PrimarySelectedArchetype() == EAshenEntityArchetype::Worker &&
+        Slot >= 0 && Slot <= 2)
+    {
+        const TArray<int32> Workers = SelectedWorkerIds();
+        if (Workers.Num() != 1)
+        {
+            return false;
+        }
+        const EAshenEntityArchetype Building = Slot == 0
+                                                   ? EAshenEntityArchetype::Barracks
+                                               : Slot == 1
+                                                   ? EAshenEntityArchetype::Turret
+                                                   : EAshenEntityArchetype::Hospital;
+        return Sim->CanIssueBuild(Workers[0], Building);
+    }
     return true;
 }
 
 bool AAshenPlayerController::GetPlacementPreview(FVector& OutLocation, EAshenEntityArchetype& OutBuilding,
                                                   bool& bOutValid) const
 {
-    if (PendingCommand != EAshenCommandMode::BuildBarracks && PendingCommand != EAshenCommandMode::BuildTurret)
+    if (PendingCommand != EAshenCommandMode::BuildBarracks &&
+        PendingCommand != EAshenCommandMode::BuildTurret &&
+        PendingCommand != EAshenCommandMode::BuildHospital)
     {
         return false;
     }
@@ -516,7 +540,9 @@ bool AAshenPlayerController::GetPlacementPreview(FVector& OutLocation, EAshenEnt
     OutLocation = Hit.ImpactPoint;
     OutBuilding = PendingCommand == EAshenCommandMode::BuildBarracks
                       ? EAshenEntityArchetype::Barracks
-                      : EAshenEntityArchetype::Turret;
+                  : PendingCommand == EAshenCommandMode::BuildTurret
+                      ? EAshenEntityArchetype::Turret
+                      : EAshenEntityArchetype::Hospital;
     bOutValid = Simulation() != nullptr && Simulation()->CanPlaceBuilding(OutBuilding, OutLocation);
     return true;
 }
@@ -733,14 +759,18 @@ void AAshenPlayerController::ExecutePendingCommand()
     bool bIssued = false;
     bool bHostile = false;
     FVector FeedbackLocation = Hit.ImpactPoint;
-    if (CommandMode == EAshenCommandMode::BuildBarracks || CommandMode == EAshenCommandMode::BuildTurret)
+    if (CommandMode == EAshenCommandMode::BuildBarracks ||
+        CommandMode == EAshenCommandMode::BuildTurret ||
+        CommandMode == EAshenCommandMode::BuildHospital)
     {
         const TArray<int32> Workers = SelectedWorkerIds();
         if (Workers.Num() == 1)
         {
             const EAshenEntityArchetype Building = CommandMode == EAshenCommandMode::BuildBarracks
                                                        ? EAshenEntityArchetype::Barracks
-                                                       : EAshenEntityArchetype::Turret;
+                                                   : CommandMode == EAshenCommandMode::BuildTurret
+                                                       ? EAshenEntityArchetype::Turret
+                                                       : EAshenEntityArchetype::Hospital;
             bIssued = Sim->IssueBuild(Workers[0], Building, Hit.ImpactPoint);
         }
     }
@@ -806,14 +836,19 @@ void AAshenPlayerController::BeginRallyPoint()
 void AAshenPlayerController::BeginBuild(const EAshenEntityArchetype Building)
 {
     PruneSelection();
-    if (SelectedWorkerIds().Num() != 1)
+    const TArray<int32> Workers = SelectedWorkerIds();
+    UAshenSimulationSubsystem* Sim = Simulation();
+    if (Workers.Num() != 1 || Sim == nullptr ||
+        !Sim->CanIssueBuild(Workers[0], Building))
     {
         PendingCommand = EAshenCommandMode::None;
         return;
     }
     PendingCommand = Building == EAshenEntityArchetype::Barracks
                          ? EAshenCommandMode::BuildBarracks
-                         : EAshenCommandMode::BuildTurret;
+                     : Building == EAshenEntityArchetype::Turret
+                         ? EAshenCommandMode::BuildTurret
+                         : EAshenCommandMode::BuildHospital;
 }
 
 void AAshenPlayerController::StopSelected()
@@ -1101,6 +1136,7 @@ void AAshenPlayerController::ExecuteCommandSlot(const int32 Slot)
     {
         if (Slot == 0) BeginBuild(EAshenEntityArchetype::Barracks);
         else if (Slot == 1) BeginBuild(EAshenEntityArchetype::Turret);
+        else if (Slot == 2) BeginBuild(EAshenEntityArchetype::Hospital);
         else if (Slot == 3) BeginAttackMove();
         else if (Slot == 4) StopSelected();
         else if (Slot == 5) HoldSelected();

@@ -60,7 +60,7 @@ void run_test(const std::string_view name, Test&& test) {
 }
 
 void target_system_pipeline_is_complete_and_ordered() {
-  CHECK(kTargetSystemPipeline.size() == 21);
+  CHECK(kTargetSystemPipeline.size() == 22);
   for (std::size_t index = 0; index < kTargetSystemPipeline.size();
        ++index) {
     CHECK(static_cast<std::size_t>(kTargetSystemPipeline[index].phase) ==
@@ -77,8 +77,15 @@ void builtin_content_is_valid_and_repository_backed() {
   CHECK(validate_content(registry).empty());
   CHECK(registry.factions.size() == 3);
   CHECK(registry.units.size() == 9);
-  CHECK(registry.structures.size() == 9);
-  CHECK(registry.supply_nodes.size() == 3);
+  CHECK(registry.structures.size() == 10);
+  CHECK(registry.supply_nodes.size() == 4);
+  CHECK(registry.care_facilities.size() == 1);
+  CHECK(find_care_facility_content(registry, FactionId::Compact,
+                                   EntityType::Hospital) != nullptr);
+  CHECK(find_structure_content(registry, FactionId::Compact,
+                               EntityType::Hospital) != nullptr);
+  CHECK(find_structure_content(registry, FactionId::Ascendancy,
+                               EntityType::Hospital) == nullptr);
   CHECK(registry.research.size() == kResearchCount);
   CHECK(find_vow_content(registry, kBridgeOpenVow) != nullptr);
   CHECK(find_faction_power_ability(registry, FactionId::Compact) !=
@@ -96,6 +103,27 @@ void content_validation_rejects_invalid_definitions() {
         registry.factions.front().metadata.stable_id;
     CHECK(has_error(validate_content(registry),
                     ContentValidationError::DuplicateStableId));
+  }
+  {
+    auto registry = builtin_content();
+    registry.care_facilities.front().treatment_slots = 0;
+    CHECK(has_error(validate_content(registry),
+                    ContentValidationError::InvalidCareFacility));
+  }
+  {
+    auto registry = builtin_content();
+    const auto hospital = registry.care_facilities.front().structure;
+    std::erase_if(registry.supply_nodes, [hospital](const auto& supply) {
+      return supply.structure == hospital;
+    });
+    CHECK(has_error(validate_content(registry),
+                    ContentValidationError::InvalidCareFacility));
+  }
+  {
+    auto registry = builtin_content();
+    registry.care_facilities.push_back(registry.care_facilities.front());
+    CHECK(has_error(validate_content(registry),
+                    ContentValidationError::DuplicateCareFacilityStructure));
   }
   {
     auto registry = builtin_content();

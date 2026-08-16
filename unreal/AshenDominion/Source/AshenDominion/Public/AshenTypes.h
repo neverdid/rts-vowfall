@@ -21,6 +21,7 @@ enum class EAshenEntityArchetype : uint8
     Command,
     Barracks,
     Turret,
+    Hospital,
 };
 
 UENUM(BlueprintType)
@@ -100,6 +101,9 @@ enum class EAshenSimulationEventType : uint8
     AbilityInterrupted,
     MissionObjectiveChanged,
     CasualtyStateChanged,
+    CasualtyCareQueued,
+    CasualtyTreatmentStarted,
+    CasualtyCareInterrupted,
 };
 
 USTRUCT(BlueprintType)
@@ -199,6 +203,21 @@ struct FAshenEntityView
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     float QueueProgress = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 CareQueueCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 ActiveTreatmentCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    int32 CareCapacity = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    float CareProgress = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Ashen")
+    bool bSupplyConnected = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "Ashen")
     EAshenStance Stance = EAshenStance::Aggressive;

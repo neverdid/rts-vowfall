@@ -283,6 +283,7 @@ void Simulation::step() {
   update_orders();
   update_auto_aggro();
   update_defenses();
+  update_care();
   update_casualties();
   remove_dead_entities();
   update_supply();
@@ -307,7 +308,7 @@ bool Simulation::is_casualty_recoverable(
     return false;
   }
   return record->faction != FactionId::Compact ||
-         static_cast<bool>(casualty_recovery_anchor(identity));
+         available_care_facility(*record) != nullptr;
 }
 
 EntityId Simulation::casualty_recovery_anchor(
@@ -317,9 +318,8 @@ EntityId Simulation::casualty_recovery_anchor(
       !casualty_system_.is_recoverable(identity, tick_)) {
     return {};
   }
-  return supply_system_.recovery_anchor(
-      record->owner, record->last_transition_position, entities_,
-      builtin_content());
+  const auto* facility = available_care_facility(*record);
+  return facility == nullptr ? EntityId{} : facility->id;
 }
 
 EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, const Vec2 position,
@@ -729,6 +729,12 @@ CommandResult Simulation::apply_build(const Command& command) {
   if (!is_building(command.building_type) || command.building_type == EntityType::Command) {
     return failure(CommandError::InvalidUnitType, "That structure cannot be constructed in a match.");
   }
+  const auto faction = player(command.player).faction;
+  if (find_structure_content(builtin_content(), faction,
+                             command.building_type) == nullptr) {
+    return failure(CommandError::InvalidUnitType,
+                   "That faction cannot construct the requested structure.");
+  }
   if (command.target_entity) {
     auto* site = find_entity_mutable(command.target_entity);
     if (site == nullptr || site->owner != command.player || site->type != command.building_type ||
@@ -754,7 +760,6 @@ CommandResult Simulation::apply_build(const Command& command) {
     return failure(CommandError::PlacementBlocked, "The construction site is blocked.");
   }
 
-  const auto faction = player(command.player).faction;
   const auto definition = entity_definition(faction, command.building_type);
   auto& owner = mutable_player(command.player);
   if (owner.ore < definition.cost) {
@@ -1067,26 +1072,74 @@ CommandResult Simulation::apply_recover_casualty(const Command& command) {
     return failure(CommandError::CasualtyUnavailable,
                    "That unit identity is already embodied.");
   }
-
-  EntityId recovery_source{};
-  auto spawn_position = record->last_transition_position;
   const auto definition =
       entity_definition(record->faction, record->archetype);
   if (record->faction == FactionId::Compact) {
-    recovery_source = casualty_recovery_anchor(command.casualty);
-    const auto* anchor = find_entity(recovery_source);
-    if (anchor == nullptr) {
+    if (std::ranges::any_of(entities_, [identity = command.casualty](const Entity& entity) {
+          return std::ranges::any_of(
+              entity.care_queue, [identity](const CareTask& task) {
+                return task.casualty == identity;
+              });
+        })) {
+      return failure(CommandError::CasualtyUnavailable,
+                     "That casualty is already admitted for treatment.");
+    }
+    if (command.producer) {
+      const auto* requested = find_entity(command.producer);
+      const auto* requested_care =
+          requested == nullptr
+              ? nullptr
+              : find_care_facility_content(builtin_content(),
+                                           requested->faction,
+                                           requested->type);
+      if (requested == nullptr || requested->owner != command.player ||
+          requested_care == nullptr) {
+        return failure(CommandError::InvalidProducer,
+                       "The selected care facility is invalid.");
+      }
+      if (requested->care_queue.size() >=
+          static_cast<std::size_t>(requested_care->treatment_slots +
+                                   requested_care->waiting_capacity)) {
+        return failure(CommandError::QueueFull,
+                       "The Field Hospital care queue is full.");
+      }
+    }
+    const auto* selected = available_care_facility(*record, command.producer);
+    if (selected == nullptr) {
       return failure(
           CommandError::SupplyBlocked,
-          "The casualty is outside the connected Road Ledger care network.");
+          "No connected Field Hospital can admit that casualty.");
     }
-    const auto direction = command.player == PlayerId::One ? 1 : -1;
-    const auto spawn_offset = anchor->radius + definition.radius + 8'000;
-    spawn_position = nearest_navigable(
-        {anchor->position.x + direction * spawn_offset, anchor->position.y},
-        definition.radius);
-  } else {
-    spawn_position = nearest_navigable(spawn_position, definition.radius);
+    const auto& care = *find_care_facility_content(
+        builtin_content(), selected->faction, selected->type);
+    auto& owner = mutable_player(command.player);
+    if (owner.supply_used + queued_supply(command.player) +
+            definition.supply_cost >
+        owner.supply_cap) {
+      return failure(CommandError::SupplyBlocked,
+                     "Supply cap reached before treatment admission.");
+    }
+    auto* facility = find_entity_mutable(selected->id);
+    if (facility == nullptr) {
+      return failure(CommandError::InvalidProducer,
+                     "The selected Field Hospital is no longer available.");
+    }
+    const auto active = static_cast<std::int32_t>(std::ranges::count_if(
+        facility->care_queue,
+        [](const CareTask& task) { return task.treatment_started; }));
+    const auto started = active < care.treatment_slots;
+    facility->care_queue.push_back(
+        {command.casualty, tick_, static_cast<Tick>(care.treatment_ticks),
+         static_cast<Tick>(care.treatment_ticks), started});
+    emit_event(CasualtyCareQueuedEvent{
+        command.casualty, facility->id,
+        static_cast<std::uint32_t>(facility->care_queue.size())});
+    if (started) {
+      emit_event(CasualtyTreatmentStartedEvent{
+          command.casualty, facility->id,
+          static_cast<Tick>(care.treatment_ticks)});
+    }
+    return success();
   }
 
   auto& owner = mutable_player(command.player);
@@ -1097,13 +1150,15 @@ CommandResult Simulation::apply_recover_casualty(const Command& command) {
                    "Supply cap reached before recovery could complete.");
   }
 
+  const auto spawn_position = nearest_navigable(
+      record->last_transition_position, definition.radius);
   const auto entity_id = EntityId{next_entity_id_};
   auto entity = make_entity(command.player, record->archetype, spawn_position,
                             false, entity_id, record->identity,
                             CasualtyState::Recoverable);
   entity.hit_points = std::max(
       1, entity.max_hit_points * kRecoveredHealthBasisPoints / 10'000);
-  if (!casualty_system_.recover(entity, recovery_source, tick_)) {
+  if (!casualty_system_.recover(entity, {}, tick_, tick_)) {
     return failure(CommandError::CasualtyUnavailable,
                    "The casualty could not be recovered.");
   }
@@ -1112,7 +1167,7 @@ CommandResult Simulation::apply_recover_casualty(const Command& command) {
   append_entity(std::move(entity));
   const auto& transition = casualty_system_.transitions().back();
   emit_casualty_transition(transition);
-  emit_event(UnitRecoveredEvent{entity_id, recovery_source, command.casualty,
+  emit_event(UnitRecoveredEvent{entity_id, {}, command.casualty,
                                 CasualtyState::Recoverable,
                                 CasualtyState::Recovered});
   return success();
@@ -1998,9 +2053,175 @@ void Simulation::apply_damage(Entity& target, const EntityId source,
   }
 }
 
+const Entity* Simulation::available_care_facility(
+    const CasualtyRecord& casualty, const EntityId requested) const noexcept {
+  if (casualty.faction != FactionId::Compact ||
+      !casualty_system_.is_recoverable(casualty.identity, tick_) ||
+      std::ranges::any_of(entities_, [&casualty](const Entity& entity) {
+        return std::ranges::any_of(
+            entity.care_queue, [&casualty](const CareTask& task) {
+              return task.casualty == casualty.identity;
+            });
+      })) {
+    return nullptr;
+  }
+  const Entity* result = nullptr;
+  auto best_distance = std::numeric_limits<std::uint64_t>::max();
+  for (const auto& facility : entities_) {
+    if ((requested && facility.id != requested) || !facility.alive() ||
+        facility.under_construction || facility.owner != casualty.owner ||
+        facility.faction != casualty.faction) {
+      continue;
+    }
+    const auto* care = find_care_facility_content(
+        builtin_content(), facility.faction, facility.type);
+    if (care == nullptr || !supply_system_.connected(facility.id) ||
+        facility.care_queue.size() >=
+            static_cast<std::size_t>(care->treatment_slots +
+                                     care->waiting_capacity)) {
+      continue;
+    }
+    const auto distance = squared_distance(
+        casualty.last_transition_position, facility.position);
+    const auto intake = static_cast<std::uint64_t>(care->intake_range);
+    if (distance > intake * intake) {
+      continue;
+    }
+    if (result == nullptr || distance < best_distance ||
+        (distance == best_distance && facility.id.value < result->id.value)) {
+      result = &facility;
+      best_distance = distance;
+    }
+  }
+  return result;
+}
+
+bool Simulation::complete_care_task(const EntityId facility_id,
+                                    const UnitIdentityId casualty) {
+  auto* facility = find_entity_mutable(facility_id);
+  if (facility == nullptr) {
+    return false;
+  }
+  const auto task = std::ranges::find(facility->care_queue, casualty,
+                                      &CareTask::casualty);
+  if (task == facility->care_queue.end() || !task->treatment_started ||
+      task->remaining_ticks != 0) {
+    return false;
+  }
+  const auto* record = casualty_system_.find(casualty);
+  if (record == nullptr || record->state != CasualtyState::Recoverable) {
+    return false;
+  }
+  const auto definition = entity_definition(record->faction, record->archetype);
+  const auto& owner = player(record->owner);
+  if (owner.supply_used + queued_supply(record->owner) > owner.supply_cap) {
+    return false;
+  }
+
+  const auto admitted_tick = task->admitted_tick;
+  const auto direction = record->owner == PlayerId::One ? 1 : -1;
+  const auto spawn_offset = facility->radius + definition.radius + 8'000;
+  const auto spawn_position = nearest_navigable(
+      {facility->position.x + direction * spawn_offset, facility->position.y},
+      definition.radius);
+  const auto entity_id = EntityId{next_entity_id_};
+  auto entity = make_entity(record->owner, record->archetype, spawn_position,
+                            false, entity_id, record->identity,
+                            CasualtyState::Recoverable);
+  entity.hit_points = std::max(
+      1, entity.max_hit_points * kRecoveredHealthBasisPoints / 10'000);
+  if (!casualty_system_.recover(entity, facility_id, tick_, admitted_tick)) {
+    return false;
+  }
+
+  facility->care_queue.erase(task);
+  ++next_entity_id_;
+  append_entity(std::move(entity));
+  emit_casualty_transition(casualty_system_.transitions().back());
+  emit_event(UnitRecoveredEvent{entity_id, facility_id, casualty,
+                                CasualtyState::Recoverable,
+                                CasualtyState::Recovered});
+  return true;
+}
+
+void Simulation::update_care() {
+  std::vector<std::pair<EntityId, UnitIdentityId>> ready;
+  for (auto& facility : entities_) {
+    const auto* care = find_care_facility_content(
+        builtin_content(), facility.faction, facility.type);
+    if (care == nullptr || facility.care_queue.empty()) {
+      continue;
+    }
+    if (!facility.alive()) {
+      for (const auto& task : facility.care_queue) {
+        emit_event(CasualtyCareInterruptedEvent{task.casualty, facility.id});
+      }
+      facility.care_queue.clear();
+      continue;
+    }
+    if (facility.under_construction ||
+        !supply_system_.connected(facility.id)) {
+      continue;
+    }
+    for (auto& task : facility.care_queue) {
+      if (!task.treatment_started) {
+        continue;
+      }
+      if (task.remaining_ticks > 0) {
+        --task.remaining_ticks;
+      }
+      if (task.remaining_ticks == 0) {
+        ready.emplace_back(facility.id, task.casualty);
+      }
+    }
+  }
+
+  for (const auto& [facility, casualty] : ready) {
+    static_cast<void>(complete_care_task(facility, casualty));
+  }
+
+  for (auto& facility : entities_) {
+    const auto* care = find_care_facility_content(
+        builtin_content(), facility.faction, facility.type);
+    if (care == nullptr || !facility.alive() || facility.under_construction ||
+        !supply_system_.connected(facility.id)) {
+      continue;
+    }
+    auto active = static_cast<std::int32_t>(std::ranges::count_if(
+        facility.care_queue,
+        [](const CareTask& task) { return task.treatment_started; }));
+    for (auto& task : facility.care_queue) {
+      if (active >= care->treatment_slots) {
+        break;
+      }
+      if (!task.treatment_started) {
+        task.treatment_started = true;
+        ++active;
+        emit_event(CasualtyTreatmentStartedEvent{
+            task.casualty, facility.id, task.total_ticks});
+      }
+    }
+  }
+}
+
+std::vector<UnitIdentityId> Simulation::protected_casualties() const {
+  std::vector<UnitIdentityId> result;
+  for (const auto& facility : entities_) {
+    for (const auto& task : facility.care_queue) {
+      result.push_back(task.casualty);
+    }
+  }
+  std::ranges::sort(result, {}, &UnitIdentityId::value);
+  const auto duplicates =
+      std::ranges::unique(result, {}, &UnitIdentityId::value);
+  result.erase(duplicates.begin(), duplicates.end());
+  return result;
+}
+
 void Simulation::update_casualties() {
   const auto first_transition = casualty_system_.transitions().size();
-  casualty_system_.advance(tick_);
+  const auto protected_identities = protected_casualties();
+  casualty_system_.advance(tick_, protected_identities);
   const auto transitions = casualty_system_.transitions();
   for (std::size_t index = first_transition; index < transitions.size(); ++index) {
     emit_casualty_transition(transitions[index]);
@@ -2128,7 +2349,14 @@ std::int32_t Simulation::queued_supply(const PlayerId owner) const noexcept {
     total = std::accumulate(entity.production_queue.begin(), entity.production_queue.end(), total,
                             [this, owner](const std::int32_t subtotal, const ProductionTask& task) {
                               return subtotal + entity_definition(player(owner).faction, task.type).supply_cost;
-                            });
+                             });
+    for (const auto& task : entity.care_queue) {
+      const auto* casualty = casualty_system_.find(task.casualty);
+      if (casualty != nullptr) {
+        total += entity_definition(casualty->faction, casualty->archetype)
+                     .supply_cost;
+      }
+    }
   }
   return total;
 }
@@ -2253,10 +2481,12 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
         if (has_known_resource) {
           add(CommandType::Gather, entity.id);
         }
-        for (const auto building : {EntityType::Barracks, EntityType::Turret}) {
-          if (state.ore >= entity_definition(state.faction, building).cost ||
-              has_orphaned_site(building)) {
-            add(CommandType::Build, entity.id, building);
+        for (const auto& structure : builtin_content().structures) {
+          if (structure.faction == state.faction &&
+              structure.archetype != EntityType::Command &&
+              (state.ore >= structure.cost ||
+               has_orphaned_site(structure.archetype))) {
+            add(CommandType::Build, entity.id, structure.archetype);
           }
         }
       }
@@ -2316,15 +2546,24 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
 
   for (const auto& casualty : casualty_system_.records()) {
     if (casualty.owner != owner ||
-        !is_casualty_recoverable(casualty.identity)) {
+        !casualty_system_.is_recoverable(casualty.identity, tick_)) {
       continue;
     }
     const auto definition = entity_definition(casualty.faction,
                                               casualty.archetype);
     if (state.supply_used + queued_supply(owner) + definition.supply_cost <=
         state.supply_cap) {
-      add(CommandType::RecoverCasualty, {}, std::nullopt, std::nullopt,
-          casualty.identity);
+      if (casualty.faction != FactionId::Compact) {
+        add(CommandType::RecoverCasualty, {}, std::nullopt, std::nullopt,
+            casualty.identity);
+      } else {
+        for (const auto& facility : entities_) {
+          if (available_care_facility(casualty, facility.id) != nullptr) {
+            add(CommandType::RecoverCasualty, facility.id, std::nullopt,
+                std::nullopt, casualty.identity);
+          }
+        }
+      }
     }
   }
 
@@ -2776,10 +3015,19 @@ std::uint64_t Simulation::state_hash() const noexcept {
       hash_order(hash, order);
     }
     hash_vec(hash, entity.rally_point);
+    hash_integral(hash, entity.production_queue.size());
     for (const auto& task : entity.production_queue) {
       hash_integral(hash, static_cast<std::uint8_t>(task.type));
       hash_integral(hash, task.remaining_ticks);
       hash_integral(hash, task.total_ticks);
+    }
+    hash_integral(hash, entity.care_queue.size());
+    for (const auto& task : entity.care_queue) {
+      hash_integral(hash, task.casualty.value);
+      hash_integral(hash, task.admitted_tick);
+      hash_integral(hash, task.remaining_ticks);
+      hash_integral(hash, task.total_ticks);
+      hash_integral(hash, task.treatment_started);
     }
     hash_integral(hash, static_cast<std::uint8_t>(entity.stance));
     hash_vec(hash, entity.guard_position);

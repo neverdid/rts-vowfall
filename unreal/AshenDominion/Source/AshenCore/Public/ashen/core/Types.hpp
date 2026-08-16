@@ -110,7 +110,15 @@ enum class MatchStatus : std::uint8_t { Playing, Won, Lost };
 enum class CommandSource : std::uint8_t { External, CommanderAI };
 enum class VisibilityState : std::uint8_t { Hidden, Explored, Visible };
 enum class EntityKind : std::uint8_t { Unit, Building };
-enum class EntityType : std::uint8_t { Worker, Vanguard, Skirmisher, Command, Barracks, Turret };
+enum class EntityType : std::uint8_t {
+  Worker,
+  Vanguard,
+  Skirmisher,
+  Command,
+  Barracks,
+  Turret,
+  Hospital,
+};
 enum class ArmorClass : std::uint8_t { Laborer, Armored, Light, Structure };
 enum class CasualtyState : std::uint8_t {
   Active,
@@ -259,6 +267,16 @@ struct ProductionTask {
   Tick total_ticks{};
 };
 
+struct CareTask {
+  UnitIdentityId casualty{};
+  Tick admitted_tick{};
+  Tick remaining_ticks{};
+  Tick total_ticks{};
+  bool treatment_started{};
+
+  auto operator<=>(const CareTask&) const = default;
+};
+
 struct ResearchTask {
   ResearchId id{ResearchId::TierTwo};
   Tick remaining_ticks{};
@@ -298,6 +316,7 @@ struct Entity {
   std::vector<Order> order_queue{};
   Vec2 rally_point{};
   std::vector<ProductionTask> production_queue{};
+  std::vector<CareTask> care_queue{};
   UnitStance stance{UnitStance::Aggressive};
   Vec2 guard_position{};
   bool under_construction{};

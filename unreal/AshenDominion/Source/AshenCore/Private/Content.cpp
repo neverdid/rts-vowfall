@@ -213,7 +213,10 @@ const ContentRegistry& builtin_content() noexcept {
                   producer_capabilities),
         structure(3'003, FactionId::Compact, EntityType::Turret,
                   "compact_turret", "structure.compact.turret",
-                  "vowfall.structure.compact.turret", turret_capabilities),
+                   "vowfall.structure.compact.turret", turret_capabilities),
+        structure(3'004, FactionId::Compact, EntityType::Hospital,
+                  "compact_field_hospital", "structure.compact.field_hospital",
+                  "vowfall.structure.compact.field_hospital", 0),
         structure(3'101, FactionId::Ascendancy, EntityType::Command,
                   "ascendancy_command", "structure.ascendancy.command",
                   "vowfall.structure.ascendancy.command",
@@ -248,6 +251,16 @@ const ContentRegistry& builtin_content() noexcept {
                   "compact_ledger_bastion", "supply.compact.bastion",
                   "vowfall.supply.compact.bastion"),
          3'003, false, false, 0, 0, 1},
+        {metadata(content_id::CompactLedgerHospital,
+                  "compact_ledger_hospital", "supply.compact.hospital",
+                  "vowfall.supply.compact.hospital"),
+         3'004, false, false, 0, 0, 2},
+    };
+    result.care_facilities = {
+        {metadata(content_id::CompactFieldHospitalCare,
+                  "compact_field_hospital_care", "care.compact.field_hospital",
+                  "vowfall.care.compact.field_hospital"),
+         3'004, 300'000, 2, 4, 120},
     };
 
     result.projectiles = {
@@ -457,6 +470,7 @@ std::vector<ContentValidationIssue> validate_content(
   collect(registry.units);
   collect(registry.structures);
   collect(registry.supply_nodes);
+  collect(registry.care_facilities);
   collect(registry.abilities);
   collect(registry.projectiles);
   collect(registry.formations);
@@ -570,6 +584,33 @@ std::vector<ContentValidationIssue> validate_content(
       issues.push_back({ContentValidationError::DuplicateSupplyNodeStructure,
                         supplied_structures[index],
                         supplied_structures[index]});
+    }
+  }
+  std::vector<StableContentId> care_structures;
+  for (const auto& definition : registry.care_facilities) {
+    care_structures.push_back(definition.structure);
+    if (!has_structure(registry, definition.structure)) {
+      issues.push_back({ContentValidationError::MissingContentReference,
+                        definition.metadata.stable_id,
+                        definition.structure});
+    }
+    const auto has_supply_profile = std::ranges::any_of(
+        registry.supply_nodes, [&definition](const auto& supply) {
+          return supply.structure == definition.structure;
+        });
+    if (!has_supply_profile || definition.intake_range <= 0 ||
+        definition.treatment_slots <= 0 ||
+        definition.waiting_capacity < 0 || definition.treatment_ticks <= 0) {
+      issues.push_back({ContentValidationError::InvalidCareFacility,
+                        definition.metadata.stable_id,
+                        definition.structure});
+    }
+  }
+  std::ranges::sort(care_structures);
+  for (std::size_t index = 1; index < care_structures.size(); ++index) {
+    if (care_structures[index] == care_structures[index - 1]) {
+      issues.push_back({ContentValidationError::DuplicateCareFacilityStructure,
+                        care_structures[index], care_structures[index]});
     }
   }
   for (const auto& definition : registry.abilities) {
@@ -798,6 +839,19 @@ const SupplyNodeContentDefinition* find_supply_node_content(
       registry.supply_nodes, structure->metadata.stable_id,
       &SupplyNodeContentDefinition::structure);
   return found == registry.supply_nodes.end() ? nullptr : &*found;
+}
+
+const CareFacilityContentDefinition* find_care_facility_content(
+    const ContentRegistry& registry, const FactionId faction,
+    const EntityType archetype) noexcept {
+  const auto* structure = find_structure_content(registry, faction, archetype);
+  if (structure == nullptr) {
+    return nullptr;
+  }
+  const auto found = std::ranges::find(
+      registry.care_facilities, structure->metadata.stable_id,
+      &CareFacilityContentDefinition::structure);
+  return found == registry.care_facilities.end() ? nullptr : &*found;
 }
 
 std::string_view faction_presentation_key(const FactionId faction) noexcept {

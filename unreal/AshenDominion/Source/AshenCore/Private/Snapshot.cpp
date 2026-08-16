@@ -69,7 +69,7 @@ class Writer final {
 
   void count(const std::size_t value) {
     if (value > kMaximumCollectionElements) {
-      throw std::length_error("Snapshot collection exceeds the V1 limit.");
+      throw std::length_error("Snapshot collection exceeds the V3 limit.");
     }
     integral(static_cast<std::uint32_t>(value));
   }
@@ -340,9 +340,25 @@ void write_production_task(Writer& writer, const ProductionTask& task) {
 }
 
 bool read_production_task(Reader& reader, ProductionTask& task) {
-  return reader.enumeration(task.type, EntityType::Turret) &&
+  return reader.enumeration(task.type, EntityType::Hospital) &&
          reader.integral(task.remaining_ticks) &&
          reader.integral(task.total_ticks);
+}
+
+void write_care_task(Writer& writer, const CareTask& task) {
+  writer.integral(task.casualty.value);
+  writer.integral(task.admitted_tick);
+  writer.integral(task.remaining_ticks);
+  writer.integral(task.total_ticks);
+  writer.boolean(task.treatment_started);
+}
+
+bool read_care_task(Reader& reader, CareTask& task) {
+  return reader.integral(task.casualty.value) &&
+         reader.integral(task.admitted_tick) &&
+         reader.integral(task.remaining_ticks) &&
+         reader.integral(task.total_ticks) &&
+         reader.boolean(task.treatment_started);
 }
 
 void write_research_task(Writer& writer, const ResearchTask& task) {
@@ -443,6 +459,10 @@ void write_entity(Writer& writer, const Entity& entity) {
   for (const auto& task : entity.production_queue) {
     write_production_task(writer, task);
   }
+  writer.count(entity.care_queue.size());
+  for (const auto& task : entity.care_queue) {
+    write_care_task(writer, task);
+  }
   writer.enumeration(entity.stance);
   write_vec2(writer, entity.guard_position);
   writer.boolean(entity.under_construction);
@@ -456,7 +476,7 @@ bool read_entity(Reader& reader, Entity& entity) {
       !reader.enumeration(entity.casualty_state, CasualtyState::Dead) ||
       !reader.enumeration(entity.owner, PlayerId::Two) ||
       !reader.enumeration(entity.faction, FactionId::Concord) ||
-      !reader.enumeration(entity.type, EntityType::Turret) ||
+      !reader.enumeration(entity.type, EntityType::Hospital) ||
       !reader.enumeration(entity.kind, EntityKind::Building) ||
       !read_vec2(reader, entity.position) ||
       !reader.integral(entity.radius) ||
@@ -505,6 +525,16 @@ bool read_entity(Reader& reader, Entity& entity) {
       return false;
     }
   }
+  std::size_t care_count{};
+  if (!reader.count(care_count)) {
+    return false;
+  }
+  entity.care_queue.resize(care_count);
+  for (auto& task : entity.care_queue) {
+    if (!read_care_task(reader, task)) {
+      return false;
+    }
+  }
   return reader.enumeration(entity.stance, UnitStance::Hold) &&
          read_vec2(reader, entity.guard_position) &&
          reader.boolean(entity.under_construction) &&
@@ -533,7 +563,7 @@ bool read_casualty_record(Reader& reader, CasualtyRecord& record) {
          reader.integral(record.last_entity.value) &&
          reader.enumeration(record.owner, PlayerId::Two) &&
          reader.enumeration(record.faction, FactionId::Concord) &&
-         reader.enumeration(record.archetype, EntityType::Turret) &&
+         reader.enumeration(record.archetype, EntityType::Hospital) &&
          reader.integral(record.formation.value) &&
          reader.enumeration(record.state, CasualtyState::Dead) &&
          reader.integral(record.experience) &&
@@ -554,6 +584,7 @@ void write_casualty_transition(Writer& writer,
   writer.integral(transition.state_deadline);
   writer.integral(transition.source.value);
   write_vec2(writer, transition.position);
+  writer.integral(transition.eligibility_tick);
 }
 
 bool read_casualty_transition(Reader& reader,
@@ -565,7 +596,8 @@ bool read_casualty_transition(Reader& reader,
          reader.integral(transition.tick) &&
          reader.integral(transition.state_deadline) &&
          reader.integral(transition.source.value) &&
-         read_vec2(reader, transition.position);
+         read_vec2(reader, transition.position) &&
+         reader.integral(transition.eligibility_tick);
 }
 
 void write_resource(Writer& writer, const ResourceNode& resource) {
@@ -726,8 +758,8 @@ bool read_command(Reader& reader, Command& command) {
          reader.integral(command.target_entity.value) &&
          reader.integral(command.resource.value) &&
          reader.integral(command.producer.value) &&
-         reader.enumeration(command.train_type, EntityType::Turret) &&
-         reader.enumeration(command.building_type, EntityType::Turret) &&
+         reader.enumeration(command.train_type, EntityType::Hospital) &&
+         reader.enumeration(command.building_type, EntityType::Hospital) &&
          reader.enumeration(command.research, ResearchId::SiegeLiturgy) &&
          reader.enumeration(command.stance, UnitStance::Hold) &&
          reader.integral(command.vow.value) &&
@@ -798,7 +830,7 @@ bool read_observed_enemy(Reader& reader, ObservedEnemy& enemy) {
   return reader.integral(enemy.id.value) &&
          reader.enumeration(enemy.owner, PlayerId::Two) &&
          reader.enumeration(enemy.faction, FactionId::Concord) &&
-         reader.enumeration(enemy.type, EntityType::Turret) &&
+         reader.enumeration(enemy.type, EntityType::Hospital) &&
          reader.enumeration(enemy.kind, EntityKind::Building) &&
          read_vec2(reader, enemy.position) &&
          reader.integral(enemy.radius) &&
@@ -866,7 +898,7 @@ bool read_capability(Reader& reader, CommandCapability& capability) {
   return reader.enumeration(capability.type, CommandType::RecoverCasualty) &&
          reader.integral(capability.actor.value) &&
          read_optional_enum(reader, capability.entity_type,
-                            EntityType::Turret) &&
+                            EntityType::Hospital) &&
          read_optional_enum(reader, capability.research,
                             ResearchId::SiegeLiturgy) &&
          reader.integral(capability.casualty.value);
@@ -955,7 +987,7 @@ bool read_candidate(Reader& reader, AICandidateScore& candidate) {
       !reader.integral(candidate.target_objective.value) ||
       !read_vec2(reader, candidate.target_position) ||
       !read_optional_enum(reader, candidate.entity_type,
-                          EntityType::Turret) ||
+                          EntityType::Hospital) ||
       !read_optional_enum(reader, candidate.research,
                           ResearchId::SiegeLiturgy) ||
       !reader.integral(candidate.influence_map_hash)) {
@@ -1319,6 +1351,28 @@ void write_event(Writer& writer, const SimulationEvent& event) {
       write_vec2(writer, payload.position);
       break;
     }
+    case SimulationEventType::CasualtyCareQueued: {
+      const auto& payload = std::get<CasualtyCareQueuedEvent>(event.payload);
+      writer.integral(payload.identity.value);
+      writer.integral(payload.facility.value);
+      writer.integral(payload.queue_position);
+      break;
+    }
+    case SimulationEventType::CasualtyTreatmentStarted: {
+      const auto& payload =
+          std::get<CasualtyTreatmentStartedEvent>(event.payload);
+      writer.integral(payload.identity.value);
+      writer.integral(payload.facility.value);
+      writer.integral(payload.treatment_ticks);
+      break;
+    }
+    case SimulationEventType::CasualtyCareInterrupted: {
+      const auto& payload =
+          std::get<CasualtyCareInterruptedEvent>(event.payload);
+      writer.integral(payload.identity.value);
+      writer.integral(payload.facility.value);
+      break;
+    }
   }
 }
 
@@ -1326,7 +1380,7 @@ bool read_event(Reader& reader, SimulationEvent& event) {
   SimulationEventType type{};
   if (!reader.integral(event.id.value) ||
       !reader.integral(event.tick) ||
-      !reader.enumeration(type, SimulationEventType::CasualtyStateChanged)) {
+      !reader.enumeration(type, SimulationEventType::CasualtyCareInterrupted)) {
     return false;
   }
   switch (type) {
@@ -1335,7 +1389,7 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.entity.value) ||
           !reader.enumeration(payload.owner, PlayerId::Two) ||
           !reader.enumeration(payload.faction, FactionId::Concord) ||
-          !reader.enumeration(payload.archetype, EntityType::Turret) ||
+          !reader.enumeration(payload.archetype, EntityType::Hospital) ||
           !reader.integral(payload.identity.value)) {
         return false;
       }
@@ -1347,7 +1401,7 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       if (!reader.integral(payload.entity.value) ||
           !reader.enumeration(payload.owner, PlayerId::Two) ||
           !reader.enumeration(payload.faction, FactionId::Concord) ||
-          !reader.enumeration(payload.archetype, EntityType::Turret) ||
+          !reader.enumeration(payload.archetype, EntityType::Hospital) ||
           !reader.integral(payload.identity.value)) {
         return false;
       }
@@ -1591,6 +1645,35 @@ bool read_event(Reader& reader, SimulationEvent& event) {
       event.payload = payload;
       return true;
     }
+    case SimulationEventType::CasualtyCareQueued: {
+      CasualtyCareQueuedEvent payload{};
+      if (!reader.integral(payload.identity.value) ||
+          !reader.integral(payload.facility.value) ||
+          !reader.integral(payload.queue_position)) {
+        return false;
+      }
+      event.payload = payload;
+      return true;
+    }
+    case SimulationEventType::CasualtyTreatmentStarted: {
+      CasualtyTreatmentStartedEvent payload{};
+      if (!reader.integral(payload.identity.value) ||
+          !reader.integral(payload.facility.value) ||
+          !reader.integral(payload.treatment_ticks)) {
+        return false;
+      }
+      event.payload = payload;
+      return true;
+    }
+    case SimulationEventType::CasualtyCareInterrupted: {
+      CasualtyCareInterruptedEvent payload{};
+      if (!reader.integral(payload.identity.value) ||
+          !reader.integral(payload.facility.value)) {
+        return false;
+      }
+      event.payload = payload;
+      return true;
+    }
   }
   reader.fail(SnapshotError::InvalidData);
   return false;
@@ -1637,6 +1720,15 @@ void write_content_registry(Writer& writer, const ContentRegistry& registry) {
     writer.integral(definition.link_range);
     writer.integral(definition.capacity);
     writer.integral(definition.demand);
+  }
+  writer.count(registry.care_facilities.size());
+  for (const auto& definition : registry.care_facilities) {
+    write_metadata(writer, definition.metadata);
+    writer.integral(definition.structure);
+    writer.integral(definition.intake_range);
+    writer.integral(definition.treatment_slots);
+    writer.integral(definition.waiting_capacity);
+    writer.integral(definition.treatment_ticks);
   }
   writer.count(registry.abilities.size());
   for (const auto& definition : registry.abilities) {
@@ -1727,7 +1819,8 @@ void write_gameplay_catalog(Writer& writer) {
       FactionId::Compact, FactionId::Ascendancy, FactionId::Concord};
   constexpr std::array entity_types{
       EntityType::Worker, EntityType::Vanguard, EntityType::Skirmisher,
-      EntityType::Command, EntityType::Barracks, EntityType::Turret};
+      EntityType::Command, EntityType::Barracks, EntityType::Turret,
+      EntityType::Hospital};
   constexpr std::array research_ids{
       ResearchId::TierTwo, ResearchId::TemperedOaths,
       ResearchId::Wardcraft, ResearchId::ChorusOfKnives,
@@ -2517,6 +2610,57 @@ class SnapshotCodec final {
             [](const VowState& value) { return value.id.value; })) {
       return false;
     }
+    std::vector<UnitIdentityId> queued_casualties;
+    for (const auto& entity : simulation.entities_) {
+      const auto* care = find_care_facility_content(
+          builtin_content(), entity.faction, entity.type);
+      if (entity.care_queue.empty()) {
+        continue;
+      }
+      if (care == nullptr || entity.under_construction || !entity.alive() ||
+          entity.care_queue.size() >
+              static_cast<std::size_t>(care->treatment_slots +
+                                       care->waiting_capacity)) {
+        return false;
+      }
+      std::int32_t active{};
+      bool waiting_seen{};
+      for (const auto& task : entity.care_queue) {
+        const auto* casualty = simulation.casualty_system_.find(task.casualty);
+        if (!task.casualty || casualty == nullptr ||
+            casualty->owner != entity.owner ||
+            casualty->faction != entity.faction ||
+            casualty->state != CasualtyState::Recoverable ||
+            task.admitted_tick > simulation.tick_ ||
+            casualty->state_deadline <= task.admitted_tick ||
+            task.total_ticks != static_cast<Tick>(care->treatment_ticks) ||
+            task.total_ticks == 0 ||
+            task.remaining_ticks > task.total_ticks ||
+            std::ranges::find(queued_casualties, task.casualty) !=
+                queued_casualties.end()) {
+          return false;
+        }
+        if (task.treatment_started) {
+          if (waiting_seen || ++active > care->treatment_slots) {
+            return false;
+          }
+        } else {
+          waiting_seen = true;
+          if (task.remaining_ticks != task.total_ticks) {
+            return false;
+          }
+        }
+        const auto dx = static_cast<std::int64_t>(entity.position.x) -
+                        casualty->last_transition_position.x;
+        const auto dy = static_cast<std::int64_t>(entity.position.y) -
+                        casualty->last_transition_position.y;
+        const auto range = static_cast<std::int64_t>(care->intake_range);
+        if (dx * dx + dy * dy > range * range) {
+          return false;
+        }
+        queued_casualties.push_back(task.casualty);
+      }
+    }
     if (simulation.next_sequence_ == 0 ||
         simulation.next_ai_decision_id_ == 0 ||
         simulation.next_event_id_ == 0) {
@@ -2607,13 +2751,13 @@ std::vector<std::uint8_t> save_snapshot_v1(
     const Simulation& simulation) {
   if (!SnapshotCodec::can_encode(simulation)) {
     throw std::invalid_argument(
-        "Simulation state is outside the SnapshotV1 invariants.");
+        "Simulation state is outside the SnapshotV3 invariants.");
   }
   Writer payload_writer;
   SnapshotCodec::write_payload(payload_writer, simulation);
   const auto& payload = payload_writer.bytes();
   if (payload.size() > kMaximumPayloadBytes) {
-    throw std::length_error("Snapshot payload exceeds the V1 limit.");
+    throw std::length_error("Snapshot payload exceeds the V3 limit.");
   }
 
   const SnapshotHeader header{

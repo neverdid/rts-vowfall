@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <ranges>
 #include <vector>
 
 namespace ashen::core {
@@ -102,7 +103,7 @@ bool CasualtySystem::mark_incapacitated(Entity& entity, const EntityId source,
 }
 
 bool CasualtySystem::recover(Entity& entity, const EntityId source,
-                             const Tick tick) {
+                             const Tick tick, const Tick eligibility_tick) {
   auto* record = find_mutable(entity.identity);
   if (record == nullptr || entity.kind != EntityKind::Unit || !entity.alive() ||
       !entity.id || entity.id == record->last_entity ||
@@ -110,7 +111,7 @@ bool CasualtySystem::recover(Entity& entity, const EntityId source,
       entity.type != record->archetype ||
       entity.casualty_state != CasualtyState::Recoverable ||
       record->state != CasualtyState::Recoverable ||
-      record->state_deadline <= tick) {
+      eligibility_tick > tick || record->state_deadline <= eligibility_tick) {
     return false;
   }
 
@@ -123,7 +124,8 @@ bool CasualtySystem::recover(Entity& entity, const EntityId source,
   entity.casualty_state = CasualtyState::Recovered;
   transitions_.push_back(CasualtyTransition{
       entity.identity, entity.id, CasualtyState::Recoverable,
-      CasualtyState::Recovered, tick, 0, source, entity.position});
+      CasualtyState::Recovered, tick, 0, source, entity.position,
+      eligibility_tick == tick ? 0 : eligibility_tick + 1});
   return true;
 }
 
@@ -135,7 +137,9 @@ bool CasualtySystem::mark_dead(Entity& entity, const EntityId source,
   return transition(entity, CasualtyState::Dead, source, tick);
 }
 
-void CasualtySystem::advance(const Tick tick) {
+void CasualtySystem::advance(
+    const Tick tick,
+    const std::span<const UnitIdentityId> protected_casualties) {
   for (auto& record : records_) {
     if (record.state_deadline == 0 || tick < record.state_deadline) {
       continue;
@@ -143,7 +147,9 @@ void CasualtySystem::advance(const Tick tick) {
     if (record.state == CasualtyState::Incapacitated) {
       transition(record, CasualtyState::Recoverable, tick,
                  deadline_after(tick, kBaseRecoveryWindowTicks));
-    } else if (record.state == CasualtyState::Recoverable) {
+    } else if (record.state == CasualtyState::Recoverable &&
+               std::ranges::find(protected_casualties, record.identity) ==
+                   protected_casualties.end()) {
       transition(record, CasualtyState::Dead, tick, 0);
     }
   }
@@ -220,6 +226,7 @@ std::uint64_t CasualtySystem::state_hash() const noexcept {
     hash_integral(hash, static_cast<std::uint8_t>(transition.previous));
     hash_integral(hash, static_cast<std::uint8_t>(transition.current));
     hash_integral(hash, transition.tick);
+    hash_integral(hash, transition.eligibility_tick);
     hash_integral(hash, transition.state_deadline);
     hash_integral(hash, transition.source.value);
     hash_vec(hash, transition.position);
@@ -257,7 +264,8 @@ bool CasualtySystem::derivation_matches(
           record.formation || record.experience != 0 ||
           record.archetype == EntityType::Command ||
           record.archetype == EntityType::Barracks ||
-          record.archetype == EntityType::Turret) {
+          record.archetype == EntityType::Turret ||
+          record.archetype == EntityType::Hospital) {
         return false;
       }
       state_since[index] = record.state_since;
@@ -293,6 +301,20 @@ bool CasualtySystem::derivation_matches(
             transition.current == CasualtyState::Incapacitated ||
             transition.current == CasualtyState::Dead));
       if (!allowed || states[index] != transition.previous) {
+        return false;
+      }
+      if (transition.current == CasualtyState::Recovered) {
+        const auto eligibility_tick = transition.eligibility_tick == 0
+                                          ? transition.tick
+                                          : transition.eligibility_tick - 1;
+        if (eligibility_tick > transition.tick) {
+          return false;
+        }
+        if (state_deadlines[index] == 0 ||
+            eligibility_tick >= state_deadlines[index]) {
+          return false;
+        }
+      } else if (transition.eligibility_tick != 0) {
         return false;
       }
       if (!current_entities[index]) {

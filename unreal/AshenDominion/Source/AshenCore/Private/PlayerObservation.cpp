@@ -83,6 +83,14 @@ void hash_owned_entity(std::uint64_t& hash, const Entity& entity) noexcept {
     hash_integral(hash, task.remaining_ticks);
     hash_integral(hash, task.total_ticks);
   }
+  hash_integral(hash, entity.care_queue.size());
+  for (const auto& task : entity.care_queue) {
+    hash_integral(hash, task.casualty.value);
+    hash_integral(hash, task.admitted_tick);
+    hash_integral(hash, task.remaining_ticks);
+    hash_integral(hash, task.total_ticks);
+    hash_integral(hash, task.treatment_started);
+  }
   hash_integral(hash, static_cast<std::uint8_t>(entity.stance));
   hash_vec(hash, entity.guard_position);
   hash_integral(hash, entity.under_construction);
