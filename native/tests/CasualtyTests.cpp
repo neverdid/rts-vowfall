@@ -236,6 +236,43 @@ void simultaneous_deadlines_resolve_in_identity_order() {
   CHECK(casualties.transitions()[3].current == CasualtyState::Recoverable);
 }
 
+void recovery_moves_identity_and_supports_reinjury() {
+  CasualtySystem casualties;
+  auto original = test_unit(7, 1, world(120, 240));
+  CHECK(casualties.register_unit(original, 0));
+  original.hit_points = 0;
+  CHECK(casualties.mark_incapacitated(original, EntityId{90}, 5));
+  casualties.advance(45);
+
+  auto recovered = test_unit(12, 1, world(200, 260));
+  recovered.casualty_state = CasualtyState::Recoverable;
+  recovered.hit_points = 50;
+  CHECK(casualties.recover(recovered, EntityId{4}, 46));
+  const auto* record = casualties.find(UnitIdentityId{1});
+  CHECK(record != nullptr);
+  CHECK(record != nullptr && record->last_entity == EntityId{12});
+  CHECK(record != nullptr && record->state == CasualtyState::Recovered);
+  CHECK(record != nullptr && record->state_deadline == 0);
+  CHECK(record != nullptr && record->last_source == EntityId{4});
+  CHECK(record != nullptr && record->last_transition_position == world(200, 260));
+  CHECK(casualties.transitions().back() ==
+        (CasualtyTransition{UnitIdentityId{1}, EntityId{12},
+                            CasualtyState::Recoverable,
+                            CasualtyState::Recovered, 46, 0, EntityId{4},
+                            world(200, 260)}));
+  CHECK(casualties.derivation_matches(
+      std::span<const Entity>{&recovered, 1}, 2, 46));
+
+  CHECK(casualties.mark_wounded(recovered, EntityId{91}, 47));
+  CHECK(casualties.find(UnitIdentityId{1})->injuries == 1);
+  recovered.hit_points = 0;
+  CHECK(casualties.mark_incapacitated(recovered, EntityId{92}, 48));
+  CHECK(casualties.transitions()[3].previous == CasualtyState::Recovered);
+  CHECK(casualties.transitions()[3].current == CasualtyState::Wounded);
+  CHECK(casualties.transitions()[4].previous == CasualtyState::Wounded);
+  CHECK(casualties.transitions()[4].current == CasualtyState::Incapacitated);
+}
+
 void spawn_identity_is_unit_only_and_observation_safe() {
   Simulation simulation{empty_config()};
   const auto command = simulation.spawn_entity(
@@ -285,6 +322,12 @@ void death_retains_identity_and_orders_transitions() {
   CHECK(record != nullptr && record->injuries == 1);
   CHECK(!fixture.simulation.is_casualty_recoverable(
       fixture.victim_identity));
+  const auto unstabilized_recovery = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!unstabilized_recovery.ok);
+  CHECK(unstabilized_recovery.error == CommandError::CasualtyUnavailable);
 
   const auto stabilization_deadline = record->state_deadline;
   while (fixture.simulation.tick() < stabilization_deadline) {
@@ -310,6 +353,12 @@ void death_retains_identity_and_orders_transitions() {
   CHECK(record->state == CasualtyState::Recoverable);
   CHECK(!fixture.simulation.is_casualty_recoverable(
       fixture.victim_identity));
+  const auto expired_recovery = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!expired_recovery.ok);
+  CHECK(expired_recovery.error == CommandError::CasualtyUnavailable);
   CHECK(std::ranges::none_of(
       fixture.simulation.events(), [&](const SimulationEvent& event) {
         return event_type(event) == SimulationEventType::UnitKilled &&
@@ -418,6 +467,12 @@ void road_ledger_access_gates_compact_recovery() {
       fixture.victim_identity));
   CHECK(!fixture.simulation.casualty_recovery_anchor(
       fixture.victim_identity));
+  const auto cut_recovery = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!cut_recovery.ok);
+  CHECK(cut_recovery.error == CommandError::SupplyBlocked);
 
   const auto disconnected_snapshot = load_snapshot_v1(
       save_snapshot_v1(fixture.simulation));
@@ -435,13 +490,213 @@ void road_ledger_access_gates_compact_recovery() {
             fixture.victim_identity) == replacement);
 }
 
+void recovery_command_reembodies_the_same_identity() {
+  RoadLedgerCasualtyFixture fixture;
+  fixture.run_to_recoverable();
+  const auto* retained = fixture.simulation.find_casualty(
+      fixture.victim_identity);
+  CHECK(retained != nullptr);
+  const auto retained_injuries = retained == nullptr ? 0U : retained->injuries;
+  const auto supply_before = fixture.simulation.player(PlayerId::One).supply_used;
+  const auto maximum_entity = std::ranges::max_element(
+      fixture.simulation.entities(), {}, &Entity::id)->id;
+
+  const auto own_observation = fixture.simulation.observe(PlayerId::One);
+  const auto enemy_observation = fixture.simulation.observe(PlayerId::Two);
+  CHECK(own_observation.permits(CommandType::RecoverCasualty, {},
+                                std::nullopt, std::nullopt,
+                                fixture.victim_identity));
+  CHECK(!enemy_observation.permits(CommandType::RecoverCasualty, {},
+                                   std::nullopt, std::nullopt,
+                                   fixture.victim_identity));
+
+  const auto unknown = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = UnitIdentityId{4'000}});
+  CHECK(!unknown.ok);
+  CHECK(unknown.error == CommandError::CasualtyUnavailable);
+  const auto wrong_owner = fixture.simulation.execute_now(
+      Command{.player = PlayerId::Two,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!wrong_owner.ok);
+  CHECK(wrong_owner.error == CommandError::InvalidOwner);
+
+  const auto anchor = fixture.simulation.casualty_recovery_anchor(
+      fixture.victim_identity);
+  const auto* anchor_entity = fixture.simulation.find_entity(anchor);
+  CHECK(anchor_entity != nullptr);
+  const auto anchor_position = anchor_entity == nullptr
+                                   ? Vec2{}
+                                   : anchor_entity->position;
+  const auto anchor_radius = anchor_entity == nullptr ? 0 : anchor_entity->radius;
+  const auto recovery = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(recovery.ok);
+
+  retained = fixture.simulation.find_casualty(fixture.victim_identity);
+  CHECK(retained != nullptr);
+  CHECK(retained != nullptr && retained->state == CasualtyState::Recovered);
+  CHECK(retained != nullptr && retained->last_entity.value == maximum_entity.value + 1U);
+  CHECK(retained != nullptr && retained->injuries == retained_injuries);
+  CHECK(retained != nullptr && retained->last_source == anchor);
+  const auto* embodied = retained == nullptr
+                             ? nullptr
+                             : fixture.simulation.find_entity(retained->last_entity);
+  CHECK(embodied != nullptr);
+  CHECK(embodied != nullptr && embodied->identity == fixture.victim_identity);
+  CHECK(embodied != nullptr && embodied->casualty_state == CasualtyState::Recovered);
+  CHECK(embodied != nullptr && embodied->hit_points == embodied->max_hit_points / 2);
+  CHECK((embodied != nullptr && anchor_entity != nullptr &&
+         embodied->position ==
+             Vec2{anchor_position.x + anchor_radius + embodied->radius + 8'000,
+                  anchor_position.y}));
+  CHECK(fixture.simulation.player(PlayerId::One).supply_used ==
+        supply_before + (embodied == nullptr ? 0 : embodied->supply_cost));
+  CHECK(!fixture.simulation.observe(PlayerId::One).permits(
+      CommandType::RecoverCasualty, {}, std::nullopt, std::nullopt,
+      fixture.victim_identity));
+
+  const auto& events = fixture.simulation.events();
+  CHECK(events.size() >= 3);
+  CHECK(event_type(events[events.size() - 3]) ==
+        SimulationEventType::EntitySpawned);
+  CHECK(event_type(events[events.size() - 2]) ==
+        SimulationEventType::CasualtyStateChanged);
+  CHECK(event_type(events.back()) == SimulationEventType::UnitRecovered);
+  if (event_type(events.back()) == SimulationEventType::UnitRecovered) {
+    const auto& payload = std::get<UnitRecoveredEvent>(events.back().payload);
+    CHECK(payload.entity == retained->last_entity);
+    CHECK(payload.recovery_source == anchor);
+    CHECK(payload.identity == fixture.victim_identity);
+  }
+
+  const auto duplicate = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!duplicate.ok);
+  CHECK(duplicate.error == CommandError::CasualtyUnavailable);
+
+  if (embodied != nullptr) {
+    static_cast<void>(fixture.simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret,
+        {embodied->position.x + world(45, 0).x, embodied->position.y}));
+    fixture.simulation.step();
+    const auto wounded = std::ranges::find_if(
+        fixture.simulation.events(), [&](const SimulationEvent& event) {
+          return event_type(event) == SimulationEventType::UnitWounded &&
+                 std::get<UnitWoundedEvent>(event.payload).identity ==
+                     fixture.victim_identity &&
+                 std::get<UnitWoundedEvent>(event.payload).previous ==
+                     CasualtyState::Recovered;
+        });
+    CHECK(wounded != fixture.simulation.events().end());
+  }
+}
+
+void recovery_respects_population_capacity() {
+  RoadLedgerCasualtyFixture fixture;
+  fixture.run_to_recoverable();
+  while (fixture.simulation.player(PlayerId::One).supply_used <
+         fixture.simulation.player(PlayerId::One).supply_cap) {
+    static_cast<void>(fixture.simulation.spawn_entity(
+        PlayerId::One, EntityType::Worker, world(300, 300)));
+  }
+  CHECK(!fixture.simulation.observe(PlayerId::One).permits(
+      CommandType::RecoverCasualty, {}, std::nullopt, std::nullopt,
+      fixture.victim_identity));
+  const auto result = fixture.simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(!result.ok);
+  CHECK(result.error == CommandError::SupplyBlocked);
+  CHECK(fixture.simulation.find_casualty(fixture.victim_identity)->state ==
+        CasualtyState::Recoverable);
+}
+
 void non_compact_recovery_does_not_require_road_ledger_access() {
   BattleFixture fixture{FactionId::Ascendancy};
+  ReplayRecorder recorder{fixture.simulation};
   fixture.run_to_recoverable();
   CHECK(fixture.simulation.is_casualty_recoverable(
       fixture.victim_identity));
   CHECK(!fixture.simulation.casualty_recovery_anchor(
       fixture.victim_identity));
+  const auto retained_position = fixture.simulation.find_casualty(
+      fixture.victim_identity)->last_transition_position;
+  const auto result = recorder.execute_now(
+      fixture.simulation,
+      Command{.player = PlayerId::One,
+              .type = CommandType::RecoverCasualty,
+              .casualty = fixture.victim_identity});
+  CHECK(result.ok);
+  const auto* record = fixture.simulation.find_casualty(
+      fixture.victim_identity);
+  const auto* entity = record == nullptr
+                           ? nullptr
+                           : fixture.simulation.find_entity(record->last_entity);
+  CHECK(record != nullptr && record->state == CasualtyState::Recovered);
+  CHECK(entity != nullptr && entity->position == retained_position);
+
+  const auto loaded = load_snapshot_v1(save_snapshot_v1(fixture.simulation));
+  CHECK(loaded);
+  CHECK(loaded.simulation != nullptr);
+  CHECK(loaded.simulation != nullptr &&
+        loaded.simulation->state_hash() == fixture.simulation.state_hash());
+  const auto verified = verify_replay_v1(
+      save_replay_v1(recorder.finish(fixture.simulation)));
+  CHECK(verified);
+  CHECK(verified.simulation != nullptr);
+  CHECK(verified.simulation != nullptr &&
+        verified.simulation->state_hash() == fixture.simulation.state_hash());
+}
+
+void queued_recovery_survives_checkpoint_and_replay() {
+  BattleFixture fixture{FactionId::Ascendancy};
+  ReplayRecorder recorder{fixture.simulation};
+  fixture.run_to_recoverable();
+
+  Command recovery{.execute_tick = fixture.simulation.tick() + 2,
+                   .player = PlayerId::One,
+                   .type = CommandType::RecoverCasualty,
+                   .casualty = fixture.victim_identity};
+  const auto sequence = recorder.enqueue(fixture.simulation, recovery);
+  CHECK(sequence != 0);
+  const auto loaded = load_snapshot_v1(save_snapshot_v1(fixture.simulation));
+  CHECK(loaded);
+  CHECK(loaded.simulation != nullptr);
+  CHECK(loaded.simulation != nullptr &&
+        loaded.simulation->state_hash() == fixture.simulation.state_hash());
+
+  fixture.simulation.run(3);
+  if (loaded.simulation != nullptr) {
+    loaded.simulation->run(3);
+    CHECK(loaded.simulation->state_hash() == fixture.simulation.state_hash());
+  }
+  CHECK(std::ranges::any_of(
+      fixture.simulation.casualty_history(),
+      [&](const CasualtyTransition& transition) {
+        return transition.identity == fixture.victim_identity &&
+               transition.current == CasualtyState::Recovered;
+      }));
+  CHECK(!fixture.simulation.command_trace().empty());
+  CHECK(!fixture.simulation.command_trace().empty() &&
+        fixture.simulation.command_trace().back().accepted);
+  CHECK(!fixture.simulation.command_trace().empty() &&
+        fixture.simulation.command_trace().back().command.casualty ==
+            fixture.victim_identity);
+
+  const auto verified = verify_replay_v1(
+      save_replay_v1(recorder.finish(fixture.simulation)));
+  CHECK(verified);
+  CHECK(verified.simulation != nullptr);
+  CHECK(verified.simulation != nullptr &&
+        verified.simulation->state_hash() == fixture.simulation.state_hash());
 }
 
 void snapshot_and_replay_preserve_casualty_ledger() {
@@ -503,14 +758,22 @@ int main() {
            system_owns_stable_transition_history);
   run_test("simultaneous deadlines resolve in identity order",
            simultaneous_deadlines_resolve_in_identity_order);
+  run_test("recovery moves identity and supports reinjury",
+           recovery_moves_identity_and_supports_reinjury);
   run_test("spawn identity is unit-only and observation-safe",
            spawn_identity_is_unit_only_and_observation_safe);
   run_test("death retains identity and orders transitions",
            death_retains_identity_and_orders_transitions);
   run_test("Road Ledger access gates Compact recovery",
            road_ledger_access_gates_compact_recovery);
+  run_test("recovery command reembodies the same identity",
+           recovery_command_reembodies_the_same_identity);
+  run_test("recovery respects population capacity",
+           recovery_respects_population_capacity);
   run_test("non-Compact recovery does not require Road Ledger access",
            non_compact_recovery_does_not_require_road_ledger_access);
+  run_test("queued recovery survives checkpoint and replay",
+           queued_recovery_survives_checkpoint_and_replay);
   run_test("snapshot and replay preserve casualty ledger",
            snapshot_and_replay_preserve_casualty_ledger);
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

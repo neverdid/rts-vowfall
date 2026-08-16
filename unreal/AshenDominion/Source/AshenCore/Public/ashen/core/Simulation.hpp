@@ -138,6 +138,7 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] CommandResult apply_keep_vow(const Command& command);
   [[nodiscard]] CommandResult apply_break_vow(const Command& command);
   [[nodiscard]] CommandResult apply_amend_vow(const Command& command);
+  [[nodiscard]] CommandResult apply_recover_casualty(const Command& command);
   void apply_due_commands();
   void update_ruin_tide();
   void update_research();
@@ -176,6 +177,11 @@ class ASHENCORE_API Simulation final {
   [[nodiscard]] Vec2 nearest_navigable(Vec2 position, std::int32_t radius) const noexcept;
   [[nodiscard]] const Entity* nearest_command(PlayerId owner, Vec2 position) const noexcept;
   [[nodiscard]] std::int32_t queued_supply(PlayerId owner) const noexcept;
+  [[nodiscard]] Entity make_entity(PlayerId owner, EntityType type,
+                                   Vec2 position, bool under_construction,
+                                   EntityId id, UnitIdentityId identity,
+                                   CasualtyState casualty_state);
+  void append_entity(Entity entity);
   [[nodiscard]] bool requires_supply_connection(
       const Entity& entity) const noexcept;
   [[nodiscard]] std::vector<CommandCapability> command_capabilities(PlayerId owner) const;

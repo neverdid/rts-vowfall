@@ -64,6 +64,7 @@ void hash_integral(std::uint64_t& hash, const Value value) noexcept {
     case CommandType::KeepVow:
     case CommandType::BreakVow:
     case CommandType::AmendVow:
+    case CommandType::RecoverCasualty:
       return false;
   }
   return false;

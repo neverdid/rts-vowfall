@@ -154,6 +154,7 @@ enum class CommandType : std::uint8_t {
   KeepVow,
   BreakVow,
   AmendVow,
+  RecoverCasualty,
 };
 enum class CommandError : std::uint8_t {
   None,
@@ -175,6 +176,7 @@ enum class CommandError : std::uint8_t {
   VowAlreadyExists,
   VowAlreadyResolved,
   VowAuthorityRequired,
+  CasualtyUnavailable,
 };
 
 inline constexpr std::size_t kResearchCount = 7;
@@ -386,6 +388,7 @@ struct Command {
   ResearchId research{ResearchId::TierTwo};
   UnitStance stance{UnitStance::Aggressive};
   VowId vow{};
+  UnitIdentityId casualty{};
   bool queue{};
 
   auto operator<=>(const Command&) const = default;

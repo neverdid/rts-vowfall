@@ -57,6 +57,10 @@ The closest transmitter wins, with lower entity ID breaking equal-distance ties.
 Unfinished relays and terminal bastions cannot provide care access. A route cut removes
 eligibility without pausing or extending the casualty deadline; reconnecting before
 expiry restores it. Other factions retain the base window without a Road Ledger gate.
+An accepted `RecoverCasualty` command uses that same current-tick authority check and
+the retained `UnitIdentityId`; it never targets the removed runtime entity handle.
+The command is exposed to both player and AI through an owned-only casualty capability.
+It also reserves the unit's normal population cost against live and queued supply.
 
 Later connected formations may also receive:
 
@@ -95,9 +99,18 @@ The ordered event stream exposes nonterminal casualty state changes, while
 verify records, deadlines, transitions, and their event projection. Owned
 observations carry live identity/state; sanitized enemy observations do not.
 
-`Recovered` and `Missing` remain reserved vocabulary. There is no authored evacuation
-route, hospital capacity, recovery command, re-embodiment, or identity transfer yet.
-`UnitRecovered` remains reserved and is not emitted by the current simulation.
+`Recovered` is now authoritative. Recovery creates a new monotonic runtime `EntityId`
+with the same persistent identity, owner, faction, archetype, injuries, formation,
+experience, and retained record. The body returns at 50% current researched maximum
+health. Compact units emerge beside the selected Road Ledger anchor; other factions
+return at the retained casualty position, with deterministic terrain correction in
+both cases. The event order is `EntitySpawned`, `CasualtyStateChanged`, then
+`UnitRecovered`. A recovered unit can be wounded or incapacitated again without
+forking its identity. There is no ore charge in this foundation rule.
+
+`Missing` remains reserved vocabulary. Authored evacuation routes, hospital capacity,
+care queues, failure outcomes, and the `No One Left Uncounted` eligibility modifier
+remain later work.
 
 ### Production roles
 
