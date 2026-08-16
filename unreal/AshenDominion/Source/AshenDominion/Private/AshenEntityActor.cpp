@@ -255,6 +255,20 @@ void AAshenEntityActor::BuildHumanVisuals(const float Diameter)
         CreatePart(Cylinder, {0.0f, 0.0f, 128.0f}, {0.42f, 0.42f, 0.16f}, FRotator::ZeroRotator,
                    HumanBronze, 0.38f);
         break;
+
+    case EAshenEntityArchetype::Hospital:
+        VisualHeight = 142.0f;
+        EntityMesh->SetStaticMesh(Cube);
+        EntityMesh->SetRelativeLocation({0.0f, 0.0f, 42.0f});
+        EntityMesh->SetRelativeScale3D({1.24f, 0.92f, 0.78f});
+        Ashen::Materials::Apply(EntityMesh, this, HumanStone, 0.9f);
+        CreatePart(Cube, {0.0f, 0.0f, 96.0f}, {1.42f, 1.08f, 0.12f}, FRotator::ZeroRotator,
+                   HumanCloth, 0.66f);
+        CreatePart(Cube, {0.0f, -55.0f, 70.0f}, {0.13f, 0.13f, 0.52f}, FRotator::ZeroRotator,
+                   HumanBronze, 0.4f);
+        CreatePart(Cube, {0.0f, -55.0f, 70.0f}, {0.52f, 0.13f, 0.13f}, FRotator::ZeroRotator,
+                   HumanBronze, 0.4f);
+        break;
     }
 }
 
@@ -381,6 +395,16 @@ void AAshenEntityActor::BuildMonsterVisuals(const float Diameter)
         CreatePart(Sphere, {0.0f, 0.0f, 129.0f}, {0.38f, 0.38f, 0.38f}, FRotator::ZeroRotator,
                    MonsterBlood, 0.3f);
         break;
+
+    case EAshenEntityArchetype::Hospital:
+        VisualHeight = 154.0f;
+        EntityMesh->SetStaticMesh(Sphere);
+        EntityMesh->SetRelativeLocation({0.0f, 0.0f, 46.0f});
+        EntityMesh->SetRelativeScale3D({1.28f, 0.98f, 0.54f});
+        Ashen::Materials::Apply(EntityMesh, this, MonsterFlesh, 0.62f);
+        CreatePart(Sphere, {0.0f, 0.0f, 96.0f}, {0.72f, 0.68f, 0.44f}, FRotator::ZeroRotator,
+                   MonsterDark, 0.7f);
+        break;
     }
 }
 
@@ -499,5 +523,5 @@ void AAshenEntityActor::UpdateHealthDisplay(const float HealthFraction)
 bool AAshenEntityActor::IsBuilding() const noexcept
 {
     return Archetype == EAshenEntityArchetype::Command || Archetype == EAshenEntityArchetype::Barracks ||
-           Archetype == EAshenEntityArchetype::Turret;
+           Archetype == EAshenEntityArchetype::Turret || Archetype == EAshenEntityArchetype::Hospital;
 }

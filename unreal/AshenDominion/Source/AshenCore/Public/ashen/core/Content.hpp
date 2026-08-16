@@ -37,6 +37,8 @@ inline constexpr StableContentId BridgeApproachesObjective = 12'005;
 inline constexpr StableContentId CompactLedgerKeep = 13'001;
 inline constexpr StableContentId CompactLedgerRelay = 13'002;
 inline constexpr StableContentId CompactLedgerBastion = 13'003;
+inline constexpr StableContentId CompactLedgerHospital = 13'004;
+inline constexpr StableContentId CompactFieldHospitalCare = 14'001;
 }  // namespace content_id
 
 inline constexpr VowId kBridgeOpenVow{content_id::BridgeOpenVow};
@@ -90,6 +92,15 @@ struct SupplyNodeContentDefinition {
   std::int32_t link_range{};
   std::int32_t capacity{};
   std::int32_t demand{};
+};
+
+struct CareFacilityContentDefinition {
+  DefinitionMetadata metadata{};
+  StableContentId structure{};
+  std::int32_t intake_range{};
+  std::int32_t treatment_slots{};
+  std::int32_t waiting_capacity{};
+  std::int64_t treatment_ticks{};
 };
 
 struct AbilityContentDefinition {
@@ -173,6 +184,7 @@ struct ContentRegistry {
   std::vector<UnitContentDefinition> units{};
   std::vector<StructureContentDefinition> structures{};
   std::vector<SupplyNodeContentDefinition> supply_nodes{};
+  std::vector<CareFacilityContentDefinition> care_facilities{};
   std::vector<AbilityContentDefinition> abilities{};
   std::vector<ProjectileContentDefinition> projectiles{};
   std::vector<FormationContentDefinition> formations{};
@@ -201,6 +213,8 @@ enum class ContentValidationError : std::uint8_t {
   CyclicResearchPrerequisite,
   DuplicateSupplyNodeStructure,
   InvalidSupplyNode,
+  DuplicateCareFacilityStructure,
+  InvalidCareFacility,
 };
 
 struct ContentValidationIssue {
@@ -223,6 +237,9 @@ find_structure_content(const ContentRegistry& registry, FactionId faction,
 [[nodiscard]] ASHENCORE_API const SupplyNodeContentDefinition*
 find_supply_node_content(const ContentRegistry& registry, FactionId faction,
                          EntityType archetype) noexcept;
+[[nodiscard]] ASHENCORE_API const CareFacilityContentDefinition*
+find_care_facility_content(const ContentRegistry& registry, FactionId faction,
+                           EntityType archetype) noexcept;
 [[nodiscard]] ASHENCORE_API std::string_view faction_presentation_key(
     FactionId faction) noexcept;
 

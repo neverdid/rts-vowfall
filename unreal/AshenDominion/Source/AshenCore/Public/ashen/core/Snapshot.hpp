@@ -10,8 +10,8 @@
 
 namespace ashen::core {
 
-inline constexpr std::uint32_t kSnapshotSchemaVersion = 2;
-inline constexpr std::uint32_t kSnapshotMinimumReaderVersion = 2;
+inline constexpr std::uint32_t kSnapshotSchemaVersion = 3;
+inline constexpr std::uint32_t kSnapshotMinimumReaderVersion = 3;
 
 enum class SnapshotError : std::uint8_t {
   None,
@@ -49,10 +49,10 @@ struct SnapshotLoadResult {
   }
 };
 
-// SnapshotV1 is a deterministic little-endian binary format. It persists all
+// SnapshotV3 is a deterministic little-endian binary format. It persists all
 // authoritative state and audit history, but never derived entity/spatial indexes.
-// Saving throws std::invalid_argument for state outside V1 invariants and
-// std::length_error when a bounded V1 collection or payload is too large.
+// Saving throws std::invalid_argument for state outside V3 invariants and
+// std::length_error when a bounded V3 collection or payload is too large.
 [[nodiscard]] ASHENCORE_API std::vector<std::uint8_t> save_snapshot_v1(
     const Simulation& simulation);
 [[nodiscard]] ASHENCORE_API SnapshotLoadResult load_snapshot_v1(

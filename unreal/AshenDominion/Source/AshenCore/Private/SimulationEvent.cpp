@@ -151,6 +151,20 @@ std::uint64_t simulation_event_hash(const SimulationEvent& event) noexcept {
           hash_entity(hash, payload.source);
           hash_integral(hash, payload.position.x);
           hash_integral(hash, payload.position.y);
+        } else if constexpr (
+            std::is_same_v<Payload, CasualtyCareQueuedEvent>) {
+          hash_integral(hash, payload.identity.value);
+          hash_entity(hash, payload.facility);
+          hash_integral(hash, payload.queue_position);
+        } else if constexpr (
+            std::is_same_v<Payload, CasualtyTreatmentStartedEvent>) {
+          hash_integral(hash, payload.identity.value);
+          hash_entity(hash, payload.facility);
+          hash_integral(hash, payload.treatment_ticks);
+        } else if constexpr (
+            std::is_same_v<Payload, CasualtyCareInterruptedEvent>) {
+          hash_integral(hash, payload.identity.value);
+          hash_entity(hash, payload.facility);
         }
       },
       event.payload);

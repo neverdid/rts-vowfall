@@ -115,7 +115,7 @@ struct LedgerFixture {
 void supply_content_is_stable_and_validated() {
   const auto& content = builtin_content();
   CHECK(validate_content(content).empty());
-  CHECK(content.supply_nodes.size() == 3);
+  CHECK(content.supply_nodes.size() == 4);
   CHECK(find_supply_node_content(content, FactionId::Compact,
                                  EntityType::Command) != nullptr);
   CHECK(find_supply_node_content(content, FactionId::Ascendancy,
@@ -135,6 +135,43 @@ void supply_content_is_stable_and_validated() {
   invalid.supply_nodes[1].link_range = 0;
   CHECK(has_content_error(validate_content(invalid),
                           ContentValidationError::InvalidSupplyNode));
+}
+
+void hospital_build_is_compact_only_and_observable() {
+  Simulation simulation{ledger_config()};
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::One, EntityType::Command, world(100, 100)));
+  static_cast<void>(simulation.spawn_entity(
+      PlayerId::Two, EntityType::Command, world(1'250, 500)));
+  const auto compact_worker = simulation.spawn_entity(
+      PlayerId::One, EntityType::Worker, world(170, 100));
+  const auto ascendancy_worker = simulation.spawn_entity(
+      PlayerId::Two, EntityType::Worker, world(1'180, 500));
+
+  CHECK(simulation.observe(PlayerId::One).permits(
+      CommandType::Build, compact_worker, EntityType::Hospital));
+  CHECK(!simulation.observe(PlayerId::Two).permits(
+      CommandType::Build, ascendancy_worker, EntityType::Hospital));
+  const auto rejected = simulation.execute_now(
+      Command{.player = PlayerId::Two,
+              .type = CommandType::Build,
+              .entities = {ascendancy_worker},
+              .target = world(1'050, 500),
+              .building_type = EntityType::Hospital});
+  CHECK(!rejected.ok);
+  CHECK(rejected.error == CommandError::InvalidUnitType);
+
+  const auto accepted = simulation.execute_now(
+      Command{.player = PlayerId::One,
+              .type = CommandType::Build,
+              .entities = {compact_worker},
+              .target = world(330, 100),
+              .building_type = EntityType::Hospital});
+  CHECK(accepted.ok);
+  CHECK(std::ranges::any_of(simulation.entities(), [](const Entity& entity) {
+    return entity.owner == PlayerId::One &&
+           entity.type == EntityType::Hospital && entity.under_construction;
+  }));
 }
 
 void capacity_and_equal_route_ties_are_stable() {
@@ -781,6 +818,8 @@ void replay_verifies_retreat_rejection_after_a_route_cut() {
 int main() {
   run_test("supply content is stable and validated",
            supply_content_is_stable_and_validated);
+  run_test("Hospital build is Compact-only and observation-backed",
+           hospital_build_is_compact_only_and_observable);
   run_test("capacity and equal-route ties are stable",
            capacity_and_equal_route_ties_are_stable);
   run_test("construction sites consume but do not relay supply",

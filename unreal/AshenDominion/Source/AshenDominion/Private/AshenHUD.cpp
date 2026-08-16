@@ -410,7 +410,17 @@ void AAshenHUD::DrawBattleHud(const AAshenPlayerController& Controller,
             DrawRect(Iron, BarX, PanelY + 92.0f, BarWidth, 7.0f);
             DrawRect(Bronze, BarX, PanelY + 92.0f, BarWidth * Entity.QueueProgress, 7.0f);
             DrawText(FString::Printf(TEXT("MUSTER QUEUE  %d"), Entity.QueueCount), Bone,
-                     BarX, PanelY + 105.0f, GEngine->GetSmallFont(), 0.65f, false);
+                      BarX, PanelY + 105.0f, GEngine->GetSmallFont(), 0.65f, false);
+        }
+        else if (Entity.CareQueueCount > 0)
+        {
+            DrawRect(Iron, BarX, PanelY + 92.0f, BarWidth, 7.0f);
+            DrawRect(Entity.bSupplyConnected ? ValidGreen : Blood, BarX, PanelY + 92.0f,
+                     BarWidth * Entity.CareProgress, 7.0f);
+            DrawText(FString::Printf(TEXT("CARE  %d/%d  //  %s"),
+                                     Entity.CareQueueCount, Entity.CareCapacity,
+                                     Entity.bSupplyConnected ? TEXT("TREATING") : TEXT("LEDGER CUT")),
+                     Bone, BarX, PanelY + 105.0f, GEngine->GetSmallFont(), 0.65f, false);
         }
         else
         {
@@ -499,7 +509,10 @@ void AAshenHUD::DrawPlacementPreview(const AAshenPlayerController& Controller)
 
     const FLinearColor LinearColor = bValid ? ValidGreen : Blood;
     const FColor Color = LinearColor.ToFColor(true);
-    const float Radius = Building == EAshenEntityArchetype::Barracks ? 34.0f : 25.0f;
+    const float Radius = Building == EAshenEntityArchetype::Barracks ||
+                                 Building == EAshenEntityArchetype::Hospital
+                             ? 34.0f
+                             : 25.0f;
     constexpr int32 Segments = 16;
     FVector2D Previous(Screen.X + Radius, Screen.Y);
     for (int32 Index = 1; Index <= Segments; ++Index)
@@ -650,7 +663,8 @@ void AAshenHUD::DrawTacticalMap(const UAshenSimulationSubsystem& Simulation)
         }
         const FVector Position = Entity->GetActorLocation();
         const float DotSize = (Entity->GetArchetype() == EAshenEntityArchetype::Command ||
-                               Entity->GetArchetype() == EAshenEntityArchetype::Barracks)
+                               Entity->GetArchetype() == EAshenEntityArchetype::Barracks ||
+                               Entity->GetArchetype() == EAshenEntityArchetype::Hospital)
                                   ? 5.0f
                                   : 3.0f;
         const float DotX = MapX + FMath::Clamp(Position.X / Ashen::WorldLayout::Width, 0.0f, 1.0f) * MapWidth -

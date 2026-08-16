@@ -11,7 +11,7 @@ namespace ashen::core {
 // Increment whenever authoritative deterministic rules change without a
 // Snapshot schema or content-catalog change. This revision prevents older
 // checkpoints and replays from being interpreted under new simulation rules.
-inline constexpr std::uint32_t kDeterministicRulesRevision = 7;
+inline constexpr std::uint32_t kDeterministicRulesRevision = 8;
 
 enum class SystemPhase : std::uint8_t {
   CommandValidation,
@@ -27,6 +27,7 @@ enum class SystemPhase : std::uint8_t {
   FormationCohesion,
   CombatTargeting,
   ProjectileAbilityResolution,
+  CareTreatment,
   CasualtyProcessing,
   Resolve,
   TerritoryObjectives,
@@ -44,7 +45,7 @@ struct SystemPhaseDefinition {
   auto operator<=>(const SystemPhaseDefinition&) const = default;
 };
 
-inline constexpr std::array<SystemPhaseDefinition, 21> kTargetSystemPipeline{{
+inline constexpr std::array<SystemPhaseDefinition, 22> kTargetSystemPipeline{{
     {SystemPhase::CommandValidation, "command_validation"},
     {SystemPhase::CommandApplication, "command_application"},
     {SystemPhase::Scenario, "scenario"},
@@ -59,6 +60,7 @@ inline constexpr std::array<SystemPhaseDefinition, 21> kTargetSystemPipeline{{
     {SystemPhase::CombatTargeting, "combat_targeting"},
     {SystemPhase::ProjectileAbilityResolution,
      "projectile_ability_resolution"},
+    {SystemPhase::CareTreatment, "care_treatment"},
     {SystemPhase::CasualtyProcessing, "casualty_processing"},
     {SystemPhase::Resolve, "resolve"},
     {SystemPhase::TerritoryObjectives, "territory_objectives"},

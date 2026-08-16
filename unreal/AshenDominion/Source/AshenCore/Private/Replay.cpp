@@ -62,7 +62,7 @@ class Writer final {
 
   void count(const std::size_t value) {
     if (value > kMaximumReplayRecords) {
-      throw std::length_error("Replay collection exceeds the V1 limit.");
+      throw std::length_error("Replay collection exceeds the V3 limit.");
     }
     integral(static_cast<std::uint32_t>(value));
   }
@@ -237,7 +237,7 @@ void write_command(Writer& writer, const Command& command) {
   writer.enumeration(command.player);
   writer.enumeration(command.type);
   if (command.entities.size() > kMaximumCommandEntities) {
-    throw std::length_error("Replay command entity list exceeds the V1 limit.");
+    throw std::length_error("Replay command entity list exceeds the V3 limit.");
   }
   writer.integral(static_cast<std::uint32_t>(command.entities.size()));
   for (const auto id : command.entities) {
@@ -281,8 +281,8 @@ bool read_command(Reader& reader, Command& command) {
          reader.integral(command.target_entity.value) &&
          reader.integral(command.resource.value) &&
          reader.integral(command.producer.value) &&
-         reader.enumeration(command.train_type, EntityType::Turret) &&
-         reader.enumeration(command.building_type, EntityType::Turret) &&
+         reader.enumeration(command.train_type, EntityType::Hospital) &&
+         reader.enumeration(command.building_type, EntityType::Hospital) &&
          reader.enumeration(command.research, ResearchId::SiegeLiturgy) &&
          reader.enumeration(command.stance, UnitStance::Hold) &&
          reader.integral(command.vow.value) &&
@@ -340,7 +340,7 @@ void write_event_audit(Writer& writer, const ReplayEventAudit& event) {
 bool read_event_audit(Reader& reader, ReplayEventAudit& event) {
   return reader.integral(event.id.value) && reader.integral(event.tick) &&
          reader.enumeration(event.type,
-                            SimulationEventType::CasualtyStateChanged) &&
+                            SimulationEventType::CasualtyCareInterrupted) &&
          reader.integral(event.hash);
 }
 
@@ -432,8 +432,8 @@ template <typename Enum>
          command.entities.size() <= kMaximumCommandEntities &&
          valid_enum(command.player, PlayerId::Two) &&
          valid_enum(command.type, CommandType::RecoverCasualty) &&
-         valid_enum(command.train_type, EntityType::Turret) &&
-         valid_enum(command.building_type, EntityType::Turret) &&
+         valid_enum(command.train_type, EntityType::Hospital) &&
+         valid_enum(command.building_type, EntityType::Hospital) &&
          valid_enum(command.research, ResearchId::SiegeLiturgy) &&
          valid_enum(command.stance, UnitStance::Hold);
 }
@@ -538,7 +538,8 @@ template <typename Enum>
     if (event.id.value != next_event_id ||
         event.tick < replay.header.initial_tick ||
         event.tick > replay.header.final_tick ||
-        !valid_enum(event.type, SimulationEventType::CasualtyStateChanged)) {
+        !valid_enum(event.type,
+                    SimulationEventType::CasualtyCareInterrupted)) {
       return ReplayError::InvalidData;
     }
     ++next_event_id;
@@ -739,7 +740,7 @@ ReplayData ReplayRecorder::finish(const Simulation& simulation) const {
 
   const auto validation = validate_data(replay);
   if (validation != ReplayError::None) {
-    throw std::invalid_argument("Recorded replay violates ReplayV1 invariants.");
+    throw std::invalid_argument("Recorded replay violates ReplayV3 invariants.");
   }
   return replay;
 }
@@ -747,7 +748,7 @@ ReplayData ReplayRecorder::finish(const Simulation& simulation) const {
 std::vector<std::uint8_t> save_replay_v1(const ReplayData& replay) {
   const auto validation = validate_data(replay);
   if (validation != ReplayError::None) {
-    throw std::invalid_argument("Replay data violates ReplayV1 invariants.");
+    throw std::invalid_argument("Replay data violates ReplayV3 invariants.");
   }
 
   Writer payload_writer;
@@ -759,7 +760,7 @@ std::vector<std::uint8_t> save_replay_v1(const ReplayData& replay) {
   write_vector(payload_writer, replay.checkpoints, write_checkpoint);
   const auto& payload = payload_writer.bytes();
   if (payload.size() > kMaximumReplayPayloadBytes) {
-    throw std::length_error("Replay payload exceeds the V1 limit.");
+    throw std::length_error("Replay payload exceeds the V3 limit.");
   }
 
   const ReplayHeader header{

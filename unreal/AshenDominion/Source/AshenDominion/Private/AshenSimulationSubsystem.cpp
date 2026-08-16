@@ -89,6 +89,8 @@ EAshenEntityArchetype ToArchetype(const ashen::core::EntityType Type)
         return EAshenEntityArchetype::Barracks;
     case EntityType::Turret:
         return EAshenEntityArchetype::Turret;
+    case EntityType::Hospital:
+        return EAshenEntityArchetype::Hospital;
     }
     return EAshenEntityArchetype::Worker;
 }
@@ -110,6 +112,8 @@ ashen::core::EntityType ToEntityType(const EAshenEntityArchetype Archetype)
         return EntityType::Barracks;
     case EAshenEntityArchetype::Turret:
         return EntityType::Turret;
+    case EAshenEntityArchetype::Hospital:
+        return EntityType::Hospital;
     }
     return EntityType::Worker;
 }
@@ -209,6 +213,12 @@ EAshenSimulationEventType ToSimulationEventType(const ashen::core::SimulationEve
         return EAshenSimulationEventType::MissionObjectiveChanged;
     case SimulationEventType::CasualtyStateChanged:
         return EAshenSimulationEventType::CasualtyStateChanged;
+    case SimulationEventType::CasualtyCareQueued:
+        return EAshenSimulationEventType::CasualtyCareQueued;
+    case SimulationEventType::CasualtyTreatmentStarted:
+        return EAshenSimulationEventType::CasualtyTreatmentStarted;
+    case SimulationEventType::CasualtyCareInterrupted:
+        return EAshenSimulationEventType::CasualtyCareInterrupted;
     }
     return EAshenSimulationEventType::EntitySpawned;
 }
@@ -522,7 +532,9 @@ bool UAshenSimulationSubsystem::IssueBuild(const int32 WorkerId, const EAshenEnt
                                            const FVector& WorldTarget)
 {
     if (Runtime == nullptr || WorkerId <= 0 ||
-        (Building != EAshenEntityArchetype::Barracks && Building != EAshenEntityArchetype::Turret))
+        (Building != EAshenEntityArchetype::Barracks &&
+         Building != EAshenEntityArchetype::Turret &&
+         Building != EAshenEntityArchetype::Hospital))
     {
         return StoreCommandResult(false, TEXT("Select one worker and a valid field structure."));
     }
@@ -537,11 +549,35 @@ bool UAshenSimulationSubsystem::IssueBuild(const int32 WorkerId, const EAshenEnt
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("Construction order accepted.") : CoreText(Result.reason));
 }
 
+bool UAshenSimulationSubsystem::CanIssueBuild(
+    const int32 WorkerId, const EAshenEntityArchetype Building) const
+{
+    if (Runtime == nullptr || WorkerId <= 0 ||
+        (Building != EAshenEntityArchetype::Barracks &&
+         Building != EAshenEntityArchetype::Turret &&
+         Building != EAshenEntityArchetype::Hospital))
+    {
+        return false;
+    }
+    return Runtime->Simulation.observe(ashen::core::PlayerId::One).permits(
+        ashen::core::CommandType::Build,
+        ashen::core::EntityId{static_cast<uint32>(WorkerId)},
+        ToEntityType(Building));
+}
+
 bool UAshenSimulationSubsystem::CanPlaceBuilding(const EAshenEntityArchetype Building,
                                                  const FVector& WorldTarget) const
 {
     if (Runtime == nullptr ||
-        (Building != EAshenEntityArchetype::Barracks && Building != EAshenEntityArchetype::Turret))
+        (Building != EAshenEntityArchetype::Barracks &&
+         Building != EAshenEntityArchetype::Turret &&
+         Building != EAshenEntityArchetype::Hospital))
+    {
+        return false;
+    }
+    const auto Faction = Runtime->Simulation.player(ashen::core::PlayerId::One).faction;
+    if (ashen::core::find_structure_content(
+            ashen::core::builtin_content(), Faction, ToEntityType(Building)) == nullptr)
     {
         return false;
     }
@@ -616,19 +652,27 @@ bool UAshenSimulationSubsystem::IssueSetStance(const TArray<int32>& EntityIds, c
 bool UAshenSimulationSubsystem::IssueRecoverCasualty(
     const int32 UnitIdentityId)
 {
-    if (Runtime == nullptr || UnitIdentityId <= 0)
+    return IssueRecoverCasualtyAtFacility(UnitIdentityId, 0);
+}
+
+bool UAshenSimulationSubsystem::IssueRecoverCasualtyAtFacility(
+    const int32 UnitIdentityId, const int32 FacilityId)
+{
+    if (Runtime == nullptr || UnitIdentityId <= 0 || FacilityId < 0)
     {
         return StoreCommandResult(false, TEXT("Choose a retained casualty identity."));
     }
     ashen::core::Command Command{};
     Command.player = ashen::core::PlayerId::One;
     Command.type = ashen::core::CommandType::RecoverCasualty;
+    Command.producer =
+        ashen::core::EntityId{static_cast<uint32>(FacilityId)};
     Command.casualty =
         ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)};
     const auto Result = Runtime->ExecuteExternal(std::move(Command));
     return StoreCommandResult(
         Result.ok,
-        Result.ok ? TEXT("Casualty recovered into active service.")
+        Result.ok ? TEXT("Recovery order accepted.")
                   : CoreText(Result.reason));
 }
 
@@ -704,6 +748,30 @@ FAshenEntityView UAshenSimulationSubsystem::GetEntityView(const int32 EntityId) 
         View.QueueProgress = Task.total_ticks > 0
                                  ? 1.0f - static_cast<float>(Task.remaining_ticks) / Task.total_ticks
                                  : 1.0f;
+    }
+    if (Entity->owner == ashen::core::PlayerId::One)
+    {
+        View.CareQueueCount = static_cast<int32>(Entity->care_queue.size());
+        View.ActiveTreatmentCount = static_cast<int32>(std::ranges::count_if(
+            Entity->care_queue,
+            [](const ashen::core::CareTask& Task)
+            {
+                return Task.treatment_started;
+            }));
+        if (const auto* Care = ashen::core::find_care_facility_content(
+                ashen::core::builtin_content(), Entity->faction, Entity->type))
+        {
+            View.CareCapacity = Care->treatment_slots + Care->waiting_capacity;
+            View.bSupplyConnected = Runtime->Simulation.is_supply_connected(Entity->id);
+        }
+        if (!Entity->care_queue.empty() &&
+            Entity->care_queue.front().treatment_started)
+        {
+            const auto& Task = Entity->care_queue.front();
+            View.CareProgress = Task.total_ticks > 0
+                                    ? 1.0f - static_cast<float>(Task.remaining_ticks) / Task.total_ticks
+                                    : 1.0f;
+        }
     }
     View.Stance = ToStance(Entity->stance);
     return View;
@@ -924,6 +992,23 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
                 View.StateDeadlineTick = static_cast<int64>(Payload.state_deadline);
                 View.Position = ToWorldPosition(Payload.position.x, Payload.position.y);
             }
+            else if constexpr (std::is_same_v<PayloadType, CasualtyCareQueuedEvent>)
+            {
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.EntityId = static_cast<int32>(Payload.facility.value);
+                View.Amount = static_cast<int32>(Payload.queue_position);
+            }
+            else if constexpr (std::is_same_v<PayloadType, CasualtyTreatmentStartedEvent>)
+            {
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.EntityId = static_cast<int32>(Payload.facility.value);
+                View.Amount = static_cast<int32>(Payload.treatment_ticks);
+            }
+            else if constexpr (std::is_same_v<PayloadType, CasualtyCareInterruptedEvent>)
+            {
+                View.UnitIdentityId = static_cast<int32>(Payload.identity.value);
+                View.EntityId = static_cast<int32>(Payload.facility.value);
+            }
         }, Event.payload);
     }
     return Views;
@@ -944,9 +1029,31 @@ bool UAshenSimulationSubsystem::CanIssueCasualtyRecovery(
     {
         return false;
     }
+    const auto Observation =
+        Runtime->Simulation.observe(ashen::core::PlayerId::One);
+    const auto Identity =
+        ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)};
+    return std::ranges::any_of(
+        Observation.capabilities(),
+        [Identity](const ashen::core::CommandCapability& Capability)
+        {
+            return Capability.type ==
+                       ashen::core::CommandType::RecoverCasualty &&
+                   Capability.casualty == Identity;
+        });
+}
+
+bool UAshenSimulationSubsystem::CanIssueCasualtyRecoveryAtFacility(
+    const int32 UnitIdentityId, const int32 FacilityId) const
+{
+    if (Runtime == nullptr || UnitIdentityId <= 0 || FacilityId < 0)
+    {
+        return false;
+    }
     return Runtime->Simulation.observe(ashen::core::PlayerId::One).permits(
-        ashen::core::CommandType::RecoverCasualty, {}, std::nullopt,
-        std::nullopt,
+        ashen::core::CommandType::RecoverCasualty,
+        ashen::core::EntityId{static_cast<uint32>(FacilityId)},
+        std::nullopt, std::nullopt,
         ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)});
 }
 
@@ -1155,6 +1262,30 @@ FString UAshenSimulationSubsystem::GetEntityOrderLabel(const int32 EntityId) con
         return TEXT("IDLE");
     }
 
+    if (Entity->owner == ashen::core::PlayerId::One &&
+        Entity->type == ashen::core::EntityType::Hospital)
+    {
+        if (!Runtime->Simulation.is_supply_connected(Entity->id))
+        {
+            return TEXT("LEDGER CUT");
+        }
+        const int32 Active = static_cast<int32>(std::ranges::count_if(
+            Entity->care_queue,
+            [](const ashen::core::CareTask& Task)
+            {
+                return Task.treatment_started;
+            }));
+        if (Active > 0)
+        {
+            return FString::Printf(TEXT("TREATING %d"), Active);
+        }
+        if (!Entity->care_queue.empty())
+        {
+            return TEXT("CARE QUEUED");
+        }
+        return TEXT("READY FOR INTAKE");
+    }
+
     using ashen::core::OrderType;
     switch (Entity->order.type)
     {
@@ -1256,7 +1387,7 @@ bool UAshenSimulationSubsystem::SaveCheckpoint()
     Runtime->ResetReplayRecorder();
     LastCommandMessage = FString::Printf(TEXT("CHECKPOINT SEALED // TICK %llu"),
                                          static_cast<unsigned long long>(SavedCheckpointTick));
-    UE_LOG(LogAshenSimulation, Display, TEXT("Saved SnapshotV1 checkpoint at tick %llu (%d bytes)"),
+    UE_LOG(LogAshenSimulation, Display, TEXT("Saved SnapshotV3 checkpoint at tick %llu (%d bytes)"),
            static_cast<unsigned long long>(SavedCheckpointTick), Checkpoint->SnapshotBytes.Num());
     return true;
 }
@@ -1283,7 +1414,7 @@ bool UAshenSimulationSubsystem::LoadCheckpoint()
     {
         LastCommandMessage = FString::Printf(TEXT("RESTORE REJECTED // %s"),
                                              *CoreText(ashen::core::to_string(Loaded.error)));
-        UE_LOG(LogAshenSimulation, Warning, TEXT("Rejected checkpoint SnapshotV1: %s"), *LastCommandMessage);
+        UE_LOG(LogAshenSimulation, Warning, TEXT("Rejected checkpoint SnapshotV3: %s"), *LastCommandMessage);
         return false;
     }
 
@@ -1295,7 +1426,7 @@ bool UAshenSimulationSubsystem::LoadCheckpoint()
         Checkpoint->CheckpointStateHash == Loaded.header.checkpoint_state_hash;
     if (!bMetadataMatches)
     {
-        return StoreCommandResult(false, TEXT("RESTORE REJECTED // save metadata does not match SnapshotV1"));
+        return StoreCommandResult(false, TEXT("RESTORE REJECTED // save metadata does not match SnapshotV3"));
     }
 
     FAshenSimulationRuntime* RestoredRuntime =
@@ -1317,7 +1448,7 @@ bool UAshenSimulationSubsystem::LoadCheckpoint()
 
     LastCommandMessage = FString::Printf(TEXT("CHECKPOINT RESTORED // TICK %llu"),
                                          static_cast<unsigned long long>(SavedCheckpointTick));
-    UE_LOG(LogAshenSimulation, Display, TEXT("Restored SnapshotV1 checkpoint at tick %llu"),
+    UE_LOG(LogAshenSimulation, Display, TEXT("Restored SnapshotV3 checkpoint at tick %llu"),
            static_cast<unsigned long long>(SavedCheckpointTick));
     return true;
 }
@@ -1342,7 +1473,7 @@ bool UAshenSimulationSubsystem::ExportReplay()
         LastCommandMessage = FString::Printf(TEXT("REPLAY REJECTED // %s at tick %llu"),
                                              *CoreText(ashen::core::to_string(Verification.error)),
                                              static_cast<unsigned long long>(Verification.mismatch_tick));
-        UE_LOG(LogAshenSimulation, Error, TEXT("Refused to export invalid ReplayV1: %s"), *LastCommandMessage);
+        UE_LOG(LogAshenSimulation, Error, TEXT("Refused to export invalid ReplayV3: %s"), *LastCommandMessage);
         return false;
     }
 
@@ -1365,7 +1496,7 @@ bool UAshenSimulationSubsystem::ExportReplay()
     }
 
     LastCommandMessage = FString::Printf(TEXT("REPLAY VERIFIED // Saved/Replays/%s"), *Filename);
-    UE_LOG(LogAshenSimulation, Display, TEXT("Exported verified ReplayV1: %s"), *ReplayPath);
+    UE_LOG(LogAshenSimulation, Display, TEXT("Exported verified ReplayV3: %s"), *ReplayPath);
     return true;
 }
 

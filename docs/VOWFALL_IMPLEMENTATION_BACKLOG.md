@@ -123,7 +123,7 @@ repository modules, not a promise that every listed module changes in one patch.
 
 - **Status:** Complete for V1.
 - **Goal:** Save and restore all authoritative state and verify replay events/hashes.
-- **Complete:** Portable little-endian SnapshotV2 and ReplayV2 containers,
+- **Complete:** Portable little-endian SnapshotV3 and ReplayV3 containers,
   schema/content/pipeline compatibility checks, bounded/checksummed loads, exact
   checkpoint restore, derived index rebuild, external-input recording, regenerated
   AI/command/event verification, checkpoint hashes, deterministic continuation tests,
@@ -152,7 +152,7 @@ repository modules, not a promise that every listed module changes in one patch.
   state; validated prerequisite graphs and required/optional semantics; ordered
   resolve-then-activate transitions; a two-stage Bridge flow that secures both
   approaches before holding the crossing; objective-driven mission outcomes;
-  state-hash coverage; event-projected SnapshotV2 restore guarded by the scenario
+  state-hash coverage; event-projected SnapshotV3 restore guarded by the scenario
   content digest; stage-aware Unreal HUD presentation; and native success, failure,
   event, soft-lock, and checkpoint-continuation fixtures.
 - **Remaining:** Authored optional objectives, triggers for the twelve later campaign
@@ -172,7 +172,7 @@ repository modules, not a promise that every listed module changes in one patch.
   `SupplySystem` over the deterministic spatial grid; shortest-hop, then entity-ID,
   then source-ID allocation with per-source capacity; connected-relay-only
   propagation; ordered connection/disconnection events; state-hash coverage; silent
-  SnapshotV2 derivation rebuild; replay verification; and Compact reinforcement
+  SnapshotV3 derivation rebuild; replay verification; and Compact reinforcement
   legality plus production pause/resume on route cuts. Compact construction now uses
   the same allocation solver to validate a proposed site before charging ore;
   unfinished sites reserve capacity without relaying it, pause when cut off, resume
@@ -181,10 +181,10 @@ repository modules, not a promise that every listed module changes in one patch.
   units inside their physical link range; cutting the route removes that specialized
   command from player/AI observations while ordinary Move remains legal, and restoring
   the route restores it. The same stable distance/ID anchor query now gates Compact
-  casualty recovery access at the retained casualty position; route cuts and
-  reconnects remove and restore eligibility without changing the casualty deadline.
-- **Remaining:** Explicit road segments, carts, field kitchens, hospitals, evacuation
-  exits, bridge-health edges, hospital/evacuation capacity consumers,
+  Field Hospital admission and treatment, with route cuts pausing active care until
+  connection returns.
+- **Remaining:** Explicit road segments, carts, field kitchens, evacuation exits,
+  bridge-health edges, evacuation capacity consumers,
   mission-authored routes, and AI route attack/repair planning.
 - **Files:** new `SupplySystem.*`, road/relay/cart/hospital definitions, mission data.
 - **Dependencies:** Scenario, spatial queries, events, snapshot.
@@ -210,13 +210,16 @@ repository modules, not a promise that every listed module changes in one patch.
   Compact Road Ledger recovery-access gating with stable anchor ties and live
   cut/reconnect behavior; identity/state-enriched events and Unreal views; full
   state/event hash coverage;
-  SnapshotV2 restore validation; ReplayV2 verification; and focused ordering,
+  SnapshotV3 restore validation; ReplayV3 verification; and focused ordering,
   persistence, boundary, observation, snapshot, and replay fixtures; plus the
   authoritative `RecoverCasualty` command, owned-only recovery capabilities,
   population reservation, 50%-health deterministic re-embodiment under a new runtime
   entity ID, same-identity ledger transfer, reinjury, `UnitRecovered` emission, and
-  Unreal command adapter.
-- **Remaining:** Missing outcomes, evacuation routing, hospital capacity,
+  Unreal command adapter; plus Compact Field Hospital construction, deterministic
+  two-slot treatment and four-place waiting queues, stable promotion, supply-cut
+  pause/resume, destruction interruption, deadline protection after admission,
+  care-specific events, hash/observation coverage, and SnapshotV3/ReplayV3 persistence.
+- **Remaining:** Missing outcomes, evacuation routing,
   formation/experience/memory mutation, and replacement of
   the Compact generic heal with `No One Left Uncounted`.
 - **Files:** new `CasualtySystem.*`, identity/history definitions, hospital/evacuation.
@@ -227,7 +230,8 @@ repository modules, not a promise that every listed module changes in one patch.
   deadline boundaries, stable identity ordering, retained identity, observation
   boundary, Road Ledger distance/anchor ties, cut/reconnect eligibility, recovery
   rejection/success, identity transfer, reinjury, population pressure, restore, and
-  replay complete; hospital capacity and missing outcomes remain.
+  replay complete, including hospital capacity, queue order, route cuts, interruption,
+  and admission near the original deadline; missing and evacuation outcomes remain.
 - **Risk:** Critical.
 
 ### X5 — Persistent formations and cohesion

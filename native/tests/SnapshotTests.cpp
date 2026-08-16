@@ -322,6 +322,6 @@ int main() {
     std::cerr << failures << " snapshot check(s) failed.\n";
     return EXIT_FAILURE;
   }
-  std::cout << "All Vowfall SnapshotV1 checks passed.\n";
+  std::cout << "All Vowfall SnapshotV3 checks passed.\n";
   return EXIT_SUCCESS;
 }

@@ -149,6 +149,7 @@ class ASHENCORE_API Simulation final {
   void update_orders();
   void update_auto_aggro();
   void update_defenses();
+  void update_care();
   void update_casualties();
   void update_commanders();
   void update_gather(Entity& entity);
@@ -161,6 +162,11 @@ class ASHENCORE_API Simulation final {
   void resolve_unit_separation();
   void apply_damage(Entity& target, EntityId source, std::int32_t amount);
   void emit_casualty_transition(const CasualtyTransition& transition);
+  [[nodiscard]] const Entity* available_care_facility(
+      const CasualtyRecord& casualty, EntityId requested = {}) const noexcept;
+  [[nodiscard]] bool complete_care_task(EntityId facility,
+                                        UnitIdentityId casualty);
+  [[nodiscard]] std::vector<UnitIdentityId> protected_casualties() const;
   void remove_dead_entities();
   void update_match_status();
   void set_order(Entity& entity, Order order, bool queue);

@@ -45,7 +45,7 @@ template <typename Value>
 }
 
 void print_header(const ReplayData& replay) {
-  std::cout << "ReplayV1\n"
+  std::cout << "ReplayV3\n"
             << "  schema: " << replay.header.schema_version << '\n'
             << "  ticks: " << replay.header.initial_tick << " -> "
             << replay.header.final_tick << '\n'
