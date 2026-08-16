@@ -78,31 +78,32 @@ current faction rules.
 
 The native parity runner can construct a scenario and serialize a JSON result. The
 self-play harness records command and AI traces plus periodic hashes and duplicates
-runs to detect nondeterminism. `SnapshotV1` is the portable authoritative checkpoint
+runs to detect nondeterminism. `SnapshotV2` is the portable authoritative checkpoint
 format: it round-trips simulation configuration, authoritative state, fog and AI
 memory, queued commands, audit traces, events, stable-ID cursors, and the event digest.
-Entity lookup and spatial cells are derived and rebuilt after load. `ReplayV1` embeds
+Entity lookup and spatial cells are derived and rebuilt after load. `ReplayV2` embeds
 that checkpoint, records subsequent external submissions, and verifies regenerated
 AI commands, events, checkpoints, and final state. There is not yet an Unreal
 checkpoint browser, replay playback flow, or migration from a prior schema. The
-current Unreal adapter wraps SnapshotV1 in `USaveGame`, atomically swaps only a
-validated restore, records player submissions, and exports ReplayV1 only after
+current Unreal adapter wraps SnapshotV2 in `USaveGame`, atomically swaps only a
+validated restore, records player submissions, and exports ReplayV2 only after
 in-memory verification succeeds.
 
-Casualty state is persisted rather than derived. SnapshotV1 writes live entity
+Casualty state is persisted rather than derived. SnapshotV2 writes live entity
 identity/state, the identity-ordered casualty ledger, state deadlines, append-only
 transitions, and the next unit-identity cursor. Restore validates live-unit
 membership, legal transitions and deadline formulas, event projection, stable
 ordering, and retained non-live records before accepting the checkpoint. These
-payload additions and Road Ledger recovery eligibility advance the deterministic
-rules revision to 6; older SnapshotV1 and ReplayV1 files are rejected by the pipeline
-digest before payload decoding. A
+payload additions, Road Ledger recovery eligibility, and identity-preserving recovery
+command advance the snapshot and replay schemas to version 2 and the deterministic
+rules revision to 7; older SnapshotV1 and ReplayV1 files are rejected by the schema
+gate before payload decoding. A
 future long-lived save migration must introduce an explicit new schema instead of
 weakening that compatibility gate.
 
 Mission-objective runtime status and activation-relative deadlines are deterministic
 derived projections of the scenario definition and the persisted ordered
-`MissionObjectiveChanged` history. SnapshotV1 rebuilds that projection and rejects a
+`MissionObjectiveChanged` history. SnapshotV2 rebuilds that projection and rejects a
 payload when its events do not reproduce the live objective state. The transition
 event is stamped with the pre-increment simulation tick, so its authoritative state
 transition tick is `event.tick + 1`. Scenario definitions participate in the content
@@ -112,7 +113,7 @@ objective progress that changes without a transition will require explicit snaps
 fields and a new schema.
 
 Road Ledger node/path state is also derived, but from current entities, stable content,
-and integer positions rather than event history. SnapshotV1 silently rebuilds it after
+and integer positions rather than event history. SnapshotV2 silently rebuilds it after
 the entity vector and spatial grid are restored, validates that live checkpoints match
 the same derivation before writing, and includes the resulting state in the simulation
 hash. This prevents a restore from emitting duplicate connection events while keeping
@@ -244,8 +245,23 @@ index maps `EntityId::value` to the current vector slot:
 - the access anchor is derived from canonical entities and the rebuilt supply graph.
   It is not separately stored or hashed, and a route cut never changes the persisted
   casualty deadline. Unreal exposes both the composed eligibility and current anchor;
-- `Recovered` and `Missing` remain reserved until evacuation, hospital, and
-  re-embodiment rules exist.
+- `RecoverCasualty` addresses the persistent identity, not the erased entity. Command
+  application rechecks owner, strict deadline, Compact access, duplicate embodiment,
+  and live-plus-queued population headroom before mutating state;
+- successful recovery allocates a new monotonic `EntityId`, retains the original
+  `UnitIdentityId` and ledger data, reapplies current research, sets 50% maximum health,
+  and transitions `Recoverable -> Recovered`. Compact spawn placement is beside the
+  selected anchor; other factions use the retained transition position. Both pass
+  through deterministic terrain correction;
+- the transition updates `CasualtyRecord::last_entity`, then projects
+  `EntitySpawned`, `CasualtyStateChanged`, and `UnitRecovered` in that event order.
+  Snapshot derivation validation follows entity-handle changes across repeat recovery
+  cycles rather than assuming one runtime handle per identity;
+- recovery capabilities carry an explicit `UnitIdentityId` and are included only in
+  the owning `PlayerObservation`, so AI and human control share the same legal command
+  boundary without enemy casualty leakage;
+- `Missing`, evacuation routes, hospital queues/capacity, and recovery failure outcomes
+  remain unimplemented.
 
 ## Spatial queries
 
@@ -356,9 +372,9 @@ risk is legacy pairwise unit separation.
 
 Phase 1 changed the state-hash schema by adding explicit entity faction, resolve state,
 Vows, AI strategic state, event sequence/digest, spatial configuration, and new command
-payloads. SnapshotV1 makes that compatibility boundary explicit.
+payloads. SnapshotV2 makes that compatibility boundary explicit.
 
-The fixed, little-endian SnapshotV1 header contains:
+The fixed, little-endian SnapshotV2 header contains:
 
 - schema and minimum-reader versions;
 - digests of the complete built-in content registry, gameplay/AI catalog, and
@@ -375,19 +391,19 @@ oversized, truncated, trailing, or checksum-invalid data. V1 has no implicit
 best-effort migration.
 
 Route-bound construction and assisted retreat change deterministic command legality
-and tick behavior but not the SnapshotV1 payload layout. The authoritative-rules
+and tick behavior but not the SnapshotV2 payload layout. The authoritative-rules
 revision therefore changes the pipeline digest: checkpoints and replays created before
 these rules are rejected as incompatible rather than interpreted with different
 construction or retreat semantics.
 
 A restored live AI match is tested to produce the same subsequent commands, events,
-AI state, final hash, and SnapshotV1 bytes as uninterrupted play.
+AI state, final hash, and SnapshotV2 bytes as uninterrupted play.
 
-ReplayV1 is a separate bounded, checksummed little-endian container. Its header repeats
+ReplayV2 is a separate bounded, checksummed little-endian container. Its header repeats
 the schema, content, and deterministic-pipeline compatibility boundary and identifies
 the initial/final ticks and state hashes. Its payload contains:
 
-- the exact initial SnapshotV1 checkpoint;
+- the exact initial SnapshotV2 checkpoint;
 - every subsequent external submission with explicit immediate/queued mode, issue and
   application ticks, sequence, accepted/rejected/pending outcome, and validation code;
 - expected command audit records, including regenerated AI provenance;
@@ -399,12 +415,12 @@ the initial/final ticks and state hashes. Its payload contains:
 Verification restores the checkpoint, resubmits only external inputs at their recorded
 boundaries, lets the normal fog-limited commander regenerate AI work, and compares each
 checkpoint followed by the complete command and event audit suffix and final state.
-`ashen_replay record|inspect|verify` provides the native inspection boundary. ReplayV1
+`ashen_replay record|inspect|verify` provides the native inspection boundary. ReplayV2
 rejects incompatible definitions and malformed, oversized, truncated, trailing, or
 checksum-invalid data. Unreal uses the same validation boundary for its F5/F9 quick
 checkpoint, starts a fresh recorder at the checkpoint boundary, samples replay
 checkpoints during fixed stepping, and writes F6 exports under `Saved/Replays` only
-after deterministic verification. V1 has no best-effort migration; future schema
+after deterministic verification. V2 has no best-effort migration; future schema
 migration, named checkpoint browsing, and replay playback remain explicit follow-up work.
 
 ## Unreal integration boundary

@@ -701,6 +701,7 @@ void write_command(Writer& writer, const Command& command) {
   writer.enumeration(command.research);
   writer.enumeration(command.stance);
   writer.integral(command.vow.value);
+  writer.integral(command.casualty.value);
   writer.boolean(command.queue);
 }
 
@@ -708,7 +709,7 @@ bool read_command(Reader& reader, Command& command) {
   if (!reader.integral(command.execute_tick) ||
       !reader.integral(command.sequence) ||
       !reader.enumeration(command.player, PlayerId::Two) ||
-      !reader.enumeration(command.type, CommandType::AmendVow)) {
+      !reader.enumeration(command.type, CommandType::RecoverCasualty)) {
     return false;
   }
   std::size_t entity_count{};
@@ -730,6 +731,7 @@ bool read_command(Reader& reader, Command& command) {
          reader.enumeration(command.research, ResearchId::SiegeLiturgy) &&
          reader.enumeration(command.stance, UnitStance::Hold) &&
          reader.integral(command.vow.value) &&
+         reader.integral(command.casualty.value) &&
          reader.boolean(command.queue);
 }
 
@@ -752,7 +754,7 @@ bool read_command_trace(Reader& reader, CommandTraceEntry& trace) {
          reader.integral(trace.ai_decision_id) &&
          read_command(reader, trace.command) &&
          reader.boolean(trace.accepted) &&
-         reader.enumeration(trace.error, CommandError::VowAuthorityRequired);
+         reader.enumeration(trace.error, CommandError::CasualtyUnavailable);
 }
 
 void write_vow(Writer& writer, const VowState& vow) {
@@ -857,15 +859,17 @@ void write_capability(Writer& writer, const CommandCapability& capability) {
   writer.integral(capability.actor.value);
   write_optional_enum(writer, capability.entity_type);
   write_optional_enum(writer, capability.research);
+  writer.integral(capability.casualty.value);
 }
 
 bool read_capability(Reader& reader, CommandCapability& capability) {
-  return reader.enumeration(capability.type, CommandType::AmendVow) &&
+  return reader.enumeration(capability.type, CommandType::RecoverCasualty) &&
          reader.integral(capability.actor.value) &&
          read_optional_enum(reader, capability.entity_type,
                             EntityType::Turret) &&
          read_optional_enum(reader, capability.research,
-                            ResearchId::SiegeLiturgy);
+                            ResearchId::SiegeLiturgy) &&
+         reader.integral(capability.casualty.value);
 }
 
 void write_ai_influence_cell(Writer& writer,
@@ -1064,7 +1068,7 @@ bool read_ai_decision(Reader& reader, AIDecisionRecord& decision) {
       !reader.enumeration(decision.command_status,
                           AICommandStatus::Rejected) ||
       !reader.enumeration(decision.command_error,
-                          CommandError::VowAuthorityRequired)) {
+                          CommandError::CasualtyUnavailable)) {
     return false;
   }
   if ((!decision.candidates.empty() &&
@@ -2316,6 +2320,20 @@ class SnapshotCodec final {
   static bool casualty_event_projection_matches(
       const Simulation& simulation) noexcept {
     std::size_t transition_index{};
+    std::size_t recovery_event_count{};
+    const auto entity_belongs_to_identity =
+        [&simulation](const UnitIdentityId identity,
+                      const EntityId entity) noexcept {
+          const auto* record = simulation.casualty_system_.find(identity);
+          return record != nullptr &&
+                 (record->last_entity == entity ||
+                  std::ranges::any_of(
+                      simulation.casualty_system_.transitions_,
+                      [=](const CasualtyTransition& transition) {
+                        return transition.identity == identity &&
+                               transition.entity == entity;
+                      }));
+        };
     for (const auto& event : simulation.events_) {
       const auto type = event_type(event);
       if (type == SimulationEventType::EntitySpawned) {
@@ -2327,11 +2345,10 @@ class SnapshotCodec final {
           continue;
         }
         const auto* record = simulation.casualty_system_.find(payload.identity);
-        if (record == nullptr || record->last_entity != payload.entity ||
+        if (record == nullptr ||
+            !entity_belongs_to_identity(payload.identity, payload.entity) ||
             record->owner != payload.owner || record->faction != payload.faction ||
-            record->archetype != payload.archetype ||
-            (record->state == CasualtyState::Active &&
-             record->state_since != event.tick)) {
+            record->archetype != payload.archetype) {
           return false;
         }
       } else if (type == SimulationEventType::EntityDestroyed) {
@@ -2343,19 +2360,15 @@ class SnapshotCodec final {
           continue;
         }
         const auto* record = simulation.casualty_system_.find(payload.identity);
-        if (record == nullptr || record->last_entity != payload.entity ||
+        if (record == nullptr ||
+            !entity_belongs_to_identity(payload.identity, payload.entity) ||
             record->owner != payload.owner || record->faction != payload.faction ||
-            record->archetype != payload.archetype ||
-            (record->state != CasualtyState::Incapacitated &&
-             record->state != CasualtyState::Recoverable &&
-             record->state != CasualtyState::Missing &&
-             record->state != CasualtyState::Dead)) {
+            record->archetype != payload.archetype) {
           return false;
         }
       } else if (type == SimulationEventType::UnitDamaged) {
         const auto& payload = std::get<UnitDamagedEvent>(event.payload);
-        const auto* record = simulation.casualty_system_.find(payload.identity);
-        if (record == nullptr || record->last_entity != payload.target) {
+        if (!entity_belongs_to_identity(payload.identity, payload.target)) {
           return false;
         }
       } else if (type == SimulationEventType::UnitWounded) {
@@ -2391,7 +2404,23 @@ class SnapshotCodec final {
           return false;
         }
       } else if (type == SimulationEventType::UnitRecovered) {
-        return false;
+        const auto& payload = std::get<UnitRecoveredEvent>(event.payload);
+        if (transition_index == 0) {
+          return false;
+        }
+        const auto& transition =
+            simulation.casualty_system_.transitions_[transition_index - 1U];
+        if (transition.identity != payload.identity ||
+            transition.entity != payload.entity ||
+            transition.source != payload.recovery_source ||
+            transition.tick != event.tick ||
+            transition.previous != payload.previous ||
+            transition.current != payload.current ||
+            payload.previous != CasualtyState::Recoverable ||
+            payload.current != CasualtyState::Recovered) {
+          return false;
+        }
+        ++recovery_event_count;
       } else if (type == SimulationEventType::CasualtyStateChanged) {
         const auto& payload =
             std::get<CasualtyStateChangedEvent>(event.payload);
@@ -2410,12 +2439,18 @@ class SnapshotCodec final {
             transition.state_deadline != payload.state_deadline ||
             transition.position != payload.position ||
             (payload.current != CasualtyState::Incapacitated &&
-             payload.current != CasualtyState::Recoverable)) {
+             payload.current != CasualtyState::Recoverable &&
+             payload.current != CasualtyState::Recovered)) {
           return false;
         }
       }
     }
-    return transition_index == simulation.casualty_system_.transitions_.size();
+    const auto recovery_transition_count = static_cast<std::size_t>(
+        std::ranges::count(simulation.casualty_system_.transitions_,
+                           CasualtyState::Recovered,
+                           &CasualtyTransition::current));
+    return transition_index == simulation.casualty_system_.transitions_.size() &&
+           recovery_event_count == recovery_transition_count;
   }
 
   template <typename Value, typename IdProjection>

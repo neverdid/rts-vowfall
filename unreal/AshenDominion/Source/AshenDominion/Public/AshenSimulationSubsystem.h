@@ -69,6 +69,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Ashen|Commands")
     bool IssueSetStance(const TArray<int32>& EntityIds, EAshenStance Stance);
 
+    UFUNCTION(BlueprintCallable, Category = "Ashen|Commands")
+    bool IssueRecoverCasualty(int32 UnitIdentityId);
+
     UFUNCTION(BlueprintPure, Category = "Ashen|State")
     FAshenPlayerView GetPlayerView(int32 PlayerIndex) const;
 
@@ -89,6 +92,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
     bool IsCasualtyRecoverable(int32 UnitIdentityId) const;
+
+    UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
+    bool CanIssueCasualtyRecovery(int32 UnitIdentityId) const;
 
     UFUNCTION(BlueprintPure, Category = "Ashen|Casualties")
     int32 GetCasualtyRecoveryAnchorId(int32 UnitIdentityId) const;

@@ -83,7 +83,8 @@ CasualtyRecord* CasualtySystem::find_mutable(const UnitIdentityId identity) noex
 
 bool CasualtySystem::mark_wounded(Entity& entity, const EntityId source,
                                   const Tick tick) {
-  if (entity.casualty_state != CasualtyState::Active) {
+  if (entity.casualty_state != CasualtyState::Active &&
+      entity.casualty_state != CasualtyState::Recovered) {
     return false;
   }
   return transition(entity, CasualtyState::Wounded, source, tick);
@@ -93,10 +94,37 @@ bool CasualtySystem::mark_incapacitated(Entity& entity, const EntityId source,
                                         const Tick tick) {
   if (entity.alive() ||
       (entity.casualty_state != CasualtyState::Active &&
-       entity.casualty_state != CasualtyState::Wounded)) {
+       entity.casualty_state != CasualtyState::Wounded &&
+       entity.casualty_state != CasualtyState::Recovered)) {
     return false;
   }
   return transition(entity, CasualtyState::Incapacitated, source, tick);
+}
+
+bool CasualtySystem::recover(Entity& entity, const EntityId source,
+                             const Tick tick) {
+  auto* record = find_mutable(entity.identity);
+  if (record == nullptr || entity.kind != EntityKind::Unit || !entity.alive() ||
+      !entity.id || entity.id == record->last_entity ||
+      entity.owner != record->owner || entity.faction != record->faction ||
+      entity.type != record->archetype ||
+      entity.casualty_state != CasualtyState::Recoverable ||
+      record->state != CasualtyState::Recoverable ||
+      record->state_deadline <= tick) {
+    return false;
+  }
+
+  record->last_entity = entity.id;
+  record->state = CasualtyState::Recovered;
+  record->last_transition_position = entity.position;
+  record->state_since = tick;
+  record->state_deadline = 0;
+  record->last_source = source;
+  entity.casualty_state = CasualtyState::Recovered;
+  transitions_.push_back(CasualtyTransition{
+      entity.identity, entity.id, CasualtyState::Recoverable,
+      CasualtyState::Recovered, tick, 0, source, entity.position});
+  return true;
 }
 
 bool CasualtySystem::mark_dead(Entity& entity, const EntityId source,
@@ -214,6 +242,7 @@ bool CasualtySystem::derivation_matches(
     std::vector<Tick> state_since(records_.size(), 0);
     std::vector<Tick> state_deadlines(records_.size(), 0);
     std::vector<EntityId> sources(records_.size());
+    std::vector<EntityId> current_entities(records_.size());
     std::vector<bool> live_seen(records_.size(), false);
     std::vector<Vec2> positions;
     positions.reserve(records_.size());
@@ -257,9 +286,27 @@ bool CasualtySystem::derivation_matches(
           (transition.previous == CasualtyState::Incapacitated &&
            transition.current == CasualtyState::Recoverable) ||
           (transition.previous == CasualtyState::Recoverable &&
-           transition.current == CasualtyState::Dead);
-      if (!allowed || states[index] != transition.previous ||
-          records_[index].last_entity != transition.entity) {
+           (transition.current == CasualtyState::Recovered ||
+            transition.current == CasualtyState::Dead)) ||
+          (transition.previous == CasualtyState::Recovered &&
+           (transition.current == CasualtyState::Wounded ||
+            transition.current == CasualtyState::Incapacitated ||
+            transition.current == CasualtyState::Dead));
+      if (!allowed || states[index] != transition.previous) {
+        return false;
+      }
+      if (!current_entities[index]) {
+        if (transition.previous != CasualtyState::Active) {
+          return false;
+        }
+        current_entities[index] = transition.entity;
+      } else if (transition.previous == CasualtyState::Recoverable &&
+                 transition.current == CasualtyState::Recovered) {
+        if (transition.entity.value <= current_entities[index].value) {
+          return false;
+        }
+        current_entities[index] = transition.entity;
+      } else if (current_entities[index] != transition.entity) {
         return false;
       }
       const auto expected_deadline =
@@ -282,11 +329,15 @@ bool CasualtySystem::derivation_matches(
 
     for (std::size_t index = 0; index < records_.size(); ++index) {
       const auto& record = records_[index];
+      if (!current_entities[index]) {
+        current_entities[index] = record.last_entity;
+      }
       if (record.state != states[index] || record.injuries != injuries[index] ||
           record.state_since != state_since[index] ||
           record.state_deadline != state_deadlines[index] ||
           record.last_source != sources[index] ||
-          record.last_transition_position != positions[index]) {
+          record.last_transition_position != positions[index] ||
+          record.last_entity != current_entities[index]) {
         return false;
       }
     }

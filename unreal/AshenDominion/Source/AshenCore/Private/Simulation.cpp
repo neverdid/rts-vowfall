@@ -25,6 +25,7 @@ inline constexpr std::int32_t kCaptureMaximum = 10'000;
 inline constexpr std::int32_t kControlIncomeThreshold = 2'000;
 inline constexpr std::int32_t kControlIncomePerTick = 155;
 inline constexpr std::int32_t kConstructionReach = 12'000;
+inline constexpr std::int32_t kRecoveredHealthBasisPoints = 5'000;
 inline constexpr std::uint64_t kFnvOffset = 14'695'981'039'346'656'037ULL;
 inline constexpr std::uint64_t kFnvPrime = 1'099'511'628'211ULL;
 inline constexpr std::size_t kInvalidEntityIndex =
@@ -324,15 +325,39 @@ EntityId Simulation::casualty_recovery_anchor(
 EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, const Vec2 position,
                                   const bool under_construction) {
   const auto definition = entity_definition(player(owner).faction, type);
+  const auto id = EntityId{next_entity_id_};
+  const auto identity = definition.kind == EntityKind::Unit
+                            ? UnitIdentityId{next_unit_identity_id_}
+                            : UnitIdentityId{};
+  auto entity = make_entity(owner, type, position, under_construction, id,
+                            identity, CasualtyState::Active);
+
+  if (entity.kind == EntityKind::Unit &&
+      !casualty_system_.register_unit(entity, tick_)) {
+    return {};
+  }
+  ++next_entity_id_;
+  next_unit_identity_id_ += entity.kind == EntityKind::Unit ? 1U : 0U;
+  append_entity(std::move(entity));
+  return id;
+}
+
+Entity Simulation::make_entity(const PlayerId owner, const EntityType type,
+                               const Vec2 position,
+                               const bool under_construction,
+                               const EntityId id,
+                               const UnitIdentityId identity,
+                               const CasualtyState casualty_state) {
+  const auto definition = entity_definition(player(owner).faction, type);
   Entity entity{};
-  entity.id = EntityId{next_entity_id_++};
+  entity.id = id;
+  entity.identity = definition.kind == EntityKind::Unit ? identity
+                                                        : UnitIdentityId{};
+  entity.casualty_state = casualty_state;
   entity.owner = owner;
   entity.faction = player(owner).faction;
   entity.type = type;
   entity.kind = definition.kind;
-  if (entity.kind == EntityKind::Unit) {
-    entity.identity = UnitIdentityId{next_unit_identity_id_++};
-  }
   entity.position = position;
   entity.radius = definition.radius;
   entity.hit_points = definition.hit_points;
@@ -362,18 +387,16 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   if (under_construction) {
     entity.hit_points = std::max(1, entity.max_hit_points * 24 / 100);
   }
+  return entity;
+}
 
-  if (entity.kind == EntityKind::Unit &&
-      !casualty_system_.register_unit(entity, tick_)) {
-    --next_entity_id_;
-    --next_unit_identity_id_;
-    return {};
-  }
-
+void Simulation::append_entity(Entity entity) {
+  const auto owner = entity.owner;
+  const auto type = entity.type;
   auto& owner_state = mutable_player(owner);
-  owner_state.supply_used += definition.supply_cost;
-  if (!under_construction) {
-    owner_state.supply_cap += definition.supply_provided;
+  owner_state.supply_used += entity.supply_cost;
+  if (!entity.under_construction) {
+    owner_state.supply_cap += entity.supply_provided;
   }
   if (type == EntityType::Command) {
     command_seen_[player_index(owner)] = true;
@@ -392,7 +415,6 @@ EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, c
   update_supply();
   refresh_visibility();
   refresh_observation_memory();
-  return entities_.back().id;
 }
 
 ResourceId Simulation::add_resource(const Vec2 position, const std::int32_t amount, const std::int32_t radius) {
@@ -512,6 +534,8 @@ CommandResult Simulation::apply_command(const Command& command) {
       return apply_break_vow(command);
     case CommandType::AmendVow:
       return apply_amend_vow(command);
+    case CommandType::RecoverCasualty:
+      return apply_recover_casualty(command);
   }
   return failure(CommandError::InvalidEntity, "Unsupported command.");
 }
@@ -1019,6 +1043,78 @@ CommandResult Simulation::apply_amend_vow(const Command& command) {
   vow->participating_affected_player = command.player;
   emit_event(VowAmendedEvent{vow->id, vow->maker, command.player,
                              vow->revision});
+  return success();
+}
+
+CommandResult Simulation::apply_recover_casualty(const Command& command) {
+  const auto* record = casualty_system_.find(command.casualty);
+  if (record == nullptr || !command.casualty) {
+    return failure(CommandError::CasualtyUnavailable,
+                   "That casualty identity is not retained.");
+  }
+  if (record->owner != command.player) {
+    return failure(CommandError::InvalidOwner,
+                   "That casualty belongs to another player.");
+  }
+  if (!casualty_system_.is_recoverable(command.casualty, tick_)) {
+    return failure(CommandError::CasualtyUnavailable,
+                   "That casualty is outside the recovery window.");
+  }
+  if (std::ranges::any_of(entities_, [identity = command.casualty](const Entity& entity) {
+        return entity.kind == EntityKind::Unit && entity.alive() &&
+               entity.identity == identity;
+      })) {
+    return failure(CommandError::CasualtyUnavailable,
+                   "That unit identity is already embodied.");
+  }
+
+  EntityId recovery_source{};
+  auto spawn_position = record->last_transition_position;
+  const auto definition =
+      entity_definition(record->faction, record->archetype);
+  if (record->faction == FactionId::Compact) {
+    recovery_source = casualty_recovery_anchor(command.casualty);
+    const auto* anchor = find_entity(recovery_source);
+    if (anchor == nullptr) {
+      return failure(
+          CommandError::SupplyBlocked,
+          "The casualty is outside the connected Road Ledger care network.");
+    }
+    const auto direction = command.player == PlayerId::One ? 1 : -1;
+    const auto spawn_offset = anchor->radius + definition.radius + 8'000;
+    spawn_position = nearest_navigable(
+        {anchor->position.x + direction * spawn_offset, anchor->position.y},
+        definition.radius);
+  } else {
+    spawn_position = nearest_navigable(spawn_position, definition.radius);
+  }
+
+  auto& owner = mutable_player(command.player);
+  if (owner.supply_used + queued_supply(command.player) +
+          definition.supply_cost >
+      owner.supply_cap) {
+    return failure(CommandError::SupplyBlocked,
+                   "Supply cap reached before recovery could complete.");
+  }
+
+  const auto entity_id = EntityId{next_entity_id_};
+  auto entity = make_entity(command.player, record->archetype, spawn_position,
+                            false, entity_id, record->identity,
+                            CasualtyState::Recoverable);
+  entity.hit_points = std::max(
+      1, entity.max_hit_points * kRecoveredHealthBasisPoints / 10'000);
+  if (!casualty_system_.recover(entity, recovery_source, tick_)) {
+    return failure(CommandError::CasualtyUnavailable,
+                   "The casualty could not be recovered.");
+  }
+
+  ++next_entity_id_;
+  append_entity(std::move(entity));
+  const auto& transition = casualty_system_.transitions().back();
+  emit_casualty_transition(transition);
+  emit_event(UnitRecoveredEvent{entity_id, recovery_source, command.casualty,
+                                CasualtyState::Recoverable,
+                                CasualtyState::Recovered});
   return success();
 }
 
@@ -1884,11 +1980,14 @@ void Simulation::apply_damage(Entity& target, const EntityId source,
                               std::max(0, target.hit_points),
                               target.identity});
   const auto wound_threshold = std::max(1, target.max_hit_points / 2);
-  if (previous_hit_points > wound_threshold && target.hit_points > 0 &&
-      target.hit_points <= wound_threshold) {
+  const auto previous_casualty_state = target.casualty_state;
+  if (target.hit_points > 0 &&
+      ((previous_hit_points > wound_threshold &&
+        target.hit_points <= wound_threshold) ||
+       previous_casualty_state == CasualtyState::Recovered)) {
     if (casualty_system_.mark_wounded(target, source, tick_)) {
       emit_event(UnitWoundedEvent{target.id, source, target.hit_points,
-                                  target.identity, CasualtyState::Active,
+                                  target.identity, previous_casualty_state,
                                   CasualtyState::Wounded});
     }
   }
@@ -2123,8 +2222,9 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
 
   const auto add = [&result](const CommandType type, const EntityId actor = {},
                              const std::optional<EntityType> entity_type = std::nullopt,
-                             const std::optional<ResearchId> research = std::nullopt) {
-    result.push_back({type, actor, entity_type, research});
+                             const std::optional<ResearchId> research = std::nullopt,
+                             const UnitIdentityId casualty = {}) {
+    result.push_back({type, actor, entity_type, research, casualty});
   };
 
   for (const auto& entity : entities_) {
@@ -2212,6 +2312,20 @@ std::vector<CommandCapability> Simulation::command_capabilities(const PlayerId o
   }
   if (power_legal) {
     add(CommandType::ActivatePower);
+  }
+
+  for (const auto& casualty : casualty_system_.records()) {
+    if (casualty.owner != owner ||
+        !is_casualty_recoverable(casualty.identity)) {
+      continue;
+    }
+    const auto definition = entity_definition(casualty.faction,
+                                              casualty.archetype);
+    if (state.supply_used + queued_supply(owner) + definition.supply_cost <=
+        state.supply_cap) {
+      add(CommandType::RecoverCasualty, {}, std::nullopt, std::nullopt,
+          casualty.identity);
+    }
   }
 
   std::ranges::sort(result);
@@ -2731,6 +2845,7 @@ std::uint64_t Simulation::state_hash() const noexcept {
     hash_integral(hash, static_cast<std::uint8_t>(command.research));
     hash_integral(hash, static_cast<std::uint8_t>(command.stance));
     hash_integral(hash, command.vow.value);
+    hash_integral(hash, command.casualty.value);
     hash_integral(hash, command.queue);
   }
   return hash;

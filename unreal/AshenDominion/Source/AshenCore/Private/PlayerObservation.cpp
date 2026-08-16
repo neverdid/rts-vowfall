@@ -202,10 +202,11 @@ PlayerObservation PlayerObservation::with_delayed_opponent_knowledge(
 
 bool PlayerObservation::permits(const CommandType type, const EntityId actor,
                                 const std::optional<EntityType> entity_type,
-                                const std::optional<ResearchId> research) const noexcept {
+                                const std::optional<ResearchId> research,
+                                const UnitIdentityId casualty) const noexcept {
   return std::ranges::any_of(capabilities_, [=](const CommandCapability& capability) {
     return capability.type == type && capability.actor == actor && capability.entity_type == entity_type &&
-           capability.research == research;
+           capability.research == research && capability.casualty == casualty;
   });
 }
 
@@ -300,6 +301,7 @@ std::uint64_t PlayerObservation::hash() const noexcept {
     hash_integral(hash, capability.research.has_value()
                             ? static_cast<std::uint8_t>(*capability.research) + 1U
                             : 0U);
+    hash_integral(hash, capability.casualty.value);
   }
   return hash;
 }

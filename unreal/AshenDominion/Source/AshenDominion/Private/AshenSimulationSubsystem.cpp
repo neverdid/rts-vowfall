@@ -613,6 +613,25 @@ bool UAshenSimulationSubsystem::IssueSetStance(const TArray<int32>& EntityIds, c
     return StoreCommandResult(Result.ok, Result.ok ? TEXT("War-band stance updated.") : CoreText(Result.reason));
 }
 
+bool UAshenSimulationSubsystem::IssueRecoverCasualty(
+    const int32 UnitIdentityId)
+{
+    if (Runtime == nullptr || UnitIdentityId <= 0)
+    {
+        return StoreCommandResult(false, TEXT("Choose a retained casualty identity."));
+    }
+    ashen::core::Command Command{};
+    Command.player = ashen::core::PlayerId::One;
+    Command.type = ashen::core::CommandType::RecoverCasualty;
+    Command.casualty =
+        ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)};
+    const auto Result = Runtime->ExecuteExternal(std::move(Command));
+    return StoreCommandResult(
+        Result.ok,
+        Result.ok ? TEXT("Casualty recovered into active service.")
+                  : CoreText(Result.reason));
+}
+
 FAshenPlayerView UAshenSimulationSubsystem::GetPlayerView(const int32 PlayerIndex) const
 {
     FAshenPlayerView View{};
@@ -916,6 +935,19 @@ bool UAshenSimulationSubsystem::IsCasualtyRecoverable(
     return Runtime != nullptr && UnitIdentityId > 0 &&
            Runtime->Simulation.is_casualty_recoverable(
                ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)});
+}
+
+bool UAshenSimulationSubsystem::CanIssueCasualtyRecovery(
+    const int32 UnitIdentityId) const
+{
+    if (Runtime == nullptr || UnitIdentityId <= 0)
+    {
+        return false;
+    }
+    return Runtime->Simulation.observe(ashen::core::PlayerId::One).permits(
+        ashen::core::CommandType::RecoverCasualty, {}, std::nullopt,
+        std::nullopt,
+        ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)});
 }
 
 int32 UAshenSimulationSubsystem::GetCasualtyRecoveryAnchorId(

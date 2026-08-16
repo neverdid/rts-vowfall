@@ -61,6 +61,7 @@ struct CommandCapability {
   EntityId actor{};
   std::optional<EntityType> entity_type{};
   std::optional<ResearchId> research{};
+  UnitIdentityId casualty{};
 
   auto operator<=>(const CommandCapability&) const = default;
 };
@@ -94,7 +95,8 @@ class ASHENCORE_API PlayerObservation final {
   [[nodiscard]] const std::vector<CommandCapability>& capabilities() const noexcept { return capabilities_; }
   [[nodiscard]] bool permits(CommandType type, EntityId actor = {},
                              std::optional<EntityType> entity_type = std::nullopt,
-                             std::optional<ResearchId> research = std::nullopt) const noexcept;
+                             std::optional<ResearchId> research = std::nullopt,
+                             UnitIdentityId casualty = {}) const noexcept;
   [[nodiscard]] std::uint64_t hash() const noexcept;
 
  private:

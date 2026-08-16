@@ -10,8 +10,8 @@
 
 namespace ashen::core {
 
-inline constexpr std::uint32_t kSnapshotSchemaVersion = 1;
-inline constexpr std::uint32_t kSnapshotMinimumReaderVersion = 1;
+inline constexpr std::uint32_t kSnapshotSchemaVersion = 2;
+inline constexpr std::uint32_t kSnapshotMinimumReaderVersion = 2;
 
 enum class SnapshotError : std::uint8_t {
   None,

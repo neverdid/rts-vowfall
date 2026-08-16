@@ -252,6 +252,7 @@ void write_command(Writer& writer, const Command& command) {
   writer.enumeration(command.research);
   writer.enumeration(command.stance);
   writer.integral(command.vow.value);
+  writer.integral(command.casualty.value);
   writer.boolean(command.queue);
 }
 
@@ -259,7 +260,7 @@ bool read_command(Reader& reader, Command& command) {
   if (!reader.integral(command.execute_tick) ||
       !reader.integral(command.sequence) ||
       !reader.enumeration(command.player, PlayerId::Two) ||
-      !reader.enumeration(command.type, CommandType::AmendVow)) {
+      !reader.enumeration(command.type, CommandType::RecoverCasualty)) {
     return false;
   }
   std::uint32_t entity_count{};
@@ -284,7 +285,8 @@ bool read_command(Reader& reader, Command& command) {
          reader.enumeration(command.building_type, EntityType::Turret) &&
          reader.enumeration(command.research, ResearchId::SiegeLiturgy) &&
          reader.enumeration(command.stance, UnitStance::Hold) &&
-         reader.integral(command.vow.value) && reader.boolean(command.queue);
+         reader.integral(command.vow.value) &&
+         reader.integral(command.casualty.value) && reader.boolean(command.queue);
 }
 
 void write_trace(Writer& writer, const CommandTraceEntry& trace) {
@@ -306,7 +308,7 @@ bool read_trace(Reader& reader, CommandTraceEntry& trace) {
          reader.integral(trace.ai_decision_id) &&
          read_command(reader, trace.command) &&
          reader.boolean(trace.accepted) &&
-         reader.enumeration(trace.error, CommandError::VowAuthorityRequired);
+         reader.enumeration(trace.error, CommandError::CasualtyUnavailable);
 }
 
 void write_input(Writer& writer, const ReplayInput& input) {
@@ -325,7 +327,7 @@ bool read_input(Reader& reader, ReplayInput& input) {
          read_command(reader, input.command) && reader.boolean(input.applied) &&
          reader.integral(input.applied_tick) &&
          reader.boolean(input.accepted) &&
-         reader.enumeration(input.error, CommandError::VowAuthorityRequired);
+         reader.enumeration(input.error, CommandError::CasualtyUnavailable);
 }
 
 void write_event_audit(Writer& writer, const ReplayEventAudit& event) {
@@ -429,7 +431,7 @@ template <typename Enum>
          command.sequence != std::numeric_limits<std::uint64_t>::max() &&
          command.entities.size() <= kMaximumCommandEntities &&
          valid_enum(command.player, PlayerId::Two) &&
-         valid_enum(command.type, CommandType::AmendVow) &&
+         valid_enum(command.type, CommandType::RecoverCasualty) &&
          valid_enum(command.train_type, EntityType::Turret) &&
          valid_enum(command.building_type, EntityType::Turret) &&
          valid_enum(command.research, ResearchId::SiegeLiturgy) &&
@@ -466,7 +468,7 @@ template <typename Enum>
     if (input.issued_tick < previous_input_tick ||
         input.issued_tick > replay.header.final_tick ||
         !valid_enum(input.submission, ReplaySubmission::Enqueue) ||
-        !valid_enum(input.error, CommandError::VowAuthorityRequired) ||
+        !valid_enum(input.error, CommandError::CasualtyUnavailable) ||
         !valid_command(input.command)) {
       return ReplayError::InvalidData;
     }
@@ -503,7 +505,7 @@ template <typename Enum>
         trace.issued_tick > trace.applied_tick ||
         trace.applied_tick > replay.header.final_tick ||
         !valid_enum(trace.source, CommandSource::CommanderAI) ||
-        !valid_enum(trace.error, CommandError::VowAuthorityRequired) ||
+        !valid_enum(trace.error, CommandError::CasualtyUnavailable) ||
         !valid_command(trace.command) ||
         trace.accepted != (trace.error == CommandError::None)) {
       return ReplayError::InvalidData;

@@ -51,6 +51,7 @@ class ASHENCORE_API CasualtySystem final {
   [[nodiscard]] bool mark_wounded(Entity& entity, EntityId source, Tick tick);
   [[nodiscard]] bool mark_incapacitated(Entity& entity, EntityId source,
                                         Tick tick);
+  [[nodiscard]] bool recover(Entity& entity, EntityId source, Tick tick);
   [[nodiscard]] bool mark_dead(Entity& entity, EntityId source, Tick tick);
   void advance(Tick tick);
 
