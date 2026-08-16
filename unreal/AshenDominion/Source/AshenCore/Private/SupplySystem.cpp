@@ -307,6 +307,20 @@ EntityId SupplySystem::retreat_anchor(
     const PlayerId owner, const Vec2 position,
     const std::span<const Entity> entities,
     const ContentRegistry& content) const noexcept {
+  return connected_transmitter_anchor(owner, position, entities, content);
+}
+
+EntityId SupplySystem::recovery_anchor(
+    const PlayerId owner, const Vec2 position,
+    const std::span<const Entity> entities,
+    const ContentRegistry& content) const noexcept {
+  return connected_transmitter_anchor(owner, position, entities, content);
+}
+
+EntityId SupplySystem::connected_transmitter_anchor(
+    const PlayerId owner, const Vec2 position,
+    const std::span<const Entity> entities,
+    const ContentRegistry& content) const noexcept {
   auto best = EntityId{};
   auto best_distance = std::numeric_limits<std::uint64_t>::max();
   for (const auto& state : states_) {

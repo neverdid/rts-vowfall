@@ -79,9 +79,10 @@ queries, event order, and tie-breaking are explicit.
   cohesion simulation, projectiles, facing, cover, charges, bracing, suppression,
   pursuit, or transformation gameplay. Stable unit identity and retained
   wound/incapacitation/recoverability/death history and fixed recovery-window
-  eligibility now exist, but evacuation, hospitals, missing outcomes, actual recovery,
-  and re-embodiment do not. The first Compact structure-node graph and reinforcement,
-  construction, and assisted-retreat consumers are implemented headlessly.
+  eligibility now exist, including Compact Road Ledger access gating, but authored
+  evacuation, hospitals, missing outcomes, actual recovery, and re-embodiment do not.
+  The first Compact structure-node graph and reinforcement, construction,
+  assisted-retreat, and recovery-access consumers are implemented headlessly.
 - A UMG/CommonUI HUD replacement.
 - Named checkpoint selection or replay playback in this pass. Unreal now provides a
   SnapshotV1 quick checkpoint/restore path and verified ReplayV1 export, while a

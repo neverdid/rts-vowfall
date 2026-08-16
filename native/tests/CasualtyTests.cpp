@@ -48,19 +48,26 @@ void run_test(const std::string_view name, Test&& test) {
   return entity;
 }
 
-[[nodiscard]] SimulationConfig empty_config() {
+[[nodiscard]] SimulationConfig empty_config(
+    const FactionId player_one_faction = FactionId::Compact) {
   SimulationConfig config{};
   config.seed_starting_forces = false;
   config.starting_ore = {2'000, 2'000};
+  config.player_one_faction = player_one_faction;
+  config.player_two_faction = player_one_faction == FactionId::Ascendancy
+                                  ? FactionId::Compact
+                                  : FactionId::Ascendancy;
   return config;
 }
 
 struct BattleFixture {
-  Simulation simulation{empty_config()};
+  Simulation simulation;
   EntityId victim{};
   UnitIdentityId victim_identity{};
 
-  BattleFixture() {
+  explicit BattleFixture(
+      const FactionId victim_faction = FactionId::Compact)
+      : simulation(empty_config(victim_faction)) {
     static_cast<void>(simulation.spawn_entity(
         PlayerId::One, EntityType::Command, world(100, 100)));
     static_cast<void>(simulation.spawn_entity(
@@ -112,6 +119,46 @@ struct BattleFixture {
     }
     CHECK(simulation.find_casualty(victim_identity)->state ==
           CasualtyState::Recoverable);
+  }
+};
+
+struct RoadLedgerCasualtyFixture {
+  Simulation simulation{empty_config()};
+  EntityId source{};
+  EntityId relay{};
+  EntityId victim{};
+  UnitIdentityId victim_identity{};
+
+  RoadLedgerCasualtyFixture() {
+    source = simulation.spawn_entity(
+        PlayerId::One, EntityType::Command, world(100, 100));
+    relay = simulation.spawn_entity(
+        PlayerId::One, EntityType::Barracks, world(500, 100));
+    static_cast<void>(simulation.spawn_entity(
+        PlayerId::Two, EntityType::Command, world(1'300, 100)));
+    victim = simulation.spawn_entity(
+        PlayerId::One, EntityType::Vanguard, world(840, 100));
+    victim_identity = simulation.find_entity(victim)->identity;
+    for (std::int32_t index = 0; index < 8; ++index) {
+      static_cast<void>(simulation.spawn_entity(
+          PlayerId::Two, EntityType::Turret,
+          world(885 + index, 90 + index * 3)));
+    }
+  }
+
+  void run_to_recoverable() {
+    const auto deadline = simulation.tick() + 240;
+    while ((simulation.find_casualty(victim_identity) == nullptr ||
+            simulation.find_casualty(victim_identity)->state !=
+                CasualtyState::Recoverable) &&
+           simulation.tick() < deadline) {
+      simulation.step();
+    }
+    CHECK(simulation.find_entity(victim) == nullptr);
+    CHECK(simulation.find_casualty(victim_identity) != nullptr);
+    CHECK(simulation.find_casualty(victim_identity) != nullptr &&
+          simulation.find_casualty(victim_identity)->state ==
+              CasualtyState::Recoverable);
   }
 };
 
@@ -328,6 +375,75 @@ void death_retains_identity_and_orders_transitions() {
             CasualtyState::Recoverable);
 }
 
+void road_ledger_access_gates_compact_recovery() {
+  RoadLedgerCasualtyFixture fixture;
+  ReplayRecorder recorder{fixture.simulation};
+  CHECK(!fixture.simulation.casualty_recovery_anchor(
+      fixture.victim_identity));
+  CHECK(fixture.simulation.is_supply_connected(fixture.source));
+  CHECK(fixture.simulation.is_supply_connected(fixture.relay));
+  fixture.run_to_recoverable();
+
+  CHECK(fixture.simulation.is_casualty_recoverable(
+      fixture.victim_identity));
+  CHECK(fixture.simulation.casualty_recovery_anchor(
+            fixture.victim_identity) == fixture.relay);
+
+  const auto connected_snapshot = load_snapshot_v1(
+      save_snapshot_v1(fixture.simulation));
+  CHECK(connected_snapshot);
+  CHECK(connected_snapshot.simulation != nullptr);
+  CHECK(connected_snapshot.simulation != nullptr &&
+        connected_snapshot.simulation->casualty_recovery_anchor(
+            fixture.victim_identity) == fixture.relay);
+
+  const auto connected_replay = verify_replay_v1(
+      save_replay_v1(recorder.finish(fixture.simulation)));
+  CHECK(connected_replay);
+  CHECK(connected_replay.simulation != nullptr);
+  CHECK(connected_replay.simulation != nullptr &&
+        connected_replay.simulation->is_casualty_recoverable(
+            fixture.victim_identity));
+  CHECK(connected_replay.simulation != nullptr &&
+        connected_replay.simulation->casualty_recovery_anchor(
+            fixture.victim_identity) == fixture.relay);
+
+  for (std::int32_t index = 0; index < 128; ++index) {
+    static_cast<void>(fixture.simulation.spawn_entity(
+        PlayerId::Two, EntityType::Turret, world(545, 100)));
+  }
+  fixture.simulation.step();
+  CHECK(fixture.simulation.find_entity(fixture.relay) == nullptr);
+  CHECK(!fixture.simulation.is_casualty_recoverable(
+      fixture.victim_identity));
+  CHECK(!fixture.simulation.casualty_recovery_anchor(
+      fixture.victim_identity));
+
+  const auto disconnected_snapshot = load_snapshot_v1(
+      save_snapshot_v1(fixture.simulation));
+  CHECK(disconnected_snapshot);
+  CHECK(disconnected_snapshot.simulation != nullptr);
+  CHECK(disconnected_snapshot.simulation != nullptr &&
+        !disconnected_snapshot.simulation->is_casualty_recoverable(
+            fixture.victim_identity));
+
+  const auto replacement = fixture.simulation.spawn_entity(
+      PlayerId::One, EntityType::Barracks, world(500, 100));
+  CHECK(fixture.simulation.is_casualty_recoverable(
+      fixture.victim_identity));
+  CHECK(fixture.simulation.casualty_recovery_anchor(
+            fixture.victim_identity) == replacement);
+}
+
+void non_compact_recovery_does_not_require_road_ledger_access() {
+  BattleFixture fixture{FactionId::Ascendancy};
+  fixture.run_to_recoverable();
+  CHECK(fixture.simulation.is_casualty_recoverable(
+      fixture.victim_identity));
+  CHECK(!fixture.simulation.casualty_recovery_anchor(
+      fixture.victim_identity));
+}
+
 void snapshot_and_replay_preserve_casualty_ledger() {
   BattleFixture fixture;
   ReplayRecorder recorder{fixture.simulation};
@@ -391,6 +507,10 @@ int main() {
            spawn_identity_is_unit_only_and_observation_safe);
   run_test("death retains identity and orders transitions",
            death_retains_identity_and_orders_transitions);
+  run_test("Road Ledger access gates Compact recovery",
+           road_ledger_access_gates_compact_recovery);
+  run_test("non-Compact recovery does not require Road Ledger access",
+           non_compact_recovery_does_not_require_road_ledger_access);
   run_test("snapshot and replay preserve casualty ledger",
            snapshot_and_replay_preserve_casualty_ledger);
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

@@ -260,6 +260,44 @@ void retreat_anchors_use_connected_transmitters_and_stable_ties() {
                                routed_entities, builtin_content()));
 }
 
+void recovery_anchors_use_connected_transmitters_and_stable_ties() {
+  std::vector<Entity> tied_entities{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Command, world(300, 100)),
+  };
+  auto tied_grid = grid_for(tied_entities);
+  SupplySystem tied;
+  tied.rebuild(tied_entities, tied_grid, builtin_content());
+  CHECK(tied.recovery_anchor(PlayerId::One, world(200, 100),
+                             tied_entities, builtin_content()) ==
+        EntityId{1});
+
+  std::vector<Entity> routed_entities{
+      supply_entity(1, EntityType::Command, world(100, 100)),
+      supply_entity(2, EntityType::Barracks, world(500, 100)),
+      supply_entity(3, EntityType::Barracks, world(500, 200),
+                    PlayerId::One, true),
+      supply_entity(4, EntityType::Turret, world(840, 100)),
+  };
+  auto routed_grid = grid_for(routed_entities);
+  SupplySystem routed;
+  routed.rebuild(routed_entities, routed_grid, builtin_content());
+  CHECK(routed.recovery_anchor(PlayerId::One, world(820, 200),
+                               routed_entities, builtin_content()) ==
+        EntityId{2});
+  CHECK(routed.recovery_anchor(PlayerId::One, world(860, 100),
+                               routed_entities, builtin_content()) ==
+        EntityId{2});
+  CHECK(!routed.recovery_anchor(PlayerId::One, world(861, 100),
+                                routed_entities, builtin_content()));
+
+  routed_entities.erase(routed_entities.begin() + 1);
+  routed_grid = grid_for(routed_entities);
+  routed.rebuild(routed_entities, routed_grid, builtin_content());
+  CHECK(!routed.recovery_anchor(PlayerId::One, world(860, 100),
+                                routed_entities, builtin_content()));
+}
+
 void relay_cut_and_reconnect_change_the_graph_deterministically() {
   std::vector<Entity> entities{
       supply_entity(1, EntityType::Command, world(100, 100)),
@@ -749,6 +787,8 @@ int main() {
            construction_sites_consume_but_do_not_relay_supply);
   run_test("retreat anchors use connected transmitters and stable ties",
            retreat_anchors_use_connected_transmitters_and_stable_ties);
+  run_test("recovery anchors use connected transmitters and stable ties",
+           recovery_anchors_use_connected_transmitters_and_stable_ties);
   run_test("relay cut and reconnect change the graph deterministically",
            relay_cut_and_reconnect_change_the_graph_deterministically);
   run_test("reinforcement legality and progress follow the route",

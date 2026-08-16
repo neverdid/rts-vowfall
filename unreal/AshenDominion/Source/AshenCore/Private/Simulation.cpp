@@ -298,6 +298,29 @@ void Simulation::run(const Tick ticks) {
   }
 }
 
+bool Simulation::is_casualty_recoverable(
+    const UnitIdentityId identity) const noexcept {
+  const auto* record = casualty_system_.find(identity);
+  if (record == nullptr ||
+      !casualty_system_.is_recoverable(identity, tick_)) {
+    return false;
+  }
+  return record->faction != FactionId::Compact ||
+         static_cast<bool>(casualty_recovery_anchor(identity));
+}
+
+EntityId Simulation::casualty_recovery_anchor(
+    const UnitIdentityId identity) const noexcept {
+  const auto* record = casualty_system_.find(identity);
+  if (record == nullptr || record->faction != FactionId::Compact ||
+      !casualty_system_.is_recoverable(identity, tick_)) {
+    return {};
+  }
+  return supply_system_.recovery_anchor(
+      record->owner, record->last_transition_position, entities_,
+      builtin_content());
+}
+
 EntityId Simulation::spawn_entity(const PlayerId owner, const EntityType type, const Vec2 position,
                                   const bool under_construction) {
   const auto definition = entity_definition(player(owner).faction, type);

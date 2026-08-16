@@ -94,8 +94,9 @@ identity/state, the identity-ordered casualty ledger, state deadlines, append-on
 transitions, and the next unit-identity cursor. Restore validates live-unit
 membership, legal transitions and deadline formulas, event projection, stable
 ordering, and retained non-live records before accepting the checkpoint. These
-payload additions advance the deterministic rules revision to 5; older SnapshotV1
-and ReplayV1 files are rejected by the pipeline digest before payload decoding. A
+payload additions and Road Ledger recovery eligibility advance the deterministic
+rules revision to 6; older SnapshotV1 and ReplayV1 files are rejected by the pipeline
+digest before payload decoding. A
 future long-lived save migration must introduce an explicit new schema instead of
 weakening that compatibility gate.
 
@@ -236,8 +237,14 @@ index maps `EntityId::value` to the current vector slot:
 - lethal damage drives `Active/Wounded -> Incapacitated`; a fixed deadline advances
   `Incapacitated -> Recoverable`, then a second deadline advances
   `Recoverable -> Dead`. Deadline ties follow identity order;
-- recoverability is a read-only authoritative query over state and the current tick.
-  `Recovered` and `Missing` remain reserved until evacuation, hospital, and
+- base recoverability is a read-only authoritative query over state and the current
+  tick. `Simulation` composes that window with a Compact-only Road Ledger access query
+  at the retained transition position. Connected completed sources/relays are tested
+  by squared integer distance, then distance and `EntityId` select the anchor;
+- the access anchor is derived from canonical entities and the rebuilt supply graph.
+  It is not separately stored or hashed, and a route cut never changes the persisted
+  casualty deadline. Unreal exposes both the composed eligibility and current anchor;
+- `Recovered` and `Missing` remain reserved until evacuation, hospital, and
   re-embodiment rules exist.
 
 ## Spatial queries

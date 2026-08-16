@@ -53,12 +53,18 @@ class ASHENCORE_API SupplySystem final {
   [[nodiscard]] EntityId retreat_anchor(
       PlayerId owner, Vec2 position, std::span<const Entity> entities,
       const ContentRegistry& content) const noexcept;
+  [[nodiscard]] EntityId recovery_anchor(
+      PlayerId owner, Vec2 position, std::span<const Entity> entities,
+      const ContentRegistry& content) const noexcept;
   [[nodiscard]] std::span<const SupplyNodeState> states() const noexcept {
     return states_;
   }
   [[nodiscard]] std::uint64_t state_hash() const noexcept;
 
  private:
+  [[nodiscard]] EntityId connected_transmitter_anchor(
+      PlayerId owner, Vec2 position, std::span<const Entity> entities,
+      const ContentRegistry& content) const noexcept;
   [[nodiscard]] static std::vector<SupplyNodeState> solve(
       std::span<const Entity> entities, const SpatialGrid& spatial_grid,
       const ContentRegistry& content);

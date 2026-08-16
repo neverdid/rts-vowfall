@@ -66,9 +66,9 @@ class ASHENCORE_API Simulation final {
     return casualty_system_.find(identity);
   }
   [[nodiscard]] bool is_casualty_recoverable(
-      UnitIdentityId identity) const noexcept {
-    return casualty_system_.is_recoverable(identity, tick_);
-  }
+      UnitIdentityId identity) const noexcept;
+  [[nodiscard]] EntityId casualty_recovery_anchor(
+      UnitIdentityId identity) const noexcept;
   [[nodiscard]] std::span<const MissionObjectiveState> mission_objectives()
       const noexcept {
     return objective_system_.states();

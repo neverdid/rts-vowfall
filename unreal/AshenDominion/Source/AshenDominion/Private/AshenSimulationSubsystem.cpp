@@ -910,6 +910,25 @@ TArray<FAshenSimulationEventView> UAshenSimulationSubsystem::GetSimulationEvents
     return Views;
 }
 
+bool UAshenSimulationSubsystem::IsCasualtyRecoverable(
+    const int32 UnitIdentityId) const
+{
+    return Runtime != nullptr && UnitIdentityId > 0 &&
+           Runtime->Simulation.is_casualty_recoverable(
+               ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)});
+}
+
+int32 UAshenSimulationSubsystem::GetCasualtyRecoveryAnchorId(
+    const int32 UnitIdentityId) const
+{
+    if (Runtime == nullptr || UnitIdentityId <= 0)
+    {
+        return 0;
+    }
+    return static_cast<int32>(Runtime->Simulation.casualty_recovery_anchor(
+        ashen::core::UnitIdentityId{static_cast<uint32>(UnitIdentityId)}).value);
+}
+
 TArray<FAshenResearchView> UAshenSimulationSubsystem::GetResearchViews(const int32 ProducerId) const
 {
     TArray<FAshenResearchView> Views;

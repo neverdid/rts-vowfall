@@ -48,7 +48,17 @@ resolved with lower entity ID breaking equal-distance ties, while a target-less 
 keeps the established behavior of withdrawing to the nearest command post. A cut-off
 unit can still receive an ordinary `Move`, but does not receive the Retreat resolve
 recovery or defensive-stance transition. AI discovers this through the same per-unit
-command capabilities as the player. Later connected formations may also receive:
+command capabilities as the player.
+
+The same physical access query now gates Compact casualty recovery eligibility.
+During the base recovery window, a Compact casualty must remain within the link range
+of a connected completed keep or assembly hall at its retained transition position.
+The closest transmitter wins, with lower entity ID breaking equal-distance ties.
+Unfinished relays and terminal bastions cannot provide care access. A route cut removes
+eligibility without pausing or extending the casualty deadline; reconnecting before
+expiry restores it. Other factions retain the base window without a Road Ledger gate.
+
+Later connected formations may also receive:
 
 - reinforcement and ammunition;
 - recovery and evacuation;
@@ -76,15 +86,17 @@ transitions a unit to `Incapacitated`. After a fixed 40-tick (two-second)
 stabilization delay it becomes `Recoverable` for a base 400-tick (twenty-second)
 window; expiry transitions it to `Dead`. Equal deadlines are processed by identity.
 Eligibility is true only while the state is `Recoverable` and the authoritative tick
-is strictly before the stored deadline.
+is strictly before the stored deadline. Compact eligibility additionally requires the
+Road Ledger care access described above. The timer remains owned by `CasualtySystem`;
+the network query is a derived `Simulation` rule and cannot mutate or freeze it.
 
 The ordered event stream exposes nonterminal casualty state changes, while
 `UnitKilled` is emitted only on terminal expiry. SnapshotV1/ReplayV1 preserve and
 verify records, deadlines, transitions, and their event projection. Owned
 observations carry live identity/state; sanitized enemy observations do not.
 
-`Recovered` and `Missing` remain reserved vocabulary. There is no evacuation route,
-hospital capacity, recovery command, re-embodiment, or identity transfer yet.
+`Recovered` and `Missing` remain reserved vocabulary. There is no authored evacuation
+route, hospital capacity, recovery command, re-embodiment, or identity transfer yet.
 `UnitRecovered` remains reserved and is not emitted by the current simulation.
 
 ### Production roles
